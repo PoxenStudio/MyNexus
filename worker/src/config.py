@@ -43,10 +43,10 @@ class WorkerConfig:
 
     splitter: SplitterConfig = field(default_factory=SplitterConfig)
 
-    # vector_store is always the built-in local store in M3 (see
-    # docs/系统设计文档.md's NAS memory-budget note) — kept as a config key so a
-    # real Chroma/Qdrant/pgvector backend can be swapped in later without
-    # touching pipeline code, per BaseVectorStore.
+    # vector_store: chroma (default, HNSW-indexed, scales to large libraries) |
+    # local (brute-force numpy + JSON, fine for a few thousand chunks / very
+    # constrained devices only) — see docs/系统设计文档.md §3.4.
+    vector_store: str = "chroma"
     vector_store_path: str = "./data/vectorstore"
 
     raw: dict = field(default_factory=dict)
@@ -95,6 +95,7 @@ def load_config() -> WorkerConfig:
         strategy=splitter.get("strategy", cfg.splitter.strategy),
     )
 
+    cfg.vector_store = raw.get("storage", {}).get("vector_store", cfg.vector_store)
     cfg.vector_store_path = raw.get("storage", {}).get("vector_store_path", cfg.vector_store_path)
 
     if v := os.getenv("MYNEXUS_EMBEDDING_OPENAI_API_KEY"):

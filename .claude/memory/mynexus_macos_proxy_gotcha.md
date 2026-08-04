@@ -9,9 +9,10 @@ On this dev machine, `urllib.request.getproxies()` returns a system-configured p
 
 Why it matters: any Python code in this repo (`worker/`) doing HTTP calls to `localhost`/`core-api`/other internal service names will hit this. Go's `net/http` is unaffected — it only honors `HTTP_PROXY`/`NO_PROXY` env vars, not macOS system proxy settings — so this is Python-specific.
 
-How to apply: for internal service-to-service HTTP calls in worker code (e.g. task progress/complete/fail callbacks to Core API), always bypass the system proxy explicitly:
+How to apply: use `worker/src/util/http.py`'s `urlopen(req, timeout=...)` for all outbound HTTP in worker code instead of calling `urllib.request.urlopen` directly. It inspects the request's hostname and only bypasses the proxy for localhost/loopback/private-IP targets (Core API, a LAN Ollama server, the mock test server, ...), while still routing genuine external hosts (api.openai.com, etc.) through the system proxy as normal — so real cloud API calls that need a proxy for network reasons still get one.
 ```python
-opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-opener.open(req, timeout=timeout)
+from util.http import urlopen
+with urlopen(req, timeout=timeout) as resp:
+    ...
 ```
-This is already applied in `worker/src/pipelines/ingestion.py`'s `_post_json`. Apply the same pattern to any new outbound HTTP client code added to `worker/` (e.g. M3's calls to Embedding/LLM providers should NOT bypass proxy — those are legitimately external and may need it — but calls to Core API / other internal MyNexus services should).
+As of M3 this is used everywhere worker makes an outbound HTTP call: `pipelines/ingestion.py` (Core API callbacks), `nodes/embedders/{openai,ollama}_embedder.py`, `nodes/llm/{openai,ollama}_llm.py`. Any new outbound HTTP client code added to `worker/` should use it too rather than reaching for `urllib.request` directly.

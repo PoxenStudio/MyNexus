@@ -6,6 +6,7 @@ from nodes.llm.base_llm import BaseLLM
 from nodes.llm.ollama_llm import OllamaLLM
 from nodes.llm.openai_llm import OpenAILLM
 from vector_store.base_store import BaseVectorStore
+from vector_store.chroma_store import ChromaStore
 from vector_store.simple_store import SimpleVectorStore
 
 
@@ -24,4 +25,6 @@ def get_llm(cfg: WorkerConfig) -> BaseLLM:
 
 
 def get_vector_store(cfg: WorkerConfig) -> BaseVectorStore:
-    return SimpleVectorStore(cfg.vector_store_path)
+    if cfg.vector_store == "local":
+        return SimpleVectorStore(cfg.vector_store_path)
+    return ChromaStore(cfg.vector_store_path)

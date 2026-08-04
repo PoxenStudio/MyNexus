@@ -5,3 +5,4 @@ ebooklib>=0.18
 beautifulsoup4>=4.12
 numpy>=1.26
 rank-bm25>=0.2
+chromadb>=0.5
