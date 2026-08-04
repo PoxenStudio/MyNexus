@@ -1,0 +1,56 @@
+server:
+  port: 8080
+  cors_origins: ["*"]
+
+auth:
+  jwt_secret: "change-me-in-production"
+  token_prefix: "mnx_"
+
+storage:
+  # database: sqlite | postgres
+  database: sqlite
+  sqlite:
+    path: "./data/mynexus.db"
+  postgres:
+    dsn: ""
+
+  # vector_store: chroma | pgvector | qdrant
+  vector_store: chroma
+  chroma:
+    path: "./data/chroma"
+
+worker:
+  url: "http://localhost:8001"
+  max_concurrent_tasks: 1
+  task_timeout_seconds: 600
+
+embedding:
+  # provider: openai | ollama
+  provider: openai
+  openai:
+    api_key: ""
+    base_url: "https://api.openai.com/v1"
+    model: "text-embedding-3-small"
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "nomic-embed-text"
+
+llm:
+  # provider: openai | ollama
+  provider: openai
+  openai:
+    api_key: ""
+    base_url: "https://api.openai.com/v1"
+    model: "gpt-4o-mini"
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama3"
+
+splitter:
+  chunk_size: 500
+  chunk_overlap: 50
+  strategy: "token"
+
+i18n:
+  default_locale: "zh-CN"
+  supported: ["zh-CN", "zh-TW", "en-US"]

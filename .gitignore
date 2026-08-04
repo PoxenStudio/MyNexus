@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+
+# Go
+bin/
+*.exe
+*.out
+/Volumes/data/cache/go/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Node/Vite
+node_modules/
+dist/
+
+# Local data
+/data/
+/.tmp/
+*.db
+*.sqlite
+*.sqlite3
+
+# Env files
+.env
+.env.*
