@@ -1,6 +1,6 @@
 PARENT := /Volumes/data/projects/poxenstudio/MyNexus
 
-m1-up:
+dev-up:
 	mkdir -p $(PARENT)/.tmp
 	GOCACHE=/Volumes/data/cache/go/.cache/go-build \
 	GOMODCACHE=/Volumes/data/cache/go/pkg/mod \
@@ -12,9 +12,9 @@ m1-up:
 	MYNEXUS_CONFIG_PATH=$(PARENT)/config/config.yaml \
 	PORT=8001 python3 worker/src/server.py > $(PARENT)/.tmp/worker.log 2>&1 & \
 	( cd web-ui && npm run dev > $(PARENT)/.tmp/web.log 2>&1 & ) ; \
-	 sleep 3 && echo 'M1 services started'
+	 sleep 3 && echo 'Dev services started'
 
-m1-down:
+dev-down:
 	pkill -f 'mynexus-api' || true
 	pkill -f 'worker/src/server.py' || true
 	pkill -f 'vite' || true

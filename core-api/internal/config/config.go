@@ -9,6 +9,9 @@ import (
 type ServerConfig struct {
 	Port        string   `yaml:"port"`
 	CORSOrigins []string `yaml:"cors_origins"`
+	// InternalURL is how Worker reaches Core API to post task progress/completion
+	// callbacks (e.g. http://core-api:8080 inside Docker, http://localhost:8080 locally).
+	InternalURL string `yaml:"internal_url"`
 }
 
 type AuthConfig struct {
@@ -24,12 +27,13 @@ type StorageConfig struct {
 	Database    string       `yaml:"database"`
 	SQLite      SQLiteConfig `yaml:"sqlite"`
 	VectorStore string       `yaml:"vector_store"`
+	UploadDir   string       `yaml:"upload_dir"`
 }
 
 type WorkerConfig struct {
-	URL                 string `yaml:"url"`
-	MaxConcurrentTasks  int    `yaml:"max_concurrent_tasks"`
-	TaskTimeoutSeconds  int    `yaml:"task_timeout_seconds"`
+	URL                string `yaml:"url"`
+	MaxConcurrentTasks int    `yaml:"max_concurrent_tasks"`
+	TaskTimeoutSeconds int    `yaml:"task_timeout_seconds"`
 }
 
 type I18nConfig struct {
@@ -50,11 +54,12 @@ type Config struct {
 
 func defaults() Config {
 	return Config{
-		Server: ServerConfig{Port: "8080", CORSOrigins: []string{"*"}},
+		Server: ServerConfig{Port: "8080", CORSOrigins: []string{"*"}, InternalURL: "http://localhost:8080"},
 		Auth:   AuthConfig{TokenPrefix: "mnx_"},
 		Storage: StorageConfig{
-			Database: "sqlite",
-			SQLite:   SQLiteConfig{Path: "./data/mynexus.db"},
+			Database:  "sqlite",
+			SQLite:    SQLiteConfig{Path: "./data/mynexus.db"},
+			UploadDir: "./data/uploads",
 		},
 		Worker: WorkerConfig{URL: "http://localhost:8001", MaxConcurrentTasks: 1, TaskTimeoutSeconds: 600},
 		I18n:   I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
@@ -88,6 +93,12 @@ func Load() Config {
 	}
 	if v := os.Getenv("MYNEXUS_STORAGE_SQLITE_PATH"); v != "" {
 		cfg.Storage.SQLite.Path = v
+	}
+	if v := os.Getenv("MYNEXUS_STORAGE_UPLOAD_DIR"); v != "" {
+		cfg.Storage.UploadDir = v
+	}
+	if v := os.Getenv("MYNEXUS_SERVER_INTERNAL_URL"); v != "" {
+		cfg.Server.InternalURL = v
 	}
 
 	cfg.Port = cfg.Server.Port

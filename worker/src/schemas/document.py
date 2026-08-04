@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class ParsedChapter:
+    id: str = ""
     title: str = ""
     level: int = 1
     order: int = 0
@@ -19,7 +20,9 @@ class ParsedDocument:
 
 @dataclass
 class Chunk:
-    content: str = ""
+    id: str = ""
+    book_id: str = ""
     chapter_id: str = ""
+    content: str = ""
     position: int = 0
     token_count: int = 0

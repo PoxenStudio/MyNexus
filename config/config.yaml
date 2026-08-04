@@ -1,6 +1,8 @@
 server:
   port: 8080
   cors_origins: ["*"]
+  # internal_url: how Worker reaches Core API to post task progress/completion callbacks
+  internal_url: "http://localhost:8080"
 
 auth:
   jwt_secret: "change-me-in-production"
@@ -13,11 +15,14 @@ storage:
     path: "./data/mynexus.db"
   postgres:
     dsn: ""
+  upload_dir: "./data/uploads"
 
-  # vector_store: chroma | pgvector | qdrant
-  vector_store: chroma
-  chroma:
-    path: "./data/chroma"
+  # vector_store: local (built-in, NAS-lightweight, no C-extension deps) | chroma | pgvector | qdrant
+  # M3 ships the "local" backend only — see docs/系统设计文档.md §3.4 for why
+  # Chroma's dependency footprint (onnxruntime, grpc, kubernetes client, ...)
+  # was dropped in favor of a small numpy + rank_bm25 implementation.
+  vector_store: local
+  vector_store_path: "./data/vectorstore"
 
 worker:
   url: "http://localhost:8001"

@@ -42,7 +42,9 @@
       "Bash(curl -s http://localhost:3000/)",
       "Bash(curl -s -o /dev/null -w \"core-api: %{http_code}\\\\n\" http://localhost:8080/healthz)",
       "Bash(curl -s -o /dev/null -w \"worker-ai: %{http_code}\\\\n\" http://localhost:8001/health)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(make dev-down *)",
+      "Bash(make dev-up *)"
     ]
   }
 }

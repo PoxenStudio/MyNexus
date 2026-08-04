@@ -1,0 +1,5 @@
+- [MyNexus project overview](mynexus_project.md) — book-knowledge-base system, Go core-api + Python worker + Vue web-ui, 4 milestones
+- [MyNexus M2 architecture decisions](mynexus_m2_decisions.md) — Core API owns all DB writes; Worker is stateless, reports via HTTP callback
+- [Worker nodes must be CLI-testable](mynexus_worker_cli_testable.md) — every pipeline node needs a standalone `python3 -m ...` entry point
+- [macOS system proxy breaks localhost HTTP calls](mynexus_macos_proxy_gotcha.md) — must bypass proxy for internal service-to-service calls on this dev machine
+- [MyNexus M3 architecture decisions](mynexus_m3_decisions.md) — dropped ChromaDB for a lightweight local vector store; token/BM25 approximations; chapter/chunk IDs assigned by Worker
