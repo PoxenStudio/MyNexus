@@ -235,6 +235,54 @@ func (h *BookHandler) rebuildOne(bookID string) (taskID string, err error) {
 	return task.ID, nil
 }
 
+// Summarize triggers the map-reduce summarization pipeline (chapter
+// summaries, then a whole-book summary — see worker/src/pipelines/summary.py)
+// for an already-ingested book. Requires the book to have chapters (i.e. a
+// completed ingest); re-running it (e.g. after editing/re-ingesting content)
+// simply overwrites the previous summaries.
+func (h *BookHandler) Summarize(c *gin.Context) {
+	id := c.Param("id")
+	taskID, err := h.summarizeOne(id)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "book.summarize", "book", id, "task_id="+taskID)
+	}
+	c.JSON(http.StatusAccepted, dto.RebuildResponse{TaskID: taskID, BookID: id})
+}
+
+func (h *BookHandler) summarizeOne(bookID string) (taskID string, err error) {
+	chapters, err := h.books.ListChapters(bookID)
+	if err != nil {
+		return "", err
+	}
+	if len(chapters) == 0 {
+		return "", fmt.Errorf("book has no chapters to summarize (ingest it first)")
+	}
+
+	task, err := h.tasks.CreateTask(bookID, defaultUserID, models.TaskTypeSummarize)
+	if err != nil {
+		return "", err
+	}
+
+	reqChapters := make([]coordinator.SummarizeChapter, 0, len(chapters))
+	for _, ch := range chapters {
+		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
+			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content,
+		})
+	}
+
+	if err := h.worker.TriggerSummarize(coordinator.SummarizeRequest{
+		TaskID: task.ID, BookID: bookID, Chapters: reqChapters,
+	}); err != nil {
+		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
+		return "", fmt.Errorf("failed to trigger summarization: %w", err)
+	}
+	return task.ID, nil
+}
+
 // BulkDelete and BulkRebuild implement 需求文档.md §6.7.3's "批量选择书籍并执行删除
 // 或重建操作" — each book is processed independently so one failure (e.g. a
 // book whose file was already removed from disk) doesn't block the rest;

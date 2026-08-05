@@ -1,4 +1,12 @@
 {
+  "header": {
+    "toggleDrawer": "展开/收起侧边栏",
+    "toggleTheme": "切换明暗主题",
+    "language": "切换语言"
+  },
+  "footer": {
+    "name": "MyNexus 后台管理"
+  },
   "nav": {
     "dashboard": "仪表盘",
     "books": "书籍管理",
@@ -42,6 +50,7 @@
   "books": {
     "title": "书籍管理",
     "upload": "上传书籍",
+    "uploadHint": "点击或拖拽 .epub / .txt 文件到此处",
     "table": {
       "title": "书名",
       "author": "作者",
@@ -53,6 +62,13 @@
     "detail": "详情",
     "chapters": "章节",
     "noChapters": "暂无章节数据",
+    "bookSummary": "全书总结",
+    "summarize": "总结全书",
+    "summarizing": "生成中…",
+    "summarizeProgress": "生成中… {progress}%",
+    "summarizeError": "生成总结失败",
+    "noSummaryYet": "暂无全书总结，点击「总结全书」生成",
+    "noChaptersToSummarize": "书籍还没有章节数据，无法生成总结",
     "rebuild": "重建",
     "bulkRebuild": "批量重建",
     "bulkDelete": "批量删除",
@@ -101,6 +117,12 @@
   },
   "settings": {
     "title": "设置",
+    "systemConfig": "系统配置",
+    "adminAccount": "管理员账号",
+    "account": "账号",
+    "avatar": "头像",
+    "changeAvatar": "更换头像",
+    "avatarError": "头像上传失败",
     "changePassword": "修改密码",
     "oldPassword": "当前密码",
     "newPassword": "新密码",
@@ -108,7 +130,34 @@
     "mismatch": "两次输入的新密码不一致",
     "tooShort": "新密码至少需要 4 个字符",
     "success": "密码修改成功",
-    "error": "密码修改失败"
+    "error": "密码修改失败",
+    "restartHint": "保存后会重启 core-api 与 worker 服务以使配置生效，当前登录会话也会失效，需要重新登录。",
+    "saveRestarting": "已保存，服务正在重启，即将跳转到登录页…",
+    "storage": "存储",
+    "storageDatabase": "数据库类型",
+    "sqlitePath": "SQLite 文件路径",
+    "postgresDsn": "Postgres 连接串",
+    "vectorStore": "向量库类型",
+    "vectorStorePath": "向量库路径",
+    "uploadDir": "上传目录",
+    "worker": "Worker",
+    "workerUrl": "Worker 地址（host:port）",
+    "maxConcurrentTasks": "最大并发任务数",
+    "taskTimeoutSeconds": "任务超时（秒）",
+    "embedding": "Embedding 服务",
+    "llm": "LLM 服务",
+    "provider": "提供方",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "model": "模型",
+    "splitter": "分块策略",
+    "chunkSize": "分块大小",
+    "chunkOverlap": "分块重叠",
+    "strategy": "策略",
+    "i18n": "语言",
+    "defaultLocale": "默认语言",
+    "chat": "会话功能",
+    "chatEnabled": "启用会话（问答）页面"
   },
   "chat": {
     "newSession": "新建会话",

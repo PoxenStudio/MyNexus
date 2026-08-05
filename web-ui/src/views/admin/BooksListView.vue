@@ -22,6 +22,7 @@ const bulkErrors = ref<string[]>([]);
 
 const allSelected = computed(() => books.value.length > 0 && selected.value.size === books.value.length);
 const someSelected = computed(() => selected.value.size > 0);
+const dragOver = ref(false);
 
 async function load() {
   loading.value = true;
@@ -37,14 +38,24 @@ async function load() {
 async function onFileSelected(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
+  await doUpload(file);
+  if (fileInput.value) fileInput.value.value = "";
+}
+
+async function doUpload(file: File) {
   uploading.value = true;
   try {
     await uploadBook(file);
     await load();
   } finally {
     uploading.value = false;
-    if (fileInput.value) fileInput.value.value = "";
   }
+}
+
+function onDrop(e: DragEvent) {
+  dragOver.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) doUpload(file);
 }
 
 async function onDelete(id: string) {
@@ -104,9 +115,27 @@ onMounted(load);
   <section>
     <h1>{{ t("books.title") }}</h1>
 
+    <label
+      class="upload-card"
+      :class="{ dragover: dragOver, uploading }"
+      @dragover.prevent="dragOver = true"
+      @dragleave.prevent="dragOver = false"
+      @drop.prevent="onDrop"
+    >
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".epub,.txt"
+        class="upload-input"
+        :disabled="uploading"
+        @change="onFileSelected"
+      />
+      <span class="upload-icon">📤</span>
+      <span class="upload-title">{{ t("books.upload") }}</span>
+      <span class="upload-hint">{{ uploading ? t("common.loading") : t("books.uploadHint") }}</span>
+    </label>
+
     <div class="toolbar">
-      <input ref="fileInput" type="file" accept=".epub,.txt" @change="onFileSelected" :disabled="uploading" />
-      <span v-if="uploading">{{ t("common.loading") }}</span>
       <button class="ghost" @click="load">{{ t("common.refresh") }}</button>
     </div>
 
@@ -152,11 +181,56 @@ onMounted(load);
 </template>
 
 <style scoped>
+.upload-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  padding: 1.5rem;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface, transparent);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.upload-card:hover,
+.upload-card.dragover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+.upload-card.uploading {
+  opacity: 0.7;
+  cursor: default;
+  pointer-events: none;
+}
+.upload-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.upload-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+.upload-title {
+  font-weight: 600;
+  color: var(--text-h);
+}
+.upload-hint {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin: 1rem 0;
+  justify-content: flex-end;
+  margin: 0 0 0.75rem;
 }
 .bulk-bar {
   display: flex;

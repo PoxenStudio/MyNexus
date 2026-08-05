@@ -6,7 +6,8 @@ import BooksListView from "../views/admin/BooksListView.vue";
 import BookDetailView from "../views/admin/BookDetailView.vue";
 import TasksView from "../views/admin/TasksView.vue";
 import TokensView from "../views/admin/TokensView.vue";
-import SettingsView from "../views/admin/SettingsView.vue";
+import SystemConfigView from "../views/admin/SystemConfigView.vue";
+import AdminAccountView from "../views/admin/AdminAccountView.vue";
 import AuditLogView from "../views/admin/AuditLogView.vue";
 import ChatView from "../views/ChatView.vue";
 import { useAuthStore } from "../stores/auth";
@@ -15,19 +16,41 @@ import { useAppConfigStore } from "../stores/appConfig";
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/login", name: "login", component: LoginView },
+    { path: "/login", name: "login", component: LoginView, meta: { titleKey: "login.title" } },
     {
       path: "/",
       component: AppLayout,
       children: [
-        { path: "", name: "dashboard", component: DashboardView },
-        { path: "books", name: "books", component: BooksListView },
-        { path: "books/:id", name: "book-detail", component: BookDetailView },
-        { path: "tasks", name: "tasks", component: TasksView },
-        { path: "tokens", name: "tokens", component: TokensView },
-        { path: "audit-log", name: "audit-log", component: AuditLogView },
-        { path: "settings", name: "settings", component: SettingsView },
-        { path: "chat", name: "chat", component: ChatView, meta: { requiresChat: true } },
+        { path: "", name: "dashboard", component: DashboardView, meta: { titleKey: "nav.dashboard" } },
+        { path: "books", name: "books", component: BooksListView, meta: { titleKey: "nav.books" } },
+        {
+          path: "books/:id",
+          name: "book-detail",
+          component: BookDetailView,
+          meta: { titleKey: "books.detail" },
+        },
+        { path: "tasks", name: "tasks", component: TasksView, meta: { titleKey: "nav.tasks" } },
+        { path: "tokens", name: "tokens", component: TokensView, meta: { titleKey: "nav.tokens" } },
+        { path: "audit-log", name: "audit-log", component: AuditLogView, meta: { titleKey: "nav.auditLog" } },
+        { path: "settings", redirect: "/settings/system" },
+        {
+          path: "settings/system",
+          name: "settings-system",
+          component: SystemConfigView,
+          meta: { titleKey: "settings.systemConfig" },
+        },
+        {
+          path: "settings/account",
+          name: "settings-account",
+          component: AdminAccountView,
+          meta: { titleKey: "settings.adminAccount" },
+        },
+        {
+          path: "chat",
+          name: "chat",
+          component: ChatView,
+          meta: { requiresChat: true, titleKey: "nav.chat" },
+        },
       ],
     },
   ],

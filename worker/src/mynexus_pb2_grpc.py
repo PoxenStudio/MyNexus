@@ -51,6 +51,16 @@ class WorkerServiceStub(object):
                 request_serializer=mynexus__pb2.ChatRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.ChatChunk.FromString,
                 _registered_method=True)
+        self.Shutdown = channel.unary_unary(
+                '/mynexus.WorkerService/Shutdown',
+                request_serializer=mynexus__pb2.ShutdownRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
+        self.TriggerSummarize = channel.unary_unary(
+                '/mynexus.WorkerService/TriggerSummarize',
+                request_serializer=mynexus__pb2.SummarizeRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.SummarizeAck.FromString,
+                _registered_method=True)
 
 
 class WorkerServiceServicer(object):
@@ -81,6 +91,34 @@ class WorkerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Shutdown(self, request, context):
+        """Acknowledges then exits the process shortly after replying — Core API
+        calls this after rewriting config.yaml from the system settings page, so
+        Worker restarts and picks up new embedding/llm/splitter config. Relies on
+        an external supervisor (Docker Compose's `restart: unless-stopped`) to
+        bring the process back up; in a bare `python3 server.py` dev run nothing
+        restarts it automatically. Best-effort: Core API ignores failures here
+        (Worker being unreachable already means it isn't running to restart).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TriggerSummarize(self, request, context):
+        """Starts a map-reduce summarization run in the background and returns
+        immediately, mirroring TriggerIngest: Worker never touches Core API's
+        database directly (see .claude/memory/mynexus_m2_decisions.md), so the
+        chapters to summarize are sent in the request rather than fetched by
+        Worker itself. Map: each chapter is summarized individually and reported
+        back (and persisted) as soon as it's done via ReportChapterSummary, so
+        partial progress survives a mid-run crash. Reduce: once every chapter
+        has a summary, they're combined into one whole-book summary, reported
+        via ReportBookSummary — which also marks the task complete.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -98,6 +136,16 @@ def add_WorkerServiceServicer_to_server(servicer, server):
                     servicer.Chat,
                     request_deserializer=mynexus__pb2.ChatRequest.FromString,
                     response_serializer=mynexus__pb2.ChatChunk.SerializeToString,
+            ),
+            'Shutdown': grpc.unary_unary_rpc_method_handler(
+                    servicer.Shutdown,
+                    request_deserializer=mynexus__pb2.ShutdownRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'TriggerSummarize': grpc.unary_unary_rpc_method_handler(
+                    servicer.TriggerSummarize,
+                    request_deserializer=mynexus__pb2.SummarizeRequest.FromString,
+                    response_serializer=mynexus__pb2.SummarizeAck.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -193,6 +241,60 @@ class WorkerService(object):
             metadata,
             _registered_method=True)
 
+    @staticmethod
+    def Shutdown(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/Shutdown',
+            mynexus__pb2.ShutdownRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TriggerSummarize(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/TriggerSummarize',
+            mynexus__pb2.SummarizeRequest.SerializeToString,
+            mynexus__pb2.SummarizeAck.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
 
 class CoreApiServiceStub(object):
     """---- CoreApiService: implemented by Core API, called by Worker ----
@@ -210,6 +312,11 @@ class CoreApiServiceStub(object):
                 request_serializer=mynexus__pb2.ProgressRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.Ack.FromString,
                 _registered_method=True)
+        self.ReportMetadata = channel.unary_unary(
+                '/mynexus.CoreApiService/ReportMetadata',
+                request_serializer=mynexus__pb2.MetadataRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
         self.ReportComplete = channel.unary_unary(
                 '/mynexus.CoreApiService/ReportComplete',
                 request_serializer=mynexus__pb2.CompleteRequest.SerializeToString,
@@ -218,6 +325,16 @@ class CoreApiServiceStub(object):
         self.ReportFail = channel.unary_unary(
                 '/mynexus.CoreApiService/ReportFail',
                 request_serializer=mynexus__pb2.FailRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
+        self.ReportChapterSummary = channel.unary_unary(
+                '/mynexus.CoreApiService/ReportChapterSummary',
+                request_serializer=mynexus__pb2.ChapterSummaryRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
+        self.ReportBookSummary = channel.unary_unary(
+                '/mynexus.CoreApiService/ReportBookSummary',
+                request_serializer=mynexus__pb2.BookSummaryRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.Ack.FromString,
                 _registered_method=True)
         self.KeywordSearch = channel.unary_unary(
@@ -238,6 +355,17 @@ class CoreApiServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ReportMetadata(self, request, context):
+        """Persists title/author/language as soon as parsing succeeds, well before
+        splitting/embedding finish — so a book's metadata is visible in the UI
+        even if a later stage (e.g. the embedding API call) fails. ReportComplete
+        still sends BookMeta too, as a harmless overwrite with the same values,
+        to keep the "everything happens in ReportComplete on success" case simple.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ReportComplete(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -246,6 +374,25 @@ class CoreApiServiceServicer(object):
 
     def ReportFail(self, request, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReportChapterSummary(self, request, context):
+        """Map step of summarization: persists one chapter's summary immediately
+        (see TriggerSummarize). Does not touch the task's status/progress or the
+        book's ingest status — ReportProgress covers progress, and a book being
+        "ready" (already ingested) is independent of whether a later
+        summarization run is in flight or has failed.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReportBookSummary(self, request, context):
+        """Reduce step: persists the whole-book summary and marks the summarize
+        task completed.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -268,6 +415,11 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
                     request_deserializer=mynexus__pb2.ProgressRequest.FromString,
                     response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
+            'ReportMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReportMetadata,
+                    request_deserializer=mynexus__pb2.MetadataRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
             'ReportComplete': grpc.unary_unary_rpc_method_handler(
                     servicer.ReportComplete,
                     request_deserializer=mynexus__pb2.CompleteRequest.FromString,
@@ -276,6 +428,16 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
             'ReportFail': grpc.unary_unary_rpc_method_handler(
                     servicer.ReportFail,
                     request_deserializer=mynexus__pb2.FailRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'ReportChapterSummary': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReportChapterSummary,
+                    request_deserializer=mynexus__pb2.ChapterSummaryRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'ReportBookSummary': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReportBookSummary,
+                    request_deserializer=mynexus__pb2.BookSummaryRequest.FromString,
                     response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
             'KeywordSearch': grpc.unary_unary_rpc_method_handler(
@@ -312,6 +474,33 @@ class CoreApiService(object):
             target,
             '/mynexus.CoreApiService/ReportProgress',
             mynexus__pb2.ProgressRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReportMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/ReportMetadata',
+            mynexus__pb2.MetadataRequest.SerializeToString,
             mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,
@@ -366,6 +555,60 @@ class CoreApiService(object):
             target,
             '/mynexus.CoreApiService/ReportFail',
             mynexus__pb2.FailRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReportChapterSummary(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/ReportChapterSummary',
+            mynexus__pb2.ChapterSummaryRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReportBookSummary(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/ReportBookSummary',
+            mynexus__pb2.BookSummaryRequest.SerializeToString,
             mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,

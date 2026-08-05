@@ -54,8 +54,9 @@ func (h *TaskHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewTaskResponse(*task))
 }
 
-// Retry resets a failed ingest task to pending and re-submits it to Worker
-// against the book's existing uploaded file (docs/开发技术文档.md §10.5 "失败任务重试").
+// Retry resets a failed task to pending and re-submits it to Worker — against
+// the book's existing uploaded file for an ingest task (docs/开发技术文档.md
+// §10.5 "失败任务重试"), or against its existing chapters for a summarize task.
 func (h *TaskHandler) Retry(c *gin.Context) {
 	id := c.Param("id")
 	task, err := h.tasks.GetTask(id)
@@ -73,16 +74,37 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	_ = h.books.SetStatus(book.ID, models.BookStatusPending)
 
-	if err := h.worker.TriggerIngest(coordinator.IngestRequest{
-		TaskID: id, BookID: book.ID, FilePath: book.FilePath,
-		OriginalFilename: filepath.Base(book.FilePath),
-	}); err != nil {
-		_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
-		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger ingestion: " + err.Error()})
-		return
+	if task.Type == models.TaskTypeSummarize {
+		chapters, err := h.books.ListChapters(book.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		reqChapters := make([]coordinator.SummarizeChapter, 0, len(chapters))
+		for _, ch := range chapters {
+			reqChapters = append(reqChapters, coordinator.SummarizeChapter{
+				ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content,
+			})
+		}
+		if err := h.worker.TriggerSummarize(coordinator.SummarizeRequest{
+			TaskID: id, BookID: book.ID, Chapters: reqChapters,
+		}); err != nil {
+			_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
+			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger summarization: " + err.Error()})
+			return
+		}
+	} else {
+		_ = h.books.SetStatus(book.ID, models.BookStatusPending)
+		if err := h.worker.TriggerIngest(coordinator.IngestRequest{
+			TaskID: id, BookID: book.ID, FilePath: book.FilePath,
+			OriginalFilename: filepath.Base(book.FilePath),
+		}); err != nil {
+			_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
+			_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger ingestion: " + err.Error()})
+			return
+		}
 	}
 
 	if actor, ok := c.Get("actor"); ok {

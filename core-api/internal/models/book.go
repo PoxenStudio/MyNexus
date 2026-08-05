@@ -27,6 +27,10 @@ type Book struct {
 	Status       string
 	Tags         string // JSON array, stored as-is
 	Category     string
-	CreatedAt    string
-	UpdatedAt    string
+	// Summary is the whole-book summary produced by the map-reduce
+	// summarization pipeline (see worker/src/pipelines/summary.py); empty
+	// until a summarize task completes for this book.
+	Summary   string
+	CreatedAt string
+	UpdatedAt string
 }

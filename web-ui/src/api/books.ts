@@ -10,6 +10,7 @@ export interface Book {
   status: string;
   tags: string[];
   category: string;
+  summary: string;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +50,11 @@ export async function deleteBook(id: string) {
 
 export async function rebuildBook(id: string) {
   const { data } = await apiClient.post<{ task_id: string; book_id: string }>(`/books/${id}/rebuild`);
+  return data;
+}
+
+export async function summarizeBook(id: string) {
+  const { data } = await apiClient.post<{ task_id: string; book_id: string }>(`/books/${id}/summarize`);
   return data;
 }
 

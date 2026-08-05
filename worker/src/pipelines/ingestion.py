@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from config import WorkerConfig, load_config
@@ -9,6 +10,8 @@ from nodes.parsers.registry import ParserRegistry
 from nodes.parsers.txt_parser import TxtParser
 from nodes.splitters.token_splitter import TokenSplitter
 from schemas.document import ParsedDocument
+
+logger = logging.getLogger(__name__)
 
 
 class IngestionPipeline:
@@ -49,7 +52,16 @@ class IngestionPipeline:
         server.py's TriggerIngest)."""
         try:
             self.core_api.report_progress(task_id, 10, "parsing")
+            # parse_and_clean is also the file-legality check: a corrupt/
+            # unsupported file raises here (e.g. EpubParser's epub.read_epub)
+            # before anything else runs.
             document = self.parse_and_clean(file_path, display_name)
+            self.core_api.report_progress(task_id, 25, "metadata_done")
+            # Persist title/author/language now, independent of whether the
+            # slower/more failure-prone splitting+embedding stages below
+            # succeed, so the book's info is never stuck blank because of an
+            # unrelated failure (e.g. an embedding API error) later on.
+            self.core_api.report_metadata(task_id, document)
             self.core_api.report_progress(task_id, 40, "cleaning_done")
 
             chunks = self.splitter.process(book_id, document.chapters)
@@ -66,6 +78,7 @@ class IngestionPipeline:
 
             self.core_api.report_complete(task_id, document, chunks)
         except Exception as exc:  # noqa: BLE001
+            logger.exception("ingestion failed (task_id=%s book_id=%s file_path=%s)", task_id, book_id, file_path)
             self.core_api.report_fail(task_id, str(exc))
 
 

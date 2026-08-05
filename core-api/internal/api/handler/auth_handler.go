@@ -3,21 +3,26 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"mynexus/core-api/internal/auth"
+	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
 )
 
 type AuthHandler struct {
-	admins   *service.AdminUserService
-	sessions *auth.SessionManager
-	audit    *service.AuditService
+	admins    *service.AdminUserService
+	sessions  *auth.SessionManager
+	audit     *service.AuditService
+	uploadDir string
 }
 
-func NewAuthHandler(admins *service.AdminUserService, sessions *auth.SessionManager, audit *service.AuditService) *AuthHandler {
-	return &AuthHandler{admins: admins, sessions: sessions, audit: audit}
+func NewAuthHandler(admins *service.AdminUserService, sessions *auth.SessionManager, audit *service.AuditService, uploadDir string) *AuthHandler {
+	return &AuthHandler{admins: admins, sessions: sessions, audit: audit, uploadDir: uploadDir}
 }
 
 type loginRequest struct {
@@ -71,7 +76,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"username": user.Username})
+	c.JSON(http.StatusOK, gin.H{"username": user.Username, "avatar_url": avatarURL(user)})
 }
 
 type changePasswordRequest struct {
@@ -109,6 +114,98 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		_ = h.audit.Log(actor.(string), "auth.change_password", "admin_user", userID.(string), "")
 	}
 	c.Status(http.StatusNoContent)
+}
+
+var avatarExts = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".gif": true}
+
+// maxAvatarSize caps the upload well above what any reasonable avatar image
+// needs, to avoid an admin (the only caller — this is behind RequireAuth)
+// accidentally filling up disk with a huge file.
+const maxAvatarSize = 5 << 20 // 5MB
+
+// UploadAvatar stores the image at {uploadDir}/avatars/{admin_id}{ext},
+// overwriting any previous avatar for the same admin (single avatar per
+// account, no history kept).
+func (h *AuthHandler) UploadAvatar(c *gin.Context) {
+	userID, ok := c.Get("admin_user_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
+		return
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+	if fileHeader.Size > maxAvatarSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file too large (max 5MB)"})
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if !avatarExts[ext] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported image format: " + ext})
+		return
+	}
+
+	dir := filepath.Join(h.uploadDir, "avatars")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	// Remove any previous avatar under a different extension first, so
+	// switching from e.g. .png to .jpg doesn't leave the old file behind.
+	removeExistingAvatar(dir, userID.(string))
+
+	relPath := filepath.Join("avatars", userID.(string)+ext)
+	if err := c.SaveUploadedFile(fileHeader, filepath.Join(h.uploadDir, relPath)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.admins.SetAvatar(userID.(string), relPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "auth.upload_avatar", "admin_user", userID.(string), "")
+	}
+	c.JSON(http.StatusOK, gin.H{"avatar_url": avatarPath(userID.(string))})
+}
+
+func removeExistingAvatar(dir, userID string) {
+	for ext := range avatarExts {
+		_ = os.Remove(filepath.Join(dir, userID+ext))
+	}
+}
+
+// ServeAvatar streams an admin's avatar image. Any authenticated caller can
+// view any admin's avatar (id isn't a secret, and today there's only ever
+// one admin account) — access control here is just "must be logged in".
+func (h *AuthHandler) ServeAvatar(c *gin.Context) {
+	id := c.Param("id")
+	user, err := h.admins.GetByID(id)
+	if err != nil || user == nil || user.AvatarPath == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	// Cache-Control: no-store so the browser re-fetches after a re-upload
+	// instead of showing a stale cached image at the same URL.
+	c.Header("Cache-Control", "no-store")
+	c.File(filepath.Join(h.uploadDir, user.AvatarPath))
+}
+
+// avatarURL/avatarPath are relative to apiClient's base URL (which already
+// includes "/api/v1" — see web-ui/src/api/client.ts), not the site root.
+func avatarURL(user *models.AdminUser) string {
+	if user.AvatarPath == "" {
+		return ""
+	}
+	return avatarPath(user.ID)
+}
+
+func avatarPath(userID string) string {
+	return "/auth/avatar/" + userID
 }
 
 func setSessionCookie(c *gin.Context, sessionID string) {

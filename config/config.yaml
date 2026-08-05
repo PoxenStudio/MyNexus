@@ -1,82 +1,54 @@
 server:
-  port: 8080
-  cors_origins: ["*"]
-  # grpc_port: Core API's gRPC listen port (Worker-facing: task progress/
-  # complete/fail, keyword search). Separate from `port` above, which is the
-  # browser-facing HTTP/SSE API and is unaffected by this. See
-  # .claude/memory/mynexus_grpc_migration.md.
-  grpc_port: 9090
-  # internal_url: Worker's gRPC dial target for reaching Core API back — a
-  # bare "host:port" authority (NOT an "http://" URL), pointing at grpc_port
-  # above, not `port`. Read by worker/src/config.py, not by Core API itself.
-  internal_url: "localhost:9090"
-
+    port: "8080"
+    cors_origins:
+        - '*'
+    grpc_port: "9090"
+    internal_url: localhost:9090
 auth:
-  jwt_secret: "change-me-in-production"
-  token_prefix: "mnx_"
-
+    jwt_secret: change-me-in-production
+    token_prefix: mnx_
 storage:
-  # database: sqlite (default, single-file, zero-ops — best for a single-instance
-  #   NAS deployment) | postgres (better concurrent-write throughput; use when
-  #   running multiple core-api instances or expecting heavy write concurrency).
-  # Can also be set via MYNEXUS_STORAGE_DATABASE env var (docker-compose.yml
-  # sets this so the backend is chooseable per-deployment without editing this
-  # file). See docs/Todos.md for the postgres implementation notes.
-  database: sqlite
-  sqlite:
-    path: "./data/mynexus.db"
-  postgres:
-    # dsn example: "postgres://mynexus:mynexus@postgres:5432/mynexus?sslmode=disable"
-    # can also be set via MYNEXUS_STORAGE_POSTGRES_DSN.
-    dsn: ""
-  upload_dir: "./data/uploads"
-
-  # vector_store: chroma (default, HNSW-indexed, scales to a large library) |
-  # local (brute-force numpy + JSON, only for a few thousand chunks / very
-  # constrained devices) | pgvector | qdrant — see docs/系统设计文档.md §3.4.
-  vector_store: chroma
-  vector_store_path: "./data/vectorstore"
-
+    database: sqlite
+    sqlite:
+        path: ./data/mynexus.db
+    postgres:
+        dsn: ""
+    vector_store: chroma
+    vector_store_path: ./data/vectorstore
+    upload_dir: ./data/uploads
 worker:
-  # url: Core API's gRPC dial target for reaching Worker — a bare "host:port"
-  # authority (NOT an "http://" URL). Read by core-api/internal/config/config.go.
-  url: "localhost:8001"
-  max_concurrent_tasks: 1
-  task_timeout_seconds: 600
-
+    url: localhost:8001
+    max_concurrent_tasks: 1
+    task_timeout_seconds: 600
 embedding:
-  # provider: openai | ollama
-  provider: openai
-  openai:
-    api_key: ""
-    base_url: "https://api.openai.com/v1"
-    model: "text-embedding-3-small"
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "nomic-embed-text"
-
+    provider: ollama
+    openai:
+        api_key: ""
+        base_url: https://api.openai.com/v1
+        model: text-embedding-3-small
+    ollama:
+        api_key: ""
+        base_url: http://localhost:11434
+        model: bge-m3
 llm:
-  # provider: openai | ollama
-  provider: openai
-  openai:
-    api_key: ""
-    base_url: "https://api.openai.com/v1"
-    model: "gpt-4o-mini"
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "llama3"
-
+    provider: ollama
+    openai:
+        api_key: ""
+        base_url: https://api.openai.com/v1
+        model: gpt-4o-mini
+    ollama:
+        api_key: ""
+        base_url: http://localhost:11434
+        model: qwen2.5:1.5b-instruct
 splitter:
-  chunk_size: 500
-  chunk_overlap: 50
-  strategy: "token"
-
+    chunk_size: 500
+    chunk_overlap: 50
+    strategy: token
 i18n:
-  default_locale: "zh-CN"
-  supported: ["zh-CN", "zh-TW", "en-US"]
-
+    default_locale: zh-CN
+    supported:
+        - zh-CN
+        - zh-TW
+        - en-US
 chat:
-  # Whether the end-user conversation ("会话") page/API is available at all.
-  # When false, /api/v1/chat/* returns 403 and the web-ui hides the page.
-  # Can also be set via MYNEXUS_CHAT_ENABLED.
-  enabled: true
+    enabled: true

@@ -8,7 +8,8 @@ const (
 )
 
 const (
-	TaskTypeIngest = "ingest"
+	TaskTypeIngest    = "ingest"
+	TaskTypeSummarize = "summarize"
 )
 
 type Task struct {

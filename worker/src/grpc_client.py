@@ -23,6 +23,13 @@ class CoreApiClient:
             mynexus_pb2.ProgressRequest(task_id=task_id, progress=progress, stage=stage, message=message)
         )
 
+    def report_metadata(self, task_id: str, document) -> None:
+        """Persists title/author/language as soon as parsing succeeds, before
+        the (slower, more failure-prone) splitting/embedding stages run — see
+        ingestion.py's run()."""
+        book = mynexus_pb2.BookMeta(title=document.title, author=document.author, language=document.language)
+        self._stub.ReportMetadata(mynexus_pb2.MetadataRequest(task_id=task_id, book=book))
+
     def report_complete(self, task_id: str, document, chunks: list) -> None:
         book = mynexus_pb2.BookMeta(title=document.title, author=document.author, language=document.language)
         chapters = [
@@ -46,6 +53,20 @@ class CoreApiClient:
 
     def report_fail(self, task_id: str, error_msg: str) -> None:
         self._stub.ReportFail(mynexus_pb2.FailRequest(task_id=task_id, error_msg=error_msg))
+
+    def report_chapter_summary(self, task_id: str, chapter_id: str, summary: str) -> None:
+        """Map step of summarization (see pipelines/summary.py): persists one
+        chapter's summary immediately, so progress survives a mid-run crash."""
+        self._stub.ReportChapterSummary(
+            mynexus_pb2.ChapterSummaryRequest(task_id=task_id, chapter_id=chapter_id, summary=summary)
+        )
+
+    def report_book_summary(self, task_id: str, book_id: str, summary: str) -> None:
+        """Reduce step: persists the whole-book summary and marks the
+        summarize task complete."""
+        self._stub.ReportBookSummary(
+            mynexus_pb2.BookSummaryRequest(task_id=task_id, book_id=book_id, summary=summary)
+        )
 
     def keyword_search(self, query: str, book_ids: list[str] | None, top_k: int) -> list[dict] | None:
         """Postgres-only GIN-indexed keyword search. Returns None (caller falls

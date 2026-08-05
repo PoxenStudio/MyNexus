@@ -6,6 +6,15 @@ import enUS from "./en-US.json";
 export const SUPPORTED_LOCALES = ["zh-CN", "zh-TW", "en-US"] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
+// Each language's own name for itself, shown in the language switcher —
+// not translated, since a locale's name should read the same regardless of
+// which locale is currently active.
+export const LOCALE_LABELS: Record<Locale, string> = {
+  "zh-CN": "简体中文",
+  "zh-TW": "繁體中文",
+  "en-US": "English",
+};
+
 function detectLocale(): Locale {
   const saved = localStorage.getItem("mynexus_locale");
   if (saved && (SUPPORTED_LOCALES as readonly string[]).includes(saved)) return saved as Locale;

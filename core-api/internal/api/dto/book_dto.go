@@ -20,6 +20,7 @@ type BookResponse struct {
 	Status       string   `json:"status"`
 	Tags         []string `json:"tags"`
 	Category     string   `json:"category"`
+	Summary      string   `json:"summary"`
 	CreatedAt    string   `json:"created_at"`
 	UpdatedAt    string   `json:"updated_at"`
 }
@@ -33,7 +34,7 @@ func NewBookResponse(b models.Book) BookResponse {
 	return BookResponse{
 		ID: b.ID, UserID: b.UserID, Title: b.Title, Author: b.Author, Publisher: b.Publisher,
 		Language: b.Language, PublishDate: b.PublishDate, ISBN: b.ISBN, SourceOrigin: b.SourceOrigin,
-		SourceFormat: b.SourceFormat, Status: b.Status, Tags: tags, Category: b.Category,
+		SourceFormat: b.SourceFormat, Status: b.Status, Tags: tags, Category: b.Category, Summary: b.Summary,
 		CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
 	}
 }

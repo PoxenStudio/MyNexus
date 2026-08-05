@@ -73,8 +73,8 @@ func (s *AdminUserService) Authenticate(username, password string) (string, erro
 func (s *AdminUserService) GetByID(id string) (*models.AdminUser, error) {
 	var u models.AdminUser
 	err := s.db.QueryRow(
-		`SELECT id, username, password_hash, created_at, updated_at FROM admin_users WHERE id = ?`, id,
-	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
+		`SELECT id, username, password_hash, avatar_path, created_at, updated_at FROM admin_users WHERE id = ?`, id,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.AvatarPath, &u.CreatedAt, &u.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -82,6 +82,16 @@ func (s *AdminUserService) GetByID(id string) (*models.AdminUser, error) {
 		return nil, fmt.Errorf("get admin user: %w", err)
 	}
 	return &u, nil
+}
+
+// SetAvatar records the on-disk path (relative to storage.upload_dir) of the
+// admin's uploaded avatar image.
+func (s *AdminUserService) SetAvatar(userID, avatarPath string) error {
+	_, err := s.db.Exec(
+		`UPDATE admin_users SET avatar_path = ?, updated_at = ? WHERE id = ?`,
+		avatarPath, time.Now().UTC().Format(time.RFC3339), userID,
+	)
+	return err
 }
 
 // ChangePassword verifies oldPassword against the stored hash before setting

@@ -1,4 +1,12 @@
 {
+  "header": {
+    "toggleDrawer": "Toggle sidebar",
+    "toggleTheme": "Toggle light/dark theme",
+    "language": "Switch language"
+  },
+  "footer": {
+    "name": "MyNexus Admin"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "books": "Books",
@@ -42,6 +50,7 @@
   "books": {
     "title": "Books",
     "upload": "Upload Book",
+    "uploadHint": "Click or drag an .epub / .txt file here",
     "table": {
       "title": "Title",
       "author": "Author",
@@ -53,6 +62,13 @@
     "detail": "Detail",
     "chapters": "Chapters",
     "noChapters": "No chapters yet",
+    "bookSummary": "Book Summary",
+    "summarize": "Summarize Book",
+    "summarizing": "Generating…",
+    "summarizeProgress": "Generating… {progress}%",
+    "summarizeError": "Failed to generate summary",
+    "noSummaryYet": "No summary yet — click \"Summarize Book\" to generate one",
+    "noChaptersToSummarize": "This book has no chapters yet, can't summarize",
     "rebuild": "Rebuild",
     "bulkRebuild": "Bulk Rebuild",
     "bulkDelete": "Bulk Delete",
@@ -101,6 +117,12 @@
   },
   "settings": {
     "title": "Settings",
+    "systemConfig": "System Config",
+    "adminAccount": "Admin Account",
+    "account": "Account",
+    "avatar": "Avatar",
+    "changeAvatar": "Change Avatar",
+    "avatarError": "Failed to upload avatar",
     "changePassword": "Change Password",
     "oldPassword": "Current Password",
     "newPassword": "New Password",
@@ -108,7 +130,34 @@
     "mismatch": "New passwords do not match",
     "tooShort": "New password must be at least 4 characters",
     "success": "Password changed successfully",
-    "error": "Failed to change password"
+    "error": "Failed to change password",
+    "restartHint": "Saving restarts both core-api and worker to apply the new config. Your current session will also be invalidated and you'll need to log in again.",
+    "saveRestarting": "Saved. Services are restarting, redirecting to login…",
+    "storage": "Storage",
+    "storageDatabase": "Database type",
+    "sqlitePath": "SQLite file path",
+    "postgresDsn": "Postgres DSN",
+    "vectorStore": "Vector store type",
+    "vectorStorePath": "Vector store path",
+    "uploadDir": "Upload directory",
+    "worker": "Worker",
+    "workerUrl": "Worker address (host:port)",
+    "maxConcurrentTasks": "Max concurrent tasks",
+    "taskTimeoutSeconds": "Task timeout (seconds)",
+    "embedding": "Embedding Service",
+    "llm": "LLM Service",
+    "provider": "Provider",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "model": "Model",
+    "splitter": "Splitter",
+    "chunkSize": "Chunk size",
+    "chunkOverlap": "Chunk overlap",
+    "strategy": "Strategy",
+    "i18n": "Locale",
+    "defaultLocale": "Default locale",
+    "chat": "Chat Feature",
+    "chatEnabled": "Enable the chat (Q&A) page"
   },
   "chat": {
     "newSession": "New Session",

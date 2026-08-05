@@ -65,6 +65,43 @@ func (c *WorkerClient) TriggerIngest(req IngestRequest) error {
 	return nil
 }
 
+type SummarizeChapter struct {
+	ID      string
+	Title   string
+	Level   int
+	Content string
+}
+
+type SummarizeRequest struct {
+	TaskID   string
+	BookID   string
+	Chapters []SummarizeChapter
+}
+
+// TriggerSummarize asks Worker to start a map-reduce summarization run in
+// the background. Chapters are sent in the request (not fetched by Worker)
+// since Worker never touches Core API's database directly — see the rpc
+// comment in mynexus.proto.
+func (c *WorkerClient) TriggerSummarize(req SummarizeRequest) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	chapters := make([]*mynexuspb.Chapter, 0, len(req.Chapters))
+	for _, ch := range req.Chapters {
+		chapters = append(chapters, &mynexuspb.Chapter{
+			Id: ch.ID, Title: ch.Title, Level: int32(ch.Level), Content: ch.Content,
+		})
+	}
+
+	_, err := c.client.TriggerSummarize(ctx, &mynexuspb.SummarizeRequest{
+		TaskId: req.TaskID, BookId: req.BookID, Chapters: chapters,
+	})
+	if err != nil {
+		return fmt.Errorf("call worker TriggerSummarize: %w", err)
+	}
+	return nil
+}
+
 type SearchRequest struct {
 	Query          string
 	BookIDs        []string
@@ -180,4 +217,19 @@ func (c *WorkerClient) Chat(req ChatRequest) (*ChatStream, error) {
 		return nil, fmt.Errorf("call worker Chat: %w", err)
 	}
 	return &ChatStream{stream: stream}, nil
+}
+
+// Shutdown asks Worker to exit shortly after acking, so it restarts and
+// picks up a just-saved config.yaml (see system_settings.go). Best-effort:
+// callers should ignore the error (Worker being unreachable already means
+// there's no running process to restart).
+func (c *WorkerClient) Shutdown() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := c.client.Shutdown(ctx, &mynexuspb.ShutdownRequest{})
+	if err != nil {
+		return fmt.Errorf("call worker Shutdown: %w", err)
+	}
+	return nil
 }

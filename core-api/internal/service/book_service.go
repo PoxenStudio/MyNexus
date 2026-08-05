@@ -112,7 +112,7 @@ func (s *BookService) ApplyParsedMetadata(bookID, title, author, language string
 func (s *BookService) GetBook(id string) (*models.Book, error) {
 	row := s.db.QueryRow(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, created_at, updated_at
 		 FROM books WHERE id = ?`, id)
 	return scanBook(row)
 }
@@ -145,7 +145,7 @@ func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book
 	listArgs := append(append([]any{}, args...), size, (page-1)*size)
 	rows, err := s.db.Query(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, created_at, updated_at
 		 FROM books `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list books: %w", err)
@@ -310,6 +310,23 @@ func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 	return chapters, rows.Err()
 }
 
+// UpdateChapterSummary persists one chapter's summary — the map step of
+// worker/src/pipelines/summary.py's summarization run, called once per
+// chapter as soon as it's ready (not batched), so progress survives a
+// mid-run crash/failure.
+func (s *BookService) UpdateChapterSummary(chapterID, summary string) error {
+	_, err := s.db.Exec(`UPDATE chapters SET summary = ? WHERE id = ?`, summary, chapterID)
+	return err
+}
+
+// SetBookSummary persists the whole-book summary — the reduce step, run once
+// after every chapter has a summary.
+func (s *BookService) SetBookSummary(bookID, summary string) error {
+	_, err := s.db.Exec(`UPDATE books SET summary = ?, updated_at = ? WHERE id = ?`,
+		summary, time.Now().UTC().Format(time.RFC3339), bookID)
+	return err
+}
+
 // ChapterTitle looks up a single chapter's title, used to enrich search
 // results with a human-readable chapter reference.
 func (s *BookService) ChapterTitle(chapterID string) (string, error) {
@@ -400,7 +417,7 @@ func scanBook(row rowScanner) (*models.Book, error) {
 func scanBookRows(row rowScanner) (*models.Book, error) {
 	var b models.Book
 	err := row.Scan(&b.ID, &b.UserID, &b.Title, &b.Author, &b.Publisher, &b.Language, &b.PublishDate,
-		&b.ISBN, &b.SourceOrigin, &b.SourceFormat, &b.FilePath, &b.Status, &b.Tags, &b.Category,
+		&b.ISBN, &b.SourceOrigin, &b.SourceFormat, &b.FilePath, &b.Status, &b.Tags, &b.Category, &b.Summary,
 		&b.CreatedAt, &b.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, err

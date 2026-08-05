@@ -1,4 +1,12 @@
 {
+  "header": {
+    "toggleDrawer": "展開/收起側邊欄",
+    "toggleTheme": "切換明暗主題",
+    "language": "切換語言"
+  },
+  "footer": {
+    "name": "MyNexus 後台管理"
+  },
   "nav": {
     "dashboard": "儀表盤",
     "books": "書籍管理",
@@ -42,6 +50,7 @@
   "books": {
     "title": "書籍管理",
     "upload": "上傳書籍",
+    "uploadHint": "點擊或拖曳 .epub / .txt 檔案到此處",
     "table": {
       "title": "書名",
       "author": "作者",
@@ -53,6 +62,13 @@
     "detail": "詳情",
     "chapters": "章節",
     "noChapters": "暫無章節數據",
+    "bookSummary": "全書總結",
+    "summarize": "總結全書",
+    "summarizing": "生成中…",
+    "summarizeProgress": "生成中… {progress}%",
+    "summarizeError": "生成總結失敗",
+    "noSummaryYet": "暫無全書總結，點擊「總結全書」生成",
+    "noChaptersToSummarize": "書籍還沒有章節數據，無法生成總結",
     "rebuild": "重建",
     "bulkRebuild": "批量重建",
     "bulkDelete": "批量刪除",
@@ -101,6 +117,12 @@
   },
   "settings": {
     "title": "設置",
+    "systemConfig": "系統配置",
+    "adminAccount": "管理員賬號",
+    "account": "賬號",
+    "avatar": "頭像",
+    "changeAvatar": "更換頭像",
+    "avatarError": "頭像上傳失敗",
     "changePassword": "修改密碼",
     "oldPassword": "當前密碼",
     "newPassword": "新密碼",
@@ -108,7 +130,34 @@
     "mismatch": "兩次輸入的新密碼不一致",
     "tooShort": "新密碼至少需要 4 個字符",
     "success": "密碼修改成功",
-    "error": "密碼修改失敗"
+    "error": "密碼修改失敗",
+    "restartHint": "保存後會重啟 core-api 與 worker 服務以使配置生效，當前登錄會話也會失效，需要重新登錄。",
+    "saveRestarting": "已保存，服務正在重啟，即將跳轉到登錄頁…",
+    "storage": "存儲",
+    "storageDatabase": "數據庫類型",
+    "sqlitePath": "SQLite 文件路徑",
+    "postgresDsn": "Postgres 連接串",
+    "vectorStore": "向量庫類型",
+    "vectorStorePath": "向量庫路徑",
+    "uploadDir": "上傳目錄",
+    "worker": "Worker",
+    "workerUrl": "Worker 地址（host:port）",
+    "maxConcurrentTasks": "最大並發任務數",
+    "taskTimeoutSeconds": "任務超時（秒）",
+    "embedding": "Embedding 服務",
+    "llm": "LLM 服務",
+    "provider": "提供方",
+    "apiKey": "API Key",
+    "baseUrl": "Base URL",
+    "model": "模型",
+    "splitter": "分塊策略",
+    "chunkSize": "分塊大小",
+    "chunkOverlap": "分塊重疊",
+    "strategy": "策略",
+    "i18n": "語言",
+    "defaultLocale": "默認語言",
+    "chat": "會話功能",
+    "chatEnabled": "啟用會話（問答）頁面"
   },
   "chat": {
     "newSession": "新建會話",

@@ -5,7 +5,10 @@ const props = defineProps<{
   data: { label: string; value: number }[];
 }>();
 
-const COLORS = ["#aa3bff", "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4"];
+// Series palette — #003153 (this app's Prussian-blue accent) first, then a
+// small set of distinguishable, similarly muted cool/semantic tones instead
+// of anything bright/playful.
+const COLORS = ["#003153", "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#06b6d4"];
 
 const max = computed(() => Math.max(1, ...props.data.map((d) => d.value)));
 </script>

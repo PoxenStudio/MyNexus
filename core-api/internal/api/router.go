@@ -33,13 +33,13 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 	sessions := auth.NewSessionManager()
 	workerClient := coordinator.NewWorkerClient(cfg.Worker.URL)
 
-	sys := handler.NewSystemHandler(cfg, store)
+	sys := handler.NewSystemHandler(cfg, store, workerClient, auditSvc)
 	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, auditSvc)
 	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient, auditSvc)
 	search := handler.NewSearchHandler(bookSvc, workerClient)
 	chat := handler.NewChatHandler(chatSvc, workerClient)
 	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)
-	authH := handler.NewAuthHandler(adminSvc, sessions, auditSvc)
+	authH := handler.NewAuthHandler(adminSvc, sessions, auditSvc, cfg.Storage.UploadDir)
 	auditH := handler.NewAuditHandler(auditSvc)
 
 	r.GET("/healthz", sys.Health)
@@ -56,10 +56,14 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 	{
 		protected.GET("/auth/me", authH.Me)
 		protected.POST("/auth/change-password", authH.ChangePassword)
+		protected.POST("/auth/avatar", authH.UploadAvatar)
+		protected.GET("/auth/avatar/:id", authH.ServeAvatar)
 
 		protected.GET("/system/health", sys.Health)
 		protected.GET("/system/stats", sys.Stats)
 		protected.GET("/system/config", sys.Config)
+		protected.GET("/system/settings", sys.Settings)
+		protected.PUT("/system/settings", sys.SaveSettings)
 
 		protected.POST("/books/import", books.Import)
 		protected.POST("/books/bulk-delete", books.BulkDelete)
@@ -70,6 +74,7 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 		protected.DELETE("/books/:id", books.Delete)
 		protected.GET("/books/:id/chunks", books.Chunks)
 		protected.POST("/books/:id/rebuild", books.Rebuild)
+		protected.POST("/books/:id/summarize", books.Summarize)
 
 		protected.GET("/tasks", tasks.List)
 		protected.GET("/tasks/:id", tasks.Get)

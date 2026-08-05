@@ -67,6 +67,7 @@ dev-up:
 	MYNEXUS_STORAGE_SQLITE_PATH=$(PARENT)/data/mynexus.db \
 	PORT=8080 go run ./core-api/cmd/mynexus-api > $(PARENT)/.tmp/core.log 2>&1 & \
 	MYNEXUS_CONFIG_PATH=$(PARENT)/config/config.yaml \
+	PYTHONUNBUFFERED=1 \
 	PORT=8001 python3 worker/src/server.py > $(PARENT)/.tmp/worker.log 2>&1 & \
 	( cd web-ui && npm run dev > $(PARENT)/.tmp/web.log 2>&1 & ) ; \
 	 sleep 3 && echo 'Dev services started'

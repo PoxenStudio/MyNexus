@@ -32,3 +32,62 @@ export async function fetchConfig(): Promise<SystemConfig> {
   const { data } = await apiClient.get<SystemConfig>("/system/config");
   return data;
 }
+
+// Mirrors core-api/internal/api/dto.SystemSettings — every config.yaml
+// section except server/auth (see docs/部署说明.md).
+export interface ProviderSettings {
+  api_key: string;
+  base_url: string;
+  model: string;
+}
+
+export interface SystemSettings {
+  storage: {
+    database: string;
+    sqlite: { path: string };
+    postgres: { dsn: string };
+    vector_store: string;
+    vector_store_path: string;
+    upload_dir: string;
+  };
+  worker: {
+    url: string;
+    max_concurrent_tasks: number;
+    task_timeout_seconds: number;
+  };
+  embedding: {
+    provider: string;
+    openai: ProviderSettings;
+    ollama: ProviderSettings;
+  };
+  llm: {
+    provider: string;
+    openai: ProviderSettings;
+    ollama: ProviderSettings;
+  };
+  splitter: {
+    chunk_size: number;
+    chunk_overlap: number;
+    strategy: string;
+  };
+  i18n: {
+    default_locale: string;
+    supported: string[];
+  };
+  chat: {
+    enabled: boolean;
+  };
+}
+
+export async function fetchSettings(): Promise<SystemSettings> {
+  const { data } = await apiClient.get<SystemSettings>("/system/settings");
+  return data;
+}
+
+// Rewrites config.yaml and restarts both core-api and worker (best-effort —
+// see the proto comment on WorkerService.Shutdown for what that does and
+// doesn't guarantee outside Docker Compose). The response itself still
+// arrives normally; core-api exits shortly after sending it.
+export async function saveSettings(settings: SystemSettings): Promise<void> {
+  await apiClient.put("/system/settings", settings);
+}

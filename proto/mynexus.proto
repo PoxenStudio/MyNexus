@@ -29,6 +29,38 @@ service WorkerService {
   // Streaming RAG chat: yields answer deltas, then exactly one citations
   // message as the final element.
   rpc Chat(ChatRequest) returns (stream ChatChunk);
+
+  // Acknowledges then exits the process shortly after replying — Core API
+  // calls this after rewriting config.yaml from the system settings page, so
+  // Worker restarts and picks up new embedding/llm/splitter config. Relies on
+  // an external supervisor (Docker Compose's `restart: unless-stopped`) to
+  // bring the process back up; in a bare `python3 server.py` dev run nothing
+  // restarts it automatically. Best-effort: Core API ignores failures here
+  // (Worker being unreachable already means it isn't running to restart).
+  rpc Shutdown(ShutdownRequest) returns (Ack);
+
+  // Starts a map-reduce summarization run in the background and returns
+  // immediately, mirroring TriggerIngest: Worker never touches Core API's
+  // database directly (see .claude/memory/mynexus_m2_decisions.md), so the
+  // chapters to summarize are sent in the request rather than fetched by
+  // Worker itself. Map: each chapter is summarized individually and reported
+  // back (and persisted) as soon as it's done via ReportChapterSummary, so
+  // partial progress survives a mid-run crash. Reduce: once every chapter
+  // has a summary, they're combined into one whole-book summary, reported
+  // via ReportBookSummary — which also marks the task complete.
+  rpc TriggerSummarize(SummarizeRequest) returns (SummarizeAck);
+}
+
+message ShutdownRequest {}
+
+message SummarizeRequest {
+  string task_id = 1;
+  string book_id = 2;
+  repeated Chapter chapters = 3;
+}
+
+message SummarizeAck {
+  bool accepted = 1;
 }
 
 message IngestRequest {
@@ -99,8 +131,24 @@ message ChatChunk {
 
 service CoreApiService {
   rpc ReportProgress(ProgressRequest) returns (Ack);
+  // Persists title/author/language as soon as parsing succeeds, well before
+  // splitting/embedding finish — so a book's metadata is visible in the UI
+  // even if a later stage (e.g. the embedding API call) fails. ReportComplete
+  // still sends BookMeta too, as a harmless overwrite with the same values,
+  // to keep the "everything happens in ReportComplete on success" case simple.
+  rpc ReportMetadata(MetadataRequest) returns (Ack);
   rpc ReportComplete(CompleteRequest) returns (Ack);
   rpc ReportFail(FailRequest) returns (Ack);
+
+  // Map step of summarization: persists one chapter's summary immediately
+  // (see TriggerSummarize). Does not touch the task's status/progress or the
+  // book's ingest status — ReportProgress covers progress, and a book being
+  // "ready" (already ingested) is independent of whether a later
+  // summarization run is in flight or has failed.
+  rpc ReportChapterSummary(ChapterSummaryRequest) returns (Ack);
+  // Reduce step: persists the whole-book summary and marks the summarize
+  // task completed.
+  rpc ReportBookSummary(BookSummaryRequest) returns (Ack);
 
   // Postgres-only GIN-indexed keyword search (see
   // .claude/memory/mynexus_keyword_search_gin.md) — Worker calls this
@@ -143,6 +191,11 @@ message Chunk {
   string vector_id = 6;
 }
 
+message MetadataRequest {
+  string task_id = 1;
+  BookMeta book = 2;
+}
+
 message CompleteRequest {
   string task_id = 1;
   BookMeta book = 2;
@@ -153,6 +206,18 @@ message CompleteRequest {
 message FailRequest {
   string task_id = 1;
   string error_msg = 2;
+}
+
+message ChapterSummaryRequest {
+  string task_id = 1;
+  string chapter_id = 2;
+  string summary = 3;
+}
+
+message BookSummaryRequest {
+  string task_id = 1;
+  string book_id = 2;
+  string summary = 3;
 }
 
 message KeywordSearchRequest {

@@ -35,3 +35,8 @@ export async function retryTask(id: string) {
   const { data } = await apiClient.post<Task>(`/tasks/${id}/retry`);
   return data;
 }
+
+export async function getTask(id: string) {
+  const { data } = await apiClient.get<Task>(`/tasks/${id}`);
+  return data;
+}

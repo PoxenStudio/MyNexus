@@ -53,7 +53,30 @@ func (s *CoreAPIServer) ReportProgress(ctx context.Context, req *mynexuspb.Progr
 	if err := s.tasks.UpdateProgress(req.TaskId, int(req.Progress), req.Stage, req.Message); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	if err := s.books.SetStatus(task.BookID, models.BookStatusProcessing); err != nil {
+	// Only an ingest task in flight means the book itself is "processing" —
+	// a summarize task running against an already-ready book shouldn't flip
+	// its status backward (see ReportChapterSummary/ReportBookSummary below,
+	// which is where a summarize task's own progress lives instead).
+	if task.Type == models.TaskTypeIngest {
+		if err := s.books.SetStatus(task.BookID, models.BookStatusProcessing); err != nil {
+			return nil, status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+	return &mynexuspb.Ack{Ok: true}, nil
+}
+
+// ReportMetadata persists title/author/language as soon as Worker finishes
+// parsing, independent of whether splitting/embedding later succeeds — see
+// the rpc comment in mynexus.proto for why this exists as its own call
+// instead of waiting for ReportComplete.
+func (s *CoreAPIServer) ReportMetadata(ctx context.Context, req *mynexuspb.MetadataRequest) (*mynexuspb.Ack, error) {
+	task, err := s.tasks.GetTask(req.TaskId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+
+	book := req.Book
+	if err := s.books.ApplyParsedMetadata(task.BookID, book.GetTitle(), book.GetAuthor(), book.GetLanguage()); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return &mynexuspb.Ack{Ok: true}, nil
@@ -109,7 +132,39 @@ func (s *CoreAPIServer) ReportFail(ctx context.Context, req *mynexuspb.FailReque
 	if err := s.tasks.Fail(req.TaskId, req.ErrorMsg); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	if err := s.books.SetStatus(task.BookID, models.BookStatusFailed); err != nil {
+	// See the matching guard in ReportProgress: a failed summarize run
+	// shouldn't mark an already-ready book as failed.
+	if task.Type == models.TaskTypeIngest {
+		if err := s.books.SetStatus(task.BookID, models.BookStatusFailed); err != nil {
+			return nil, status.Errorf(codes.Internal, "%v", err)
+		}
+	}
+	return &mynexuspb.Ack{Ok: true}, nil
+}
+
+// ReportChapterSummary persists one chapter's summary immediately (the map
+// step of a summarize task — see the rpc comment in mynexus.proto). Doesn't
+// touch the book's status or the task's completion state.
+func (s *CoreAPIServer) ReportChapterSummary(ctx context.Context, req *mynexuspb.ChapterSummaryRequest) (*mynexuspb.Ack, error) {
+	if _, err := s.tasks.GetTask(req.TaskId); err != nil {
+		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+	if err := s.books.UpdateChapterSummary(req.ChapterId, req.Summary); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &mynexuspb.Ack{Ok: true}, nil
+}
+
+// ReportBookSummary persists the whole-book summary (the reduce step) and
+// marks the summarize task completed.
+func (s *CoreAPIServer) ReportBookSummary(ctx context.Context, req *mynexuspb.BookSummaryRequest) (*mynexuspb.Ack, error) {
+	if _, err := s.tasks.GetTask(req.TaskId); err != nil {
+		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
+	}
+	if err := s.books.SetBookSummary(req.BookId, req.Summary); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	if err := s.tasks.Complete(req.TaskId); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return &mynexuspb.Ack{Ok: true}, nil

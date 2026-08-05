@@ -6,6 +6,8 @@ protobuf instead of JSON, and native streaming for Chat.
 """
 
 from concurrent import futures
+import logging
+import os
 import threading
 
 import grpc
@@ -16,6 +18,7 @@ from config import load_config
 from pipelines.ingestion import IngestionPipeline
 from pipelines.qa import QAPipeline
 from pipelines.retrieval import RetrievalPipeline
+from pipelines.summary import SummaryPipeline
 
 
 class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
@@ -23,6 +26,7 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         self.ingestion = IngestionPipeline(cfg)
         self.retrieval = RetrievalPipeline(cfg)
         self.qa = QAPipeline(cfg)
+        self.summary = SummaryPipeline(cfg)
 
     def TriggerIngest(self, request, context):
         # Fire-and-forget in a background thread — mirrors the old FastAPI
@@ -36,6 +40,18 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         )
         thread.start()
         return mynexus_pb2.IngestAck(accepted=True)
+
+    def TriggerSummarize(self, request, context):
+        # Same fire-and-forget pattern as TriggerIngest: returns immediately,
+        # progress/chapter-summaries/completion/failure all come back via
+        # CoreApiClient calls made from inside SummaryPipeline.run.
+        thread = threading.Thread(
+            target=self.summary.run,
+            args=(request.task_id, request.book_id, list(request.chapters)),
+            daemon=True,
+        )
+        thread.start()
+        return mynexus_pb2.SummarizeAck(accepted=True)
 
     def Search(self, request, context):
         results = self.retrieval.search(
@@ -80,12 +96,25 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
                 ]
                 yield mynexus_pb2.ChatChunk(citations=mynexus_pb2.CitationList(items=citations))
 
+    def Shutdown(self, request, context):
+        # Ack first, then exit shortly after on a separate thread so the
+        # response actually reaches Core API before the process dies — see
+        # the rpc comment in mynexus.proto for why this exists and what it
+        # depends on (an external supervisor to restart the process).
+        logging.info("shutdown requested via gRPC, exiting in 0.5s")
+        threading.Timer(0.5, lambda: os._exit(0)).start()
+        return mynexus_pb2.Ack(ok=True)
+
 
 def build_status() -> dict:
     return {"status": "ready", "pipeline": "worker-grpc", "stages": ["parse", "clean", "split", "embed"]}
 
 
 def main():
+    # Pipelines log failures (e.g. ingestion.py's exception handler) via the
+    # stdlib logging module; without a handler configured those are silently
+    # dropped instead of showing up in .tmp/worker.log.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load_config()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max(cfg.max_concurrent_tasks, 1) + 4))
     mynexus_pb2_grpc.add_WorkerServiceServicer_to_server(WorkerServicer(cfg), server)

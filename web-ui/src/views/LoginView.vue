@@ -31,8 +31,11 @@ async function onSubmit() {
 
 <template>
   <div class="login-page">
+    <div class="brand">
+      <span class="brand-mark">🕸️</span>
+      <span class="brand-name">MyNexus</span>
+    </div>
     <form class="login-card" @submit.prevent="onSubmit">
-      <div class="brand">🕸️ MyNexus</div>
       <h1>{{ t("login.title") }}</h1>
       <label>
         {{ t("login.username") }}
@@ -52,8 +55,10 @@ async function onSubmit() {
 .login-page {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1.5rem;
 }
 .login-card {
   width: 320px;
@@ -65,8 +70,20 @@ async function onSubmit() {
   border-radius: 12px;
 }
 .brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+.brand-mark {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+.brand-name {
   font-weight: 600;
-  font-size: 1.1rem;
+  font-size: 2rem;
+  color: var(--text-h);
 }
 h1 {
   font-size: 1.1rem;
