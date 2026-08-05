@@ -53,8 +53,10 @@ export async function rebuildBook(id: string) {
   return data;
 }
 
-export async function summarizeBook(id: string) {
-  const { data } = await apiClient.post<{ task_id: string; book_id: string }>(`/books/${id}/summarize`);
+export async function summarizeBook(id: string, mode: "restart" | "continue" = "restart") {
+  const { data } = await apiClient.post<{ task_id: string; book_id: string }>(`/books/${id}/summarize`, null, {
+    params: { mode },
+  });
   return data;
 }
 

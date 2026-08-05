@@ -64,6 +64,8 @@
     "noChapters": "暂无章节数据",
     "bookSummary": "全书总结",
     "summarize": "总结全书",
+    "continueSummarize": "继续总结全书",
+    "resummarize": "重新总结全书",
     "summarizing": "生成中…",
     "summarizeProgress": "生成中… {progress}%",
     "summarizeError": "生成总结失败",

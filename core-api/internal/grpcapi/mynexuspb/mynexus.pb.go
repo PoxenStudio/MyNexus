@@ -71,10 +71,15 @@ func (*ShutdownRequest) Descriptor() ([]byte, []int) {
 }
 
 type SummarizeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	BookId        string                 `protobuf:"bytes,2,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
-	Chapters      []*Chapter             `protobuf:"bytes,3,rep,name=chapters,proto3" json:"chapters,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	TaskId   string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	BookId   string                 `protobuf:"bytes,2,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
+	Chapters []*Chapter             `protobuf:"bytes,3,rep,name=chapters,proto3" json:"chapters,omitempty"`
+	// When false, chapters that already carry a non-empty `summary` are left
+	// untouched and only the missing ones are (re)generated — "continue"
+	// mode. When true, every chapter is regenerated regardless of any
+	// existing summary — "restart" mode.
+	ForceRestart  bool `protobuf:"varint,4,opt,name=force_restart,json=forceRestart,proto3" json:"force_restart,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -128,6 +133,13 @@ func (x *SummarizeRequest) GetChapters() []*Chapter {
 		return x.Chapters
 	}
 	return nil
+}
+
+func (x *SummarizeRequest) GetForceRestart() bool {
+	if x != nil {
+		return x.ForceRestart
+	}
+	return false
 }
 
 type SummarizeAck struct {
@@ -985,6 +997,7 @@ type Chapter struct {
 	Level         int32                  `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
 	SortOrder     int32                  `protobuf:"varint,4,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	Summary       string                 `protobuf:"bytes,6,opt,name=summary,proto3" json:"summary,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1050,6 +1063,13 @@ func (x *Chapter) GetSortOrder() int32 {
 func (x *Chapter) GetContent() string {
 	if x != nil {
 		return x.Content
+	}
+	return ""
+}
+
+func (x *Chapter) GetSummary() string {
+	if x != nil {
+		return x.Summary
 	}
 	return ""
 }
@@ -1599,11 +1619,12 @@ var File_mynexus_proto protoreflect.FileDescriptor
 const file_mynexus_proto_rawDesc = "" +
 	"\n" +
 	"\rmynexus.proto\x12\amynexus\"\x11\n" +
-	"\x0fShutdownRequest\"r\n" +
+	"\x0fShutdownRequest\"\x97\x01\n" +
 	"\x10SummarizeRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x17\n" +
 	"\abook_id\x18\x02 \x01(\tR\x06bookId\x12,\n" +
-	"\bchapters\x18\x03 \x03(\v2\x10.mynexus.ChapterR\bchapters\"*\n" +
+	"\bchapters\x18\x03 \x03(\v2\x10.mynexus.ChapterR\bchapters\x12#\n" +
+	"\rforce_restart\x18\x04 \x01(\bR\fforceRestart\"*\n" +
 	"\fSummarizeAck\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\"\x8b\x01\n" +
 	"\rIngestRequest\x12\x17\n" +
@@ -1660,14 +1681,15 @@ const file_mynexus_proto_rawDesc = "" +
 	"\bBookMeta\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x1a\n" +
-	"\blanguage\x18\x03 \x01(\tR\blanguage\"~\n" +
+	"\blanguage\x18\x03 \x01(\tR\blanguage\"\x98\x01\n" +
 	"\aChapter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
 	"\x05level\x18\x03 \x01(\x05R\x05level\x12\x1d\n" +
 	"\n" +
 	"sort_order\x18\x04 \x01(\x05R\tsortOrder\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\tR\acontent\"\xaa\x01\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12\x18\n" +
+	"\asummary\x18\x06 \x01(\tR\asummary\"\xaa\x01\n" +
 	"\x05Chunk\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +

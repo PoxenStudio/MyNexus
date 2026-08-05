@@ -57,6 +57,11 @@ message SummarizeRequest {
   string task_id = 1;
   string book_id = 2;
   repeated Chapter chapters = 3;
+  // When false, chapters that already carry a non-empty `summary` are left
+  // untouched and only the missing ones are (re)generated — "continue"
+  // mode. When true, every chapter is regenerated regardless of any
+  // existing summary — "restart" mode.
+  bool force_restart = 4;
 }
 
 message SummarizeAck {
@@ -180,6 +185,7 @@ message Chapter {
   int32 level = 3;
   int32 sort_order = 4;
   string content = 5;
+  string summary = 6;
 }
 
 message Chunk {

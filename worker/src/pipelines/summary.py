@@ -65,29 +65,41 @@ class SummaryPipeline:
         prompt = _BOOK_PROMPT_TEMPLATE.format(chapter_summaries=joined)
         return self._complete(prompt)
 
-    def run(self, task_id: str, book_id: str, chapters: list) -> None:
-        """chapters: protobuf Chapter messages (id/title/content — see
-        mynexus.proto's SummarizeRequest). Never raises: failures are
+    def run(self, task_id: str, book_id: str, chapters: list, force_restart: bool = True) -> None:
+        """chapters: protobuf Chapter messages (id/title/content/summary —
+        see mynexus.proto's SummarizeRequest). Never raises: failures are
         reported via report_fail instead, mirroring ingestion.py's run(),
         since this runs inside a background thread with no caller to catch
-        it (see server.py's TriggerSummarize)."""
+        it (see server.py's TriggerSummarize).
+
+        force_restart=False ("continue") skips chapters that already carry
+        a non-empty `summary` and reuses it as-is for the reduce step —
+        used to resume a partial run (e.g. after a retry) without paying
+        to redo chapters that already succeeded. force_restart=True
+        ("restart") regenerates every chapter regardless.
+        """
         try:
             usable = [ch for ch in chapters if ch.content.strip()]
             if not usable:
                 raise ValueError("book has no chapter content to summarize")
 
+            to_generate = usable if force_restart else [ch for ch in usable if not ch.summary.strip()]
+
             self.core_api.report_progress(task_id, 5, "summarizing_chapters")
 
-            chapter_summaries: list[tuple[str, str]] = []
-            total = len(usable)
-            for i, ch in enumerate(usable):
+            # Keeps original chapter order for the reduce step: chapters not
+            # in to_generate keep their existing summary untouched.
+            summaries_by_id = {ch.id: ch.summary for ch in usable}
+            total = len(to_generate)
+            for i, ch in enumerate(to_generate):
                 summary = self.summarize_chapter(ch.title, ch.content)
                 self.core_api.report_chapter_summary(task_id, ch.id, summary)
-                chapter_summaries.append((ch.title, summary))
+                summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
-                progress = 5 + int(80 * (i + 1) / total)
+                progress = 5 + int(80 * (i + 1) / max(total, 1))
                 self.core_api.report_progress(task_id, progress, "chapter_summarized", f"{i + 1}/{total}")
 
+            chapter_summaries = [(ch.title, summaries_by_id[ch.id]) for ch in usable]
             book_summary = self.summarize_book(chapter_summaries)
             self.core_api.report_progress(task_id, 95, "reducing_done")
             self.core_api.report_book_summary(task_id, book_id, book_summary)

@@ -2,7 +2,7 @@ import json
 import urllib.request
 
 from nodes.embedders.base_embedder import BaseEmbedder
-from util.http import urlopen
+from util.http import call_provider
 
 # OpenAI's text-embedding-3-small dimension; overridden by the first real
 # response if the configured model differs (see embedding_dimension()).
@@ -35,7 +35,7 @@ class OpenAIEmbedder(BaseEmbedder):
                 "Authorization": f"Bearer {self.api_key}",
             },
         )
-        with urlopen(req, timeout=60) as resp:
+        with call_provider(req, timeout=60, service="embedding", provider="openai", model=self.model) as resp:
             body = json.loads(resp.read())
 
         vectors = [item["embedding"] for item in sorted(body["data"], key=lambda d: d["index"])]

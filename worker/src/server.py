@@ -48,6 +48,7 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         thread = threading.Thread(
             target=self.summary.run,
             args=(request.task_id, request.book_id, list(request.chapters)),
+            kwargs={"force_restart": request.force_restart},
             daemon=True,
         )
         thread.start()

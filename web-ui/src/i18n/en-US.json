@@ -64,6 +64,8 @@
     "noChapters": "No chapters yet",
     "bookSummary": "Book Summary",
     "summarize": "Summarize Book",
+    "continueSummarize": "Continue Summarizing",
+    "resummarize": "Resummarize Book",
     "summarizing": "Generating…",
     "summarizeProgress": "Generating… {progress}%",
     "summarizeError": "Failed to generate summary",

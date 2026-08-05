@@ -70,12 +70,18 @@ type SummarizeChapter struct {
 	Title   string
 	Level   int
 	Content string
+	Summary string
 }
 
 type SummarizeRequest struct {
 	TaskID   string
 	BookID   string
 	Chapters []SummarizeChapter
+	// ForceRestart: when false, chapters that already carry a Summary are
+	// left alone by Worker and only the missing ones are (re)generated
+	// ("continue"). When true, every chapter is regenerated regardless of
+	// any existing summary ("restart").
+	ForceRestart bool
 }
 
 // TriggerSummarize asks Worker to start a map-reduce summarization run in
@@ -89,12 +95,12 @@ func (c *WorkerClient) TriggerSummarize(req SummarizeRequest) error {
 	chapters := make([]*mynexuspb.Chapter, 0, len(req.Chapters))
 	for _, ch := range req.Chapters {
 		chapters = append(chapters, &mynexuspb.Chapter{
-			Id: ch.ID, Title: ch.Title, Level: int32(ch.Level), Content: ch.Content,
+			Id: ch.ID, Title: ch.Title, Level: int32(ch.Level), Content: ch.Content, Summary: ch.Summary,
 		})
 	}
 
 	_, err := c.client.TriggerSummarize(ctx, &mynexuspb.SummarizeRequest{
-		TaskId: req.TaskID, BookId: req.BookID, Chapters: chapters,
+		TaskId: req.TaskID, BookId: req.BookID, Chapters: chapters, ForceRestart: req.ForceRestart,
 	})
 	if err != nil {
 		return fmt.Errorf("call worker TriggerSummarize: %w", err)

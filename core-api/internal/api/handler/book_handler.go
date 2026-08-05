@@ -242,7 +242,11 @@ func (h *BookHandler) rebuildOne(bookID string) (taskID string, err error) {
 // simply overwrites the previous summaries.
 func (h *BookHandler) Summarize(c *gin.Context) {
 	id := c.Param("id")
-	taskID, err := h.summarizeOne(id)
+	// mode=continue resumes a partial run, only (re)generating chapters that
+	// don't already have a summary; anything else (including the default,
+	// no chapters summarized yet) restarts every chapter from scratch.
+	forceRestart := c.Query("mode") != "continue"
+	taskID, err := h.summarizeOne(id, forceRestart)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -253,7 +257,7 @@ func (h *BookHandler) Summarize(c *gin.Context) {
 	c.JSON(http.StatusAccepted, dto.RebuildResponse{TaskID: taskID, BookID: id})
 }
 
-func (h *BookHandler) summarizeOne(bookID string) (taskID string, err error) {
+func (h *BookHandler) summarizeOne(bookID string, forceRestart bool) (taskID string, err error) {
 	chapters, err := h.books.ListChapters(bookID)
 	if err != nil {
 		return "", err
@@ -270,12 +274,12 @@ func (h *BookHandler) summarizeOne(bookID string) (taskID string, err error) {
 	reqChapters := make([]coordinator.SummarizeChapter, 0, len(chapters))
 	for _, ch := range chapters {
 		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
-			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content,
+			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
 		})
 	}
 
 	if err := h.worker.TriggerSummarize(coordinator.SummarizeRequest{
-		TaskID: task.ID, BookID: bookID, Chapters: reqChapters,
+		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: forceRestart,
 	}); err != nil {
 		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
 		return "", fmt.Errorf("failed to trigger summarization: %w", err)

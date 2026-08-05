@@ -84,11 +84,13 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 		reqChapters := make([]coordinator.SummarizeChapter, 0, len(chapters))
 		for _, ch := range chapters {
 			reqChapters = append(reqChapters, coordinator.SummarizeChapter{
-				ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content,
+				ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
 			})
 		}
+		// Retry resumes rather than restarts: chapters already summarized
+		// before the failure are kept, only the missing ones are redone.
 		if err := h.worker.TriggerSummarize(coordinator.SummarizeRequest{
-			TaskID: id, BookID: book.ID, Chapters: reqChapters,
+			TaskID: id, BookID: book.ID, Chapters: reqChapters, ForceRestart: false,
 		}); err != nil {
 			_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
 			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger summarization: " + err.Error()})

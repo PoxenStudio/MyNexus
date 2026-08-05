@@ -2,7 +2,7 @@ import json
 import urllib.request
 
 from nodes.embedders.base_embedder import BaseEmbedder
-from util.http import urlopen
+from util.http import call_provider
 
 
 class OllamaEmbedder(BaseEmbedder):
@@ -27,7 +27,7 @@ class OllamaEmbedder(BaseEmbedder):
                 method="POST",
                 headers={"Content-Type": "application/json"},
             )
-            with urlopen(req, timeout=60) as resp:
+            with call_provider(req, timeout=60, service="embedding", provider="ollama", model=self.model) as resp:
                 body = json.loads(resp.read())
             vectors.append(body["embedding"])
         if vectors:

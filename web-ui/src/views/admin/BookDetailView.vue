@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { getBook, summarizeBook, type BookDetail } from "../../api/books";
@@ -15,6 +15,21 @@ const summarizeTask = ref<Task | null>(null);
 const summarizeError = ref("");
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+// Three states, per how much of the map-reduce has already landed in the DB:
+// - none started: only "Summarize Book" (restart, though restart/continue
+//   are equivalent here since there's nothing to resume).
+// - some chapters summarized but no book-level summary yet (partial run,
+//   e.g. interrupted or failed midway): offer both "Continue" (resume,
+//   skip chapters already done) and "Restart" (redo everything).
+// - book summary present (a full run completed): only "Restart" — a
+//   "continue" from a finished state would be a no-op.
+const summarizeState = computed<"none" | "partial" | "done">(() => {
+  if (!book.value) return "none";
+  if (book.value.summary) return "done";
+  if (book.value.chapters.some((ch) => ch.summary)) return "partial";
+  return "none";
+});
+
 async function load() {
   loading.value = true;
   try {
@@ -24,12 +39,12 @@ async function load() {
   }
 }
 
-async function onSummarize() {
+async function onSummarize(mode: "restart" | "continue") {
   if (!book.value) return;
   summarizeError.value = "";
   summarizing.value = true;
   try {
-    const { task_id } = await summarizeBook(book.value.id);
+    const { task_id } = await summarizeBook(book.value.id, mode);
     pollTimer = setInterval(() => pollSummarize(task_id), 2000);
     await pollSummarize(task_id);
   } catch (e: any) {
@@ -83,14 +98,29 @@ onUnmounted(stopPolling);
       <div class="summary-section">
         <div class="summary-header">
           <h2>{{ t("books.bookSummary") }}</h2>
-          <button
-            class="ghost"
-            :disabled="summarizing || !book.chapters.length"
-            :title="!book.chapters.length ? t('books.noChaptersToSummarize') : undefined"
-            @click="onSummarize"
-          >
-            {{ summarizing ? t("books.summarizing") : t("books.summarize") }}
-          </button>
+          <div class="summary-actions">
+            <template v-if="summarizing">
+              <button class="ghost" disabled>{{ t("books.summarizing") }}</button>
+            </template>
+            <template v-else>
+              <button
+                v-if="summarizeState === 'partial'"
+                class="ghost"
+                :disabled="!book.chapters.length"
+                @click="onSummarize('continue')"
+              >
+                {{ t("books.continueSummarize") }}
+              </button>
+              <button
+                class="ghost"
+                :disabled="!book.chapters.length"
+                :title="!book.chapters.length ? t('books.noChaptersToSummarize') : undefined"
+                @click="onSummarize('restart')"
+              >
+                {{ summarizeState === "none" ? t("books.summarize") : t("books.resummarize") }}
+              </button>
+            </template>
+          </div>
         </div>
         <p v-if="summarizing && summarizeTask" class="progress-line">
           {{ t("books.summarizeProgress", { progress: summarizeTask.progress }) }}
@@ -138,6 +168,10 @@ onUnmounted(stopPolling);
 .summary-header h2 {
   margin: 0;
   font-size: 1rem;
+}
+.summary-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 .progress-line {
   font-size: 0.85rem;

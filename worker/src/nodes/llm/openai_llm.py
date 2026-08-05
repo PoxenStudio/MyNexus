@@ -3,7 +3,7 @@ import urllib.request
 from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM
-from util.http import urlopen
+from util.http import call_provider
 
 
 class OpenAILLM(BaseLLM):
@@ -31,7 +31,7 @@ class OpenAILLM(BaseLLM):
                 "Accept": "text/event-stream",
             },
         )
-        with urlopen(req, timeout=120) as resp:
+        with call_provider(req, timeout=120, service="llm", provider="openai", model=self.model) as resp:
             for raw_line in resp:
                 line = raw_line.decode("utf-8", errors="ignore").strip()
                 if not line or not line.startswith("data:"):
