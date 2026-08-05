@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "dashboard": "儀表盤",
+    "books": "書籍管理",
+    "tasks": "任務監控",
+    "tokens": "API Token"
+  },
+  "common": {
+    "loading": "載入中...",
+    "refresh": "刷新",
+    "delete": "刪除",
+    "retry": "重試",
+    "revoke": "吊銷",
+    "cancel": "取消",
+    "confirm": "確認",
+    "create": "創建",
+    "save": "保存",
+    "close": "關閉",
+    "confirmDelete": "確定要刪除嗎？此操作不可撤銷。",
+    "confirmRevoke": "確定要吊銷該 Token 嗎？吊銷後無法恢復。",
+    "empty": "暫無數據"
+  },
+  "dashboard": {
+    "title": "儀表盤",
+    "booksTotal": "書籍總數",
+    "chunksTotal": "分塊總數",
+    "sessionsTotal": "問答會話數",
+    "booksByStatus": "書籍狀態分佈",
+    "tasksByStatus": "任務狀態分佈"
+  },
+  "status": {
+    "pending": "待處理",
+    "processing": "處理中",
+    "ready": "已就緒",
+    "completed": "已完成",
+    "failed": "失敗"
+  },
+  "books": {
+    "title": "書籍管理",
+    "upload": "上傳書籍",
+    "table": {
+      "title": "書名",
+      "author": "作者",
+      "format": "格式",
+      "status": "狀態",
+      "updatedAt": "更新時間",
+      "actions": "操作"
+    },
+    "detail": "詳情",
+    "chapters": "章節",
+    "noChapters": "暫無章節數據"
+  },
+  "tasks": {
+    "title": "任務監控",
+    "table": {
+      "id": "任務 ID",
+      "bookId": "書籍 ID",
+      "type": "類型",
+      "status": "狀態",
+      "progress": "進度",
+      "error": "錯誤信息",
+      "updatedAt": "更新時間",
+      "actions": "操作"
+    }
+  },
+  "tokens": {
+    "title": "API Token 管理",
+    "createNew": "創建新 Token",
+    "alias": "用途/別名",
+    "aliasPlaceholder": "例如：MyBooks 服務集成",
+    "createdOnce": "該 Token 僅在此處完整顯示一次，請立即複製保存：",
+    "table": {
+      "alias": "別名",
+      "token": "Token",
+      "lastUsed": "最後使用",
+      "createdAt": "創建時間",
+      "status": "狀態",
+      "actions": "操作"
+    },
+    "neverUsed": "從未使用",
+    "revoked": "已吊銷",
+    "active": "有效"
+  }
+}

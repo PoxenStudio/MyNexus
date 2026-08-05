@@ -40,7 +40,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          # ChromaDB (HNSW index + onnxruntime import) plus FastAPI needs more
+          # headroom than a bare-bones worker — sized for a 4GB+ NAS, not the
+          # 512MB budget the earlier "avoid Chroma" decision assumed.
+          memory: 1536M
 
   web-ui:
     build:

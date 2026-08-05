@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "books": "Books",
+    "tasks": "Tasks",
+    "tokens": "API Tokens"
+  },
+  "common": {
+    "loading": "Loading...",
+    "refresh": "Refresh",
+    "delete": "Delete",
+    "retry": "Retry",
+    "revoke": "Revoke",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "create": "Create",
+    "save": "Save",
+    "close": "Close",
+    "confirmDelete": "Are you sure you want to delete this? This cannot be undone.",
+    "confirmRevoke": "Are you sure you want to revoke this token? This cannot be undone.",
+    "empty": "No data"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "booksTotal": "Total Books",
+    "chunksTotal": "Total Chunks",
+    "sessionsTotal": "Chat Sessions",
+    "booksByStatus": "Books by Status",
+    "tasksByStatus": "Tasks by Status"
+  },
+  "status": {
+    "pending": "Pending",
+    "processing": "Processing",
+    "ready": "Ready",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "books": {
+    "title": "Books",
+    "upload": "Upload Book",
+    "table": {
+      "title": "Title",
+      "author": "Author",
+      "format": "Format",
+      "status": "Status",
+      "updatedAt": "Updated At",
+      "actions": "Actions"
+    },
+    "detail": "Detail",
+    "chapters": "Chapters",
+    "noChapters": "No chapters yet"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "table": {
+      "id": "Task ID",
+      "bookId": "Book ID",
+      "type": "Type",
+      "status": "Status",
+      "progress": "Progress",
+      "error": "Error",
+      "updatedAt": "Updated At",
+      "actions": "Actions"
+    }
+  },
+  "tokens": {
+    "title": "API Token Management",
+    "createNew": "Create New Token",
+    "alias": "Purpose / Alias",
+    "aliasPlaceholder": "e.g. MyBooks service integration",
+    "createdOnce": "This token is shown in full only once — copy it now:",
+    "table": {
+      "alias": "Alias",
+      "token": "Token",
+      "lastUsed": "Last Used",
+      "createdAt": "Created At",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "neverUsed": "Never used",
+    "revoked": "Revoked",
+    "active": "Active"
+  }
+}

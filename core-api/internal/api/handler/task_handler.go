@@ -2,20 +2,27 @@ package handler
 
 import (
 	"net/http"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"mynexus/core-api/internal/api/dto"
+	"mynexus/core-api/internal/config"
+	"mynexus/core-api/internal/coordinator"
+	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
 )
 
 type TaskHandler struct {
-	tasks *service.TaskService
+	tasks  *service.TaskService
+	books  *service.BookService
+	worker *coordinator.WorkerClient
+	cfg    config.Config
 }
 
-func NewTaskHandler(tasks *service.TaskService) *TaskHandler {
-	return &TaskHandler{tasks: tasks}
+func NewTaskHandler(cfg config.Config, tasks *service.TaskService, books *service.BookService, worker *coordinator.WorkerClient) *TaskHandler {
+	return &TaskHandler{tasks: tasks, books: books, worker: worker, cfg: cfg}
 }
 
 func (h *TaskHandler) List(c *gin.Context) {
@@ -44,4 +51,38 @@ func (h *TaskHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.NewTaskResponse(*task))
+}
+
+// Retry resets a failed ingest task to pending and re-submits it to Worker
+// against the book's existing uploaded file (docs/开发技术文档.md §10.5 "失败任务重试").
+func (h *TaskHandler) Retry(c *gin.Context) {
+	id := c.Param("id")
+	task, err := h.tasks.GetTask(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+		return
+	}
+	book, err := h.books.GetBook(task.BookID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
+		return
+	}
+
+	if err := h.tasks.Retry(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	_ = h.books.SetStatus(book.ID, models.BookStatusPending)
+
+	if err := h.worker.TriggerIngest(coordinator.IngestRequest{
+		TaskID: id, BookID: book.ID, FilePath: book.FilePath,
+		OriginalFilename: filepath.Base(book.FilePath), CallbackBaseURL: h.cfg.Server.InternalURL,
+	}); err != nil {
+		_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
+		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger ingestion: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task))
 }

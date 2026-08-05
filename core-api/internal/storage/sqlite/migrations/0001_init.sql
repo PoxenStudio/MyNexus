@@ -58,14 +58,15 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_book ON tasks(book_id);
 
 CREATE TABLE IF NOT EXISTS api_tokens (
-    id           TEXT PRIMARY KEY,
-    user_id      TEXT NOT NULL,
-    token_hash   TEXT NOT NULL UNIQUE,
-    alias        TEXT DEFAULT '',
-    last_used_at DATETIME,
-    expires_at   DATETIME,
-    is_revoked   INTEGER NOT NULL DEFAULT 0,
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL,
+    token_hash    TEXT NOT NULL UNIQUE,
+    token_suffix  TEXT DEFAULT '',     -- last 4 chars of the raw token, for display only
+    alias         TEXT DEFAULT '',
+    last_used_at  DATETIME,
+    expires_at    DATETIME,
+    is_revoked    INTEGER NOT NULL DEFAULT 0,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS chat_sessions (

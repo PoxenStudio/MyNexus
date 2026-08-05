@@ -17,9 +17,9 @@ Docs live in `docs/`: 需求文档.md (requirements), 系统设计文档.md (sys
 4 milestones (confirmed reasonable, not restructured):
 - M1 project skeleton — done. Gin/FastAPI/Vue3 real skeletons, SQLite migrations, health checks.
 - M2 book import & task processing — done. Upload → parse (EPUB/TXT) → chapters stored → task pending/processing/completed/failed lifecycle visible. See [[mynexus_m2_decisions]].
-- M3 retrieval & QA — done. Chunking, embedding, local vector store, hybrid (vector+BM25) search, streaming RAG chat with citations, chat session persistence. See [[mynexus_m3_decisions]].
-- M4 admin backend & ops — not started. Book/task admin UI, API Token management, i18n, rate limiting, deploy hardening.
+- M3 retrieval & QA — done. Chunking, embedding, ChromaDB vector store, hybrid (vector+BM25) search, streaming RAG chat with citations, chat session persistence. See [[mynexus_m3_decisions]].
+- M4 admin backend & ops — done. Admin web-ui (dashboard/books/tasks/tokens), API Token issuance+validation, rate limiting, task retry, i18n (frontend). See [[mynexus_m4_decisions]] for scope boundaries and deferred items.
 
 Dev loop: `make dev-up` / `make dev-down` (renamed from `m1-up`/`m1-down` per user request — no longer milestone-scoped, reused across all milestones). Runs all three services locally against `./config/config.yaml` and `./data/`.
 
-Auth is deliberately absent through M3: `defaultUserID = "local-user"` hardcoded in book_handler.go / chat_handler.go. See [[mynexus_m2_decisions]] for why (MyBooks has no JWT, only Cookie/Session auth) and the M1/M2 API-Token-only decision — still true through M3, real auth is M4 scope.
+Auth: `defaultUserID = "local-user"` is still hardcoded everywhere (book_handler.go / chat_handler.go / token_handler.go) — M4 added real API Token *validation* (`middleware.APITokenAuth`, rejects invalid/revoked tokens) but did NOT make auth mandatory, since there's still no login flow for the admin UI to obtain a token with. See [[mynexus_m2_decisions]] for the original MyBooks-has-no-JWT reasoning and [[mynexus_m4_decisions]] for the enforcement decision. All 4 planned milestones are now complete; anything beyond this is new scope, not milestone backlog.

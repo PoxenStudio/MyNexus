@@ -2,4 +2,5 @@
 - [MyNexus M2 architecture decisions](mynexus_m2_decisions.md) — Core API owns all DB writes; Worker is stateless, reports via HTTP callback
 - [Worker nodes must be CLI-testable](mynexus_worker_cli_testable.md) — every pipeline node needs a standalone `python3 -m ...` entry point
 - [macOS system proxy breaks localhost HTTP calls](mynexus_macos_proxy_gotcha.md) — must bypass proxy for internal service-to-service calls on this dev machine
-- [MyNexus M3 architecture decisions](mynexus_m3_decisions.md) — dropped ChromaDB for a lightweight local vector store; token/BM25 approximations; chapter/chunk IDs assigned by Worker
+- [MyNexus M3 architecture decisions](mynexus_m3_decisions.md) — ChromaDB is the default vector store (corrected from an earlier numpy/JSON attempt); token/BM25 approximations; chapter/chunk IDs assigned by Worker
+- [MyNexus M4 decisions](mynexus_m4_decisions.md) — API Token auth (enforced when present, not required), in-process rate limiting, hand-rolled SVG dashboard charts, frontend-only i18n, known gaps

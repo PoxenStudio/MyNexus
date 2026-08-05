@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "dashboard": "仪表盘",
+    "books": "书籍管理",
+    "tasks": "任务监控",
+    "tokens": "API Token"
+  },
+  "common": {
+    "loading": "加载中...",
+    "refresh": "刷新",
+    "delete": "删除",
+    "retry": "重试",
+    "revoke": "吊销",
+    "cancel": "取消",
+    "confirm": "确认",
+    "create": "创建",
+    "save": "保存",
+    "close": "关闭",
+    "confirmDelete": "确定要删除吗？此操作不可撤销。",
+    "confirmRevoke": "确定要吊销该 Token 吗？吊销后无法恢复。",
+    "empty": "暂无数据"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "booksTotal": "书籍总数",
+    "chunksTotal": "分块总数",
+    "sessionsTotal": "问答会话数",
+    "booksByStatus": "书籍状态分布",
+    "tasksByStatus": "任务状态分布"
+  },
+  "status": {
+    "pending": "待处理",
+    "processing": "处理中",
+    "ready": "已就绪",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "books": {
+    "title": "书籍管理",
+    "upload": "上传书籍",
+    "table": {
+      "title": "书名",
+      "author": "作者",
+      "format": "格式",
+      "status": "状态",
+      "updatedAt": "更新时间",
+      "actions": "操作"
+    },
+    "detail": "详情",
+    "chapters": "章节",
+    "noChapters": "暂无章节数据"
+  },
+  "tasks": {
+    "title": "任务监控",
+    "table": {
+      "id": "任务 ID",
+      "bookId": "书籍 ID",
+      "type": "类型",
+      "status": "状态",
+      "progress": "进度",
+      "error": "错误信息",
+      "updatedAt": "更新时间",
+      "actions": "操作"
+    }
+  },
+  "tokens": {
+    "title": "API Token 管理",
+    "createNew": "创建新 Token",
+    "alias": "用途/别名",
+    "aliasPlaceholder": "例如：MyBooks 服务集成",
+    "createdOnce": "该 Token 仅在此处完整显示一次，请立即复制保存：",
+    "table": {
+      "alias": "别名",
+      "token": "Token",
+      "lastUsed": "最后使用",
+      "createdAt": "创建时间",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "neverUsed": "从未使用",
+    "revoked": "已吊销",
+    "active": "有效"
+  }
+}

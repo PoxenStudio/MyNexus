@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -30,12 +31,39 @@ func (h *SystemHandler) Health(c *gin.Context) {
 	})
 }
 
+// Stats feeds the admin dashboard's chart panel: counts by status so the
+// frontend can render simple bar/donut charts without a second round trip.
 func (h *SystemHandler) Stats(c *gin.Context) {
-	var bookCount int64
-	_ = h.store.DB().QueryRow("SELECT COUNT(*) FROM books").Scan(&bookCount)
+	db := h.store.DB()
+
+	var bookCount, chunkCount, sessionCount int64
+	_ = db.QueryRow("SELECT COUNT(*) FROM books").Scan(&bookCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM chunks").Scan(&chunkCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM chat_sessions").Scan(&sessionCount)
 
 	c.JSON(http.StatusOK, gin.H{
-		"books": bookCount,
-		"mode":  "m1-skeleton",
+		"books_total":     bookCount,
+		"chunks_total":    chunkCount,
+		"sessions_total":  sessionCount,
+		"books_by_status": countByStatus(db, "books"),
+		"tasks_by_status": countByStatus(db, "tasks"),
 	})
+}
+
+func countByStatus(db *sql.DB, table string) map[string]int64 {
+	counts := map[string]int64{}
+	rows, err := db.Query("SELECT status, COUNT(*) FROM " + table + " GROUP BY status")
+	if err != nil {
+		return counts
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var count int64
+		if rows.Scan(&status, &count) == nil {
+			counts[status] = count
+		}
+	}
+	return counts
 }

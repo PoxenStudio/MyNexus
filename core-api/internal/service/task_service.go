@@ -88,6 +88,12 @@ func (s *TaskService) ListTasks(page, size int, status string) ([]models.Task, i
 	return tasks, total, rows.Err()
 }
 
+// Retry resets a failed/completed task back to pending so it can be
+// re-submitted to Worker (see task_handler.go's Retry).
+func (s *TaskService) Retry(id string) error {
+	return s.updateStatus(id, models.TaskStatusPending, 0, "")
+}
+
 func (s *TaskService) UpdateProgress(id string, progress int) error {
 	_, err := s.db.Exec(
 		`UPDATE tasks SET status = ?, progress = ?, updated_at = ? WHERE id = ?`,
