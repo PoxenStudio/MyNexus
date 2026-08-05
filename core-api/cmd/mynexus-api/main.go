@@ -6,6 +6,7 @@ import (
 
 	"mynexus/core-api/internal/api"
 	"mynexus/core-api/internal/config"
+	"mynexus/core-api/internal/service"
 	"mynexus/core-api/internal/storage"
 	"mynexus/core-api/internal/storage/postgres"
 	"mynexus/core-api/internal/storage/sqlite"
@@ -33,6 +34,10 @@ func main() {
 		log.Fatalf("failed to open %s store: %v", cfg.Storage.Database, err)
 	}
 	defer store.Close()
+
+	if err := service.NewAdminUserService(store.DB()).EnsureDefaultAdmin(); err != nil {
+		log.Fatalf("failed to seed default admin account: %v", err)
+	}
 
 	router := api.NewRouter(cfg, store)
 

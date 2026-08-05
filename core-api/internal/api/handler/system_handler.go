@@ -50,6 +50,12 @@ func (h *SystemHandler) Stats(c *gin.Context) {
 	})
 }
 
+// Config exposes feature toggles the web-ui needs before rendering nav/routes
+// — currently just whether the conversation ("会话") page is enabled.
+func (h *SystemHandler) Config(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"chat_enabled": h.cfg.Chat.Enabled})
+}
+
 func countByStatus(db *sql.DB, table string) map[string]int64 {
 	counts := map[string]int64{}
 	rows, err := db.Query("SELECT status, COUNT(*) FROM " + table + " GROUP BY status")

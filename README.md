@@ -10,9 +10,17 @@ MyNexus 将 EPUB / PDF / TXT 电子书导入后，自动完成解析、清洗、
 
 - **core-api**（Go + Gin）：唯一持有业务数据的服务，所有元数据（书籍、章节、任务、对话、Token）存储于关系型数据库，默认 SQLite（`modernc.org/sqlite`，纯 Go 驱动，便于 NAS 多架构构建，无需 CGO），也可切换为 Postgres（详见下文「后端数据库选择」）。
 - **worker**（Python + FastAPI）：无状态的能力节点层，负责解析 / 清洗 / 分块 / 向量化 / 检索 / LLM 问答，通过 HTTP 回调向 core-api 汇报任务进度与结果。向量存储默认使用 ChromaDB（HNSW 索引，适合大规模书库），也可切换为轻量的本地 numpy + JSON 方案。
-- **web-ui**（Vue 3 + TypeScript + Vite）：管理后台前端，包含仪表盘、书籍管理、任务监控、Token 管理，支持中文简体/繁体与英文界面。
+- **web-ui**（Vue 3 + TypeScript + Vite）：管理后台前端，包含仪表盘、书籍管理、任务监控、Token 管理、会话（问答）页面，支持中文简体/繁体与英文界面。
 
 详细需求、系统设计与开发计划见 `docs/` 目录：`需求文档.md`、`系统设计文档.md`、`开发技术文档.md`。
+
+## 登录与访问控制
+
+管理后台需要登录才能访问。首次启动会自动创建默认管理员账号 **用户名 `admin` / 密码 `admin`**（`AdminUserService.EnsureDefaultAdmin`，仅在 `admin_users` 表为空时播种一次），**首次登录后请立即在「设置」页面修改密码**。管理员登录使用 Cookie/Session（与 MyBooks 自身的鉴权方式一致，非 JWT），会话有效期 24 小时，服务重启后需要重新登录。
+
+其它服务/自动化脚本访问 Core API 走 API Token 方式（后台「API Token」页面创建/查看/吊销），与管理员登录是两条独立、可并存的鉴权路径：受保护的接口在「有效 Session」或「有效 Token」任一满足时即可访问。
+
+会话（问答）页面可通过 `chat.enabled` 配置项整体开关（默认开启，环境变量 `MYNEXUS_CHAT_ENABLED`）：关闭后 `/api/v1/chat/*` 接口返回 403，前端也会隐藏该导航项。该页面位于登录后的管理后台内，不是独立的匿名对外页面。
 
 ## 后端数据库选择
 

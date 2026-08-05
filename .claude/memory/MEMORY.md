@@ -7,3 +7,4 @@
 - [MyNexus known gaps and conflicts](mynexus_known_gaps_and_conflicts.md) — consolidated audit: jwt_secret dead code, no rebuild endpoint, no chat UI, no audit log, BM25 scale limit (postgres gap now resolved, see next line)
 - [MyNexus Postgres backend](mynexus_postgres_backend.md) — sqlite+postgres both real via storage.Database interface; shared `?`-style SQL rewritten to `$N` by a driver shim, not duplicated queries
 - [MyNexus migration versioning](mynexus_migration_versioning.md) — schema_migrations table tracks applied files now; future schema changes are new numbered files, not edits to shipped ones
+- [MyNexus admin auth](mynexus_admin_auth.md) — session-based admin login (default admin/admin, change password), chat.enabled toggle, chat page lives inside the authenticated admin app

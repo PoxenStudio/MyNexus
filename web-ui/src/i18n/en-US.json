@@ -3,7 +3,10 @@
     "dashboard": "Dashboard",
     "books": "Books",
     "tasks": "Tasks",
-    "tokens": "API Tokens"
+    "tokens": "API Tokens",
+    "chat": "Chat",
+    "settings": "Settings",
+    "logout": "Log Out"
   },
   "common": {
     "loading": "Loading...",
@@ -80,5 +83,33 @@
     "neverUsed": "Never used",
     "revoked": "Revoked",
     "active": "Active"
+  },
+  "login": {
+    "title": "Admin Login",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Log In",
+    "error": "Invalid username or password"
+  },
+  "settings": {
+    "title": "Settings",
+    "changePassword": "Change Password",
+    "oldPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "mismatch": "New passwords do not match",
+    "tooShort": "New password must be at least 4 characters",
+    "success": "Password changed successfully",
+    "error": "Failed to change password"
+  },
+  "chat": {
+    "newSession": "New Session",
+    "untitled": "Untitled session",
+    "you": "You",
+    "assistant": "Assistant",
+    "emptyThread": "Ask a question to start a new conversation",
+    "placeholder": "Type your question…",
+    "send": "Send",
+    "error": "Failed to get a reply, please try again"
   }
 }

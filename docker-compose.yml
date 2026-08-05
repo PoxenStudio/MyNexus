@@ -20,6 +20,8 @@ services:
       # to also start the bundled postgres service below).
       - MYNEXUS_STORAGE_DATABASE=${STORAGE_DATABASE:-sqlite}
       - MYNEXUS_STORAGE_POSTGRES_DSN=${STORAGE_POSTGRES_DSN:-postgres://mynexus:mynexus@postgres:5432/mynexus?sslmode=disable}
+      # Whether the end-user conversation ("会话") page/API is available at all.
+      - MYNEXUS_CHAT_ENABLED=${CHAT_ENABLED:-true}
     depends_on:
       - worker
     restart: unless-stopped

@@ -3,7 +3,10 @@
     "dashboard": "仪表盘",
     "books": "书籍管理",
     "tasks": "任务监控",
-    "tokens": "API Token"
+    "tokens": "API Token",
+    "chat": "会话",
+    "settings": "设置",
+    "logout": "退出登录"
   },
   "common": {
     "loading": "加载中...",
@@ -80,5 +83,33 @@
     "neverUsed": "从未使用",
     "revoked": "已吊销",
     "active": "有效"
+  },
+  "login": {
+    "title": "管理员登录",
+    "username": "用户名",
+    "password": "密码",
+    "submit": "登录",
+    "error": "用户名或密码错误"
+  },
+  "settings": {
+    "title": "设置",
+    "changePassword": "修改密码",
+    "oldPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认新密码",
+    "mismatch": "两次输入的新密码不一致",
+    "tooShort": "新密码至少需要 4 个字符",
+    "success": "密码修改成功",
+    "error": "密码修改失败"
+  },
+  "chat": {
+    "newSession": "新建会话",
+    "untitled": "未命名会话",
+    "you": "我",
+    "assistant": "助手",
+    "emptyThread": "开始提问以创建新的会话",
+    "placeholder": "输入你的问题…",
+    "send": "发送",
+    "error": "回答失败，请重试"
   }
 }

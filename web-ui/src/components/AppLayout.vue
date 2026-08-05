@@ -1,11 +1,27 @@
 <script setup lang="ts">
+import { onMounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import { SUPPORTED_LOCALES, setLocale, type Locale } from "../i18n";
+import { useAuthStore } from "../stores/auth";
+import { useAppConfigStore } from "../stores/appConfig";
 
 const { t, locale } = useI18n();
+const router = useRouter();
+const auth = useAuthStore();
+const appConfig = useAppConfigStore();
+
+onMounted(() => {
+  if (!appConfig.loaded) appConfig.load();
+});
 
 function onLocaleChange(e: Event) {
   setLocale((e.target as HTMLSelectElement).value as Locale);
+}
+
+async function onLogout() {
+  await auth.logout();
+  router.push({ name: "login" });
 }
 </script>
 
@@ -18,7 +34,13 @@ function onLocaleChange(e: Event) {
         <router-link to="/books">{{ t("nav.books") }}</router-link>
         <router-link to="/tasks">{{ t("nav.tasks") }}</router-link>
         <router-link to="/tokens">{{ t("nav.tokens") }}</router-link>
+        <router-link v-if="appConfig.chatEnabled" to="/chat">{{ t("nav.chat") }}</router-link>
+        <router-link to="/settings">{{ t("nav.settings") }}</router-link>
       </nav>
+      <div class="user-box">
+        <span class="username">{{ auth.username }}</span>
+        <button class="ghost" @click="onLogout">{{ t("nav.logout") }}</button>
+      </div>
       <select class="locale-select" :value="locale" @change="onLocaleChange">
         <option v-for="l in SUPPORTED_LOCALES" :key="l" :value="l">{{ l }}</option>
       </select>
@@ -63,8 +85,30 @@ nav a.router-link-exact-active {
   color: var(--accent);
   font-weight: 600;
 }
-.locale-select {
+.user-box {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.username {
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.ghost {
+  border: 1px solid var(--border);
+  background: transparent;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+  font-size: 0.85rem;
+}
+.locale-select {
   padding: 0.4rem;
 }
 .content {

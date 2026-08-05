@@ -65,3 +65,9 @@ splitter:
 i18n:
   default_locale: "zh-CN"
   supported: ["zh-CN", "zh-TW", "en-US"]
+
+chat:
+  # Whether the end-user conversation ("会话") page/API is available at all.
+  # When false, /api/v1/chat/* returns 403 and the web-ui hides the page.
+  # Can also be set via MYNEXUS_CHAT_ENABLED.
+  enabled: true

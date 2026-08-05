@@ -23,3 +23,12 @@ export async function fetchStats(): Promise<SystemStats> {
   const { data } = await apiClient.get<SystemStats>("/system/stats");
   return data;
 }
+
+export interface SystemConfig {
+  chat_enabled: boolean;
+}
+
+export async function fetchConfig(): Promise<SystemConfig> {
+  const { data } = await apiClient.get<SystemConfig>("/system/config");
+  return data;
+}

@@ -3,7 +3,10 @@
     "dashboard": "儀表盤",
     "books": "書籍管理",
     "tasks": "任務監控",
-    "tokens": "API Token"
+    "tokens": "API Token",
+    "chat": "會話",
+    "settings": "設置",
+    "logout": "退出登錄"
   },
   "common": {
     "loading": "載入中...",
@@ -80,5 +83,33 @@
     "neverUsed": "從未使用",
     "revoked": "已吊銷",
     "active": "有效"
+  },
+  "login": {
+    "title": "管理員登錄",
+    "username": "用戶名",
+    "password": "密碼",
+    "submit": "登錄",
+    "error": "用戶名或密碼錯誤"
+  },
+  "settings": {
+    "title": "設置",
+    "changePassword": "修改密碼",
+    "oldPassword": "當前密碼",
+    "newPassword": "新密碼",
+    "confirmPassword": "確認新密碼",
+    "mismatch": "兩次輸入的新密碼不一致",
+    "tooShort": "新密碼至少需要 4 個字符",
+    "success": "密碼修改成功",
+    "error": "密碼修改失敗"
+  },
+  "chat": {
+    "newSession": "新建會話",
+    "untitled": "未命名會話",
+    "you": "我",
+    "assistant": "助手",
+    "emptyThread": "開始提問以創建新的會話",
+    "placeholder": "輸入你的問題…",
+    "send": "發送",
+    "error": "回答失敗，請重試"
   }
 }

@@ -81,6 +81,7 @@ func defaults() Config {
 		},
 		Worker: WorkerConfig{URL: "http://localhost:8001", MaxConcurrentTasks: 1, TaskTimeoutSeconds: 600},
 		I18n:   I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
+		Chat:   ChatConfig{Enabled: true},
 	}
 }
 
@@ -123,6 +124,11 @@ func Load() Config {
 	}
 	if v := os.Getenv("MYNEXUS_SERVER_INTERNAL_URL"); v != "" {
 		cfg.Server.InternalURL = v
+	}
+	if v := os.Getenv("MYNEXUS_CHAT_ENABLED"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Chat.Enabled = b
+		}
 	}
 
 	cfg.Port = cfg.Server.Port
