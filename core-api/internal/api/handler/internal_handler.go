@@ -38,7 +38,7 @@ func (h *InternalHandler) Progress(c *gin.Context) {
 		return
 	}
 
-	if err := h.tasks.UpdateProgress(taskID, req.Progress); err != nil {
+	if err := h.tasks.UpdateProgress(taskID, req.Progress, req.Stage, req.Message); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -5,6 +5,7 @@
     "tasks": "任務監控",
     "tokens": "API Token",
     "chat": "會話",
+    "auditLog": "審計日誌",
     "settings": "設置",
     "logout": "退出登錄"
   },
@@ -64,7 +65,8 @@
       "error": "錯誤信息",
       "updatedAt": "更新時間",
       "actions": "操作"
-    }
+    },
+    "noStages": "暫無階段日誌"
   },
   "tokens": {
     "title": "API Token 管理",
@@ -111,5 +113,15 @@
     "placeholder": "輸入你的問題…",
     "send": "發送",
     "error": "回答失敗，請重試"
+  },
+  "audit": {
+    "title": "審計日誌",
+    "table": {
+      "time": "時間",
+      "actor": "操作者",
+      "action": "操作",
+      "target": "對象",
+      "detail": "詳情"
+    }
   }
 }

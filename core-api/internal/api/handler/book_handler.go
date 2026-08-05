@@ -27,11 +27,12 @@ type BookHandler struct {
 	books  *service.BookService
 	tasks  *service.TaskService
 	worker *coordinator.WorkerClient
+	audit  *service.AuditService
 	cfg    config.Config
 }
 
-func NewBookHandler(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient) *BookHandler {
-	return &BookHandler{books: books, tasks: tasks, worker: worker, cfg: cfg}
+func NewBookHandler(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient, audit *service.AuditService) *BookHandler {
+	return &BookHandler{books: books, tasks: tasks, worker: worker, audit: audit, cfg: cfg}
 }
 
 func (h *BookHandler) Import(c *gin.Context) {
@@ -174,9 +175,17 @@ func (h *BookHandler) Chunks(c *gin.Context) {
 
 func (h *BookHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
+	book, _ := h.books.GetBook(id)
 	if err := h.books.DeleteBook(id); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
 		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		title := ""
+		if book != nil {
+			title = book.Title
+		}
+		_ = h.audit.Log(actor.(string), "book.delete", "book", id, title)
 	}
 	c.Status(http.StatusNoContent)
 }

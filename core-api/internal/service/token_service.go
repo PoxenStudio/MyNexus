@@ -74,24 +74,25 @@ func (s *TokenService) Revoke(id string) error {
 	return err
 }
 
-// Authenticate validates a raw token and returns its owning user_id, or
+// Authenticate validates a raw token and returns its owning user_id and alias
+// (the latter used to label audit log entries as "token:<alias>"), or
 // ok=false if it's unknown, revoked, or expired. Touches last_used_at on success.
-func (s *TokenService) Authenticate(raw string) (userID string, ok bool) {
+func (s *TokenService) Authenticate(raw string) (userID, alias string, ok bool) {
 	hash := auth.HashToken(raw)
-	var id, uid string
+	var id, uid, tokenAlias string
 	var revoked int
 	var expiresAt sql.NullString
 	err := s.db.QueryRow(
-		`SELECT id, user_id, is_revoked, expires_at FROM api_tokens WHERE token_hash = ?`, hash,
-	).Scan(&id, &uid, &revoked, &expiresAt)
+		`SELECT id, user_id, alias, is_revoked, expires_at FROM api_tokens WHERE token_hash = ?`, hash,
+	).Scan(&id, &uid, &tokenAlias, &revoked, &expiresAt)
 	if err != nil || revoked != 0 {
-		return "", false
+		return "", "", false
 	}
 	if expiresAt.Valid && expiresAt.String != "" {
 		if exp, err := time.Parse(time.RFC3339, expiresAt.String); err == nil && time.Now().After(exp) {
-			return "", false
+			return "", "", false
 		}
 	}
 	_, _ = s.db.Exec(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, time.Now().UTC().Format(time.RFC3339), id)
-	return uid, true
+	return uid, tokenAlias, true
 }

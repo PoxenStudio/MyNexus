@@ -18,11 +18,12 @@ type TaskHandler struct {
 	tasks  *service.TaskService
 	books  *service.BookService
 	worker *coordinator.WorkerClient
+	audit  *service.AuditService
 	cfg    config.Config
 }
 
-func NewTaskHandler(cfg config.Config, tasks *service.TaskService, books *service.BookService, worker *coordinator.WorkerClient) *TaskHandler {
-	return &TaskHandler{tasks: tasks, books: books, worker: worker, cfg: cfg}
+func NewTaskHandler(cfg config.Config, tasks *service.TaskService, books *service.BookService, worker *coordinator.WorkerClient, audit *service.AuditService) *TaskHandler {
+	return &TaskHandler{tasks: tasks, books: books, worker: worker, audit: audit, cfg: cfg}
 }
 
 func (h *TaskHandler) List(c *gin.Context) {
@@ -84,5 +85,8 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 		return
 	}
 
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "task.retry", "task", id, "book_id="+book.ID)
+	}
 	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task))
 }

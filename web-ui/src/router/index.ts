@@ -7,6 +7,7 @@ import BookDetailView from "../views/admin/BookDetailView.vue";
 import TasksView from "../views/admin/TasksView.vue";
 import TokensView from "../views/admin/TokensView.vue";
 import SettingsView from "../views/admin/SettingsView.vue";
+import AuditLogView from "../views/admin/AuditLogView.vue";
 import ChatView from "../views/ChatView.vue";
 import { useAuthStore } from "../stores/auth";
 import { useAppConfigStore } from "../stores/appConfig";
@@ -24,6 +25,7 @@ export const router = createRouter({
         { path: "books/:id", name: "book-detail", component: BookDetailView },
         { path: "tasks", name: "tasks", component: TasksView },
         { path: "tokens", name: "tokens", component: TokensView },
+        { path: "audit-log", name: "audit-log", component: AuditLogView },
         { path: "settings", name: "settings", component: SettingsView },
         { path: "chat", name: "chat", component: ChatView, meta: { requiresChat: true } },
       ],

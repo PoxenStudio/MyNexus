@@ -5,6 +5,7 @@
     "tasks": "任务监控",
     "tokens": "API Token",
     "chat": "会话",
+    "auditLog": "审计日志",
     "settings": "设置",
     "logout": "退出登录"
   },
@@ -64,7 +65,8 @@
       "error": "错误信息",
       "updatedAt": "更新时间",
       "actions": "操作"
-    }
+    },
+    "noStages": "暂无阶段日志"
   },
   "tokens": {
     "title": "API Token 管理",
@@ -111,5 +113,15 @@
     "placeholder": "输入你的问题…",
     "send": "发送",
     "error": "回答失败，请重试"
+  },
+  "audit": {
+    "title": "审计日志",
+    "table": {
+      "time": "时间",
+      "actor": "操作者",
+      "action": "操作",
+      "target": "对象",
+      "detail": "详情"
+    }
   }
 }

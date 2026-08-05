@@ -8,3 +8,4 @@
 - [MyNexus Postgres backend](mynexus_postgres_backend.md) — sqlite+postgres both real via storage.Database interface; shared `?`-style SQL rewritten to `$N` by a driver shim, not duplicated queries
 - [MyNexus migration versioning](mynexus_migration_versioning.md) — schema_migrations table tracks applied files now; future schema changes are new numbered files, not edits to shipped ones
 - [MyNexus admin auth](mynexus_admin_auth.md) — session-based admin login (default admin/admin, change password), chat.enabled toggle, chat page lives inside the authenticated admin app
+- [MyNexus task log and audit](mynexus_task_log_and_audit.md) — stages_log now actually populated per-stage; new admin_audit_log table/page tracks login/password-change/delete/retry/token actions

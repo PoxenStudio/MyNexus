@@ -11,10 +11,11 @@ import (
 
 type TokenHandler struct {
 	tokens *service.TokenService
+	audit  *service.AuditService
 }
 
-func NewTokenHandler(tokens *service.TokenService) *TokenHandler {
-	return &TokenHandler{tokens: tokens}
+func NewTokenHandler(tokens *service.TokenService, audit *service.AuditService) *TokenHandler {
+	return &TokenHandler{tokens: tokens, audit: audit}
 }
 
 func (h *TokenHandler) Create(c *gin.Context) {
@@ -25,6 +26,9 @@ func (h *TokenHandler) Create(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "token.create", "api_token", token.ID, "alias="+token.Alias)
 	}
 	c.JSON(http.StatusCreated, dto.CreateTokenResponse{ID: token.ID, Token: raw, Alias: token.Alias})
 }
@@ -47,6 +51,9 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 	if err := h.tokens.Revoke(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "token.revoke", "api_token", id, "")
 	}
 	c.Status(http.StatusNoContent)
 }

@@ -14,9 +14,9 @@
 ## 功能缺口
 
 - [ ] **书籍重建接口缺失**：`POST /books/{id}/rebuild`（对已成功处理的书籍强制重新解析/分块/向量化，例如更换 embedding 模型后）尚未实现，目前只有失败任务重试（`POST /tasks/{id}/retry`，仅重新触发原文件的 ingest）。
-- [ ] **任务分阶段日志未落地**：`tasks.stages_log` 字段已建表但从未写入真实内容（始终为空数组 `[]`），任务页目前只能看到 `error_msg`，缺少结构化的分阶段处理日志。
+- [x] **任务分阶段日志已完善**（2026-08-05）。此前 `TaskProgressCallback` 早就带了 `stage`/`message` 字段，但 `TaskService.UpdateProgress` 直接丢弃、从不写入 `stages_log`。现在 `task_service.go` 的 `transition()`/`appendStageLog()` 在每次 progress/complete/fail/retry 时都会向 `stages_log`（JSON 数组）追加一条 `{stage, message, progress, at}` 记录，而不是覆盖。`TaskResponse` DTO 新增 `stages_log` 字段（解析后返回结构化数组），任务列表页支持点击一行展开查看完整阶段时间线。用 sqlite3 直接写入测试任务并调用 `/internal/tasks/{id}/progress`、`/fail` 验证过追加逻辑正确、时间线完整。
 - [ ] **批量书籍操作缺失**：需求文档 §6.7.3 要求的多选删除/批量重建，web-ui 目前只支持单本操作。
-- [ ] **管理员操作审计日志缺失**：需求文档 §6.7.3 的"操作审计记录"未实现，没有表或日志记录管理员的操作历史。
+- [x] **管理员操作审计日志已实现**（2026-08-05）。新增 `admin_audit_log` 表（新迁移 `0003_admin_audit_log.sql`，sqlite/postgres 各一份）、`AuditService`（记录 + 分页查询）、`GET /api/v1/audit-log`，以及 web-ui 的「审计日志」页面。记录范围：登录成功/失败、改密码、书籍删除、任务重试、Token 创建/吊销。操作者字段区分「管理员用户名」（Session 登录）与「token:别名」（API Token 访问），复用了鉴权中间件里已经解析出的身份信息，不需要额外查库。已用 curl 端到端验证过完整记录链路。
 - [x] **终端用户问答/聊天页面已实现**（2026-08-05）。新增 `web-ui/src/views/ChatView.vue`（会话列表 + 消息串 + SSE 流式回答），复用已有的 `/chat/completions`（SSE）与 `/chat/sessions*` API。新增配置项 `chat.enabled`（默认 `true`，环境变量 `MYNEXUS_CHAT_ENABLED`）控制该功能整体开关：关闭时后端 `/api/v1/chat/*` 返回 403（`middleware.RequireChatEnabled`），前端隐藏导航项且路由守卫直接跳转回仪表盘。该页面位于管理后台内部，与其它页面一样需要登录后才能访问（不是独立的匿名对外页面）。详见 `mynexus_admin_auth` memory。
 - [ ] **上传文件病毒/合法性扫描缺失**：需求文档 §6.6 中标注为可选项，目前未实现。
 

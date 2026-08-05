@@ -7,6 +7,7 @@ const { t } = useI18n();
 const tasks = ref<Task[]>([]);
 const loading = ref(true);
 const retrying = ref<string | null>(null);
+const expanded = ref<string | null>(null);
 
 async function load() {
   loading.value = true;
@@ -26,6 +27,10 @@ async function onRetry(id: string) {
   } finally {
     retrying.value = null;
   }
+}
+
+function toggleExpand(id: string) {
+  expanded.value = expanded.value === id ? null : id;
 }
 
 onMounted(load);
@@ -50,24 +55,39 @@ onMounted(load);
         </tr>
       </thead>
       <tbody>
-        <tr v-for="task in tasks" :key="task.id">
-          <td class="mono">{{ task.id.slice(0, 8) }}</td>
-          <td class="mono">{{ task.book_id.slice(0, 8) }}</td>
-          <td><span :class="['badge', task.status]">{{ t(`status.${task.status}`, task.status) }}</span></td>
-          <td>{{ task.progress }}%</td>
-          <td class="error">{{ task.error_msg }}</td>
-          <td>{{ new Date(task.updated_at).toLocaleString() }}</td>
-          <td>
-            <button
-              v-if="task.status === 'failed'"
-              class="ghost"
-              :disabled="retrying === task.id"
-              @click="onRetry(task.id)"
-            >
-              {{ t("common.retry") }}
-            </button>
-          </td>
-        </tr>
+        <template v-for="task in tasks" :key="task.id">
+          <tr class="row" @click="toggleExpand(task.id)">
+            <td class="mono">{{ task.id.slice(0, 8) }}</td>
+            <td class="mono">{{ task.book_id.slice(0, 8) }}</td>
+            <td><span :class="['badge', task.status]">{{ t(`status.${task.status}`, task.status) }}</span></td>
+            <td>{{ task.progress }}%</td>
+            <td class="error">{{ task.error_msg }}</td>
+            <td>{{ new Date(task.updated_at).toLocaleString() }}</td>
+            <td>
+              <button
+                v-if="task.status === 'failed'"
+                class="ghost"
+                :disabled="retrying === task.id"
+                @click.stop="onRetry(task.id)"
+              >
+                {{ t("common.retry") }}
+              </button>
+            </td>
+          </tr>
+          <tr v-if="expanded === task.id" class="log-row">
+            <td colspan="7">
+              <ol v-if="task.stages_log?.length" class="stage-log">
+                <li v-for="(entry, i) in task.stages_log" :key="i">
+                  <span class="stage-name">{{ entry.stage }}</span>
+                  <span class="stage-progress">{{ entry.progress }}%</span>
+                  <span v-if="entry.message" class="stage-message">{{ entry.message }}</span>
+                  <span class="stage-time">{{ new Date(entry.at).toLocaleString() }}</span>
+                </li>
+              </ol>
+              <p v-else class="empty">{{ t("tasks.noStages") }}</p>
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
     <p v-else>{{ t("common.empty") }}</p>
@@ -85,6 +105,12 @@ th, td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
+}
+.row {
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--code-bg);
 }
 .mono {
   font-family: var(--mono);
@@ -117,5 +143,40 @@ button.ghost {
 button.ghost:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.log-row td {
+  background: var(--code-bg);
+}
+.stage-log {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.stage-log li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+.stage-name {
+  font-weight: 600;
+}
+.stage-progress {
+  opacity: 0.7;
+}
+.stage-message {
+  color: #dc2626;
+}
+.stage-time {
+  margin-left: auto;
+  opacity: 0.6;
+  font-size: 0.8rem;
+}
+.empty {
+  margin: 0;
+  opacity: 0.6;
+  font-size: 0.85rem;
 }
 </style>

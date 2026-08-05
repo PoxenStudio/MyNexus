@@ -13,10 +13,11 @@ import (
 type AuthHandler struct {
 	admins   *service.AdminUserService
 	sessions *auth.SessionManager
+	audit    *service.AuditService
 }
 
-func NewAuthHandler(admins *service.AdminUserService, sessions *auth.SessionManager) *AuthHandler {
-	return &AuthHandler{admins: admins, sessions: sessions}
+func NewAuthHandler(admins *service.AdminUserService, sessions *auth.SessionManager, audit *service.AuditService) *AuthHandler {
+	return &AuthHandler{admins: admins, sessions: sessions, audit: audit}
 }
 
 type loginRequest struct {
@@ -33,16 +34,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	userID, err := h.admins.Authenticate(req.Username, req.Password)
 	if err != nil {
+		_ = h.audit.Log(req.Username, "auth.login_failed", "admin_user", "", "")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
 
-	sessionID, err := h.sessions.Create(userID)
+	sessionID, err := h.sessions.Create(userID, req.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	setSessionCookie(c, sessionID)
+	_ = h.audit.Log(req.Username, "auth.login", "admin_user", userID, "")
 	c.JSON(http.StatusOK, gin.H{"username": req.Username})
 }
 
@@ -51,6 +54,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.sessions.Delete(id)
 	}
 	clearSessionCookie(c)
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "auth.logout", "admin_user", "", "")
+	}
 	c.Status(http.StatusNoContent)
 }
 
@@ -98,6 +104,9 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "auth.change_password", "admin_user", userID.(string), "")
 	}
 	c.Status(http.StatusNoContent)
 }

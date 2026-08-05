@@ -18,9 +18,9 @@ Consolidated from [[mynexus_m2_decisions]], [[mynexus_m3_decisions]], [[mynexus_
 ## Unfinished / deferred work (not blocking any milestone's stated acceptance criteria, but real gaps)
 
 - **No `POST /books/{id}/rebuild`** — can't re-run parse/split/embed for an already-ingested book. Only `POST /tasks/{id}/retry` exists, which just re-triggers ingest on the same stored file after a *failure*; there's no "force re-process a successfully completed book" path (e.g. after changing chunk size or embedding model).
-- **`tasks.stages_log` column is written but never populated with real content** — every task is created with `stages_log: "[]"` and nothing ever updates it. The Tasks admin page only surfaces `error_msg`, not structured per-stage progress/log entries, despite the schema being ready for it.
+- ~~`tasks.stages_log` column is written but never populated with real content~~ **Resolved 2026-08-05** — see [[mynexus_task_log_and_audit]].
 - **No bulk book operations** (multi-select delete/rebuild) — 需求文档.md §6.7.3 asks for this, web-ui only supports single-book actions.
-- **No admin action audit log** — 需求文档.md §6.7.3's "操作审计记录" is unbuilt; no table or logging exists for who did what admin action when.
+- ~~No admin action audit log~~ **Resolved 2026-08-05** — see [[mynexus_task_log_and_audit]].
 - ~~No end-user chat/QA page~~ **Resolved 2026-08-05** — see [[mynexus_admin_auth]]. `web-ui/src/views/ChatView.vue` now exists, gated by `config.chat.enabled` and by admin login (it lives inside the authenticated admin app, not as a separate anonymous public page).
 - **No upload virus/file-legitimacy scanning** — 需求文档.md §6.6 marks this optional; still skipped.
 - **Hybrid search's BM25 side doesn't scale to a very large whole-library search** — `RetrievalPipeline` reloads the full keyword candidate set and rebuilds a `rank_bm25` index per query. Fine at current scale; would need Core API-side SQLite FTS5 (or similar) before a 50k-book library makes this the new bottleneck (the vector side no longer has this problem after the ChromaDB fix — see [[mynexus_m3_decisions]]).

@@ -29,16 +29,18 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 	chatSvc := service.NewChatService(db)
 	tokenSvc := service.NewTokenService(db, cfg.Auth.TokenPrefix)
 	adminSvc := service.NewAdminUserService(db)
+	auditSvc := service.NewAuditService(db)
 	sessions := auth.NewSessionManager()
 	workerClient := coordinator.NewWorkerClient(cfg.Worker.URL)
 
 	sys := handler.NewSystemHandler(cfg, store)
-	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient)
-	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient)
+	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, auditSvc)
+	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient, auditSvc)
 	search := handler.NewSearchHandler(bookSvc, workerClient)
 	chat := handler.NewChatHandler(chatSvc, workerClient)
-	tokens := handler.NewTokenHandler(tokenSvc)
-	authH := handler.NewAuthHandler(adminSvc, sessions)
+	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)
+	authH := handler.NewAuthHandler(adminSvc, sessions, auditSvc)
+	auditH := handler.NewAuditHandler(auditSvc)
 	internalH := handler.NewInternalHandler(bookSvc, taskSvc)
 
 	r.GET("/healthz", sys.Health)
@@ -76,6 +78,8 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 		protected.POST("/tokens", tokens.Create)
 		protected.GET("/tokens", tokens.List)
 		protected.DELETE("/tokens/:id", tokens.Revoke)
+
+		protected.GET("/audit-log", auditH.List)
 
 		chatGroup := protected.Group("/chat")
 		chatGroup.Use(middleware.RequireChatEnabled(cfg.Chat.Enabled))

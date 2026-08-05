@@ -5,6 +5,7 @@
     "tasks": "Tasks",
     "tokens": "API Tokens",
     "chat": "Chat",
+    "auditLog": "Audit Log",
     "settings": "Settings",
     "logout": "Log Out"
   },
@@ -64,7 +65,8 @@
       "error": "Error",
       "updatedAt": "Updated At",
       "actions": "Actions"
-    }
+    },
+    "noStages": "No stage log yet"
   },
   "tokens": {
     "title": "API Token Management",
@@ -111,5 +113,15 @@
     "placeholder": "Type your question…",
     "send": "Send",
     "error": "Failed to get a reply, please try again"
+  },
+  "audit": {
+    "title": "Audit Log",
+    "table": {
+      "time": "Time",
+      "actor": "Actor",
+      "action": "Action",
+      "target": "Target",
+      "detail": "Detail"
+    }
   }
 }

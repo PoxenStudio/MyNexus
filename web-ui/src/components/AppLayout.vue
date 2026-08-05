@@ -35,6 +35,7 @@ async function onLogout() {
         <router-link to="/tasks">{{ t("nav.tasks") }}</router-link>
         <router-link to="/tokens">{{ t("nav.tokens") }}</router-link>
         <router-link v-if="appConfig.chatEnabled" to="/chat">{{ t("nav.chat") }}</router-link>
+        <router-link to="/audit-log">{{ t("nav.auditLog") }}</router-link>
         <router-link to="/settings">{{ t("nav.settings") }}</router-link>
       </nav>
       <div class="user-box">

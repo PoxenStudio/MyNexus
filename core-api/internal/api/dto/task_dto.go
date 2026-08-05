@@ -1,22 +1,29 @@
 package dto
 
-import "mynexus/core-api/internal/models"
+import (
+	"encoding/json"
+
+	"mynexus/core-api/internal/models"
+)
 
 type TaskResponse struct {
-	ID        string `json:"id"`
-	BookID    string `json:"book_id"`
-	Type      string `json:"type"`
-	Status    string `json:"status"`
-	Progress  int    `json:"progress"`
-	ErrorMsg  string `json:"error_msg"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID        string                 `json:"id"`
+	BookID    string                 `json:"book_id"`
+	Type      string                 `json:"type"`
+	Status    string                 `json:"status"`
+	Progress  int                    `json:"progress"`
+	ErrorMsg  string                 `json:"error_msg"`
+	StagesLog []models.StageLogEntry `json:"stages_log"`
+	CreatedAt string                 `json:"created_at"`
+	UpdatedAt string                 `json:"updated_at"`
 }
 
 func NewTaskResponse(t models.Task) TaskResponse {
+	stagesLog := []models.StageLogEntry{}
+	_ = json.Unmarshal([]byte(t.StagesLog), &stagesLog)
 	return TaskResponse{
 		ID: t.ID, BookID: t.BookID, Type: t.Type, Status: t.Status, Progress: t.Progress,
-		ErrorMsg: t.ErrorMsg, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		ErrorMsg: t.ErrorMsg, StagesLog: stagesLog, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }
 

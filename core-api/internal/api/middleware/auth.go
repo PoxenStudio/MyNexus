@@ -21,9 +21,13 @@ import (
 func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, tokenPrefix string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if sid, err := c.Cookie(auth.SessionCookieName); err == nil {
-			if userID, ok := sessions.Validate(sid); ok {
+			if userID, username, ok := sessions.Validate(sid); ok {
 				c.Set("admin_user_id", userID)
 				c.Set("user_id", userID)
+				// "actor" labels audit log entries with a human-readable name
+				// (see AuditService) — the admin's own username for browser
+				// sessions, "token:<alias>" for API Token access below.
+				c.Set("actor", username)
 				c.Next()
 				return
 			}
@@ -31,8 +35,13 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 
 		if header := c.GetHeader("Authorization"); header != "" {
 			if raw, ok := strings.CutPrefix(header, "Bearer "); ok && strings.HasPrefix(raw, tokenPrefix) {
-				if userID, valid := tokens.Authenticate(raw); valid {
+				if userID, alias, valid := tokens.Authenticate(raw); valid {
 					c.Set("user_id", userID)
+					actor := "token"
+					if alias != "" {
+						actor = "token:" + alias
+					}
+					c.Set("actor", actor)
 					c.Next()
 					return
 				}
