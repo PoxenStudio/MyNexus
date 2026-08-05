@@ -321,6 +321,55 @@ func (s *BookService) ChapterTitle(chapterID string) (string, error) {
 	return title, nil
 }
 
+// KeywordSearchResult is one hit from KeywordSearch, ranked by Postgres's
+// ts_rank over the chunks.content_tsv generated column.
+type KeywordSearchResult struct {
+	ChunkID string
+	BookID  string
+	Score   float64
+}
+
+// KeywordSearch runs a GIN-indexed full-text query against chunks.content_tsv
+// (see storage/postgres/migrations/0004_chunk_keyword_search.sql) — this only
+// works against the Postgres backend; content_tsv/GIN don't exist on SQLite
+// (positioned as small-scale/trial-only, see docs/系统设计文档.md), so callers
+// must check cfg.Storage.Database == "postgres" before calling this.
+func (s *BookService) KeywordSearch(query string, bookIDs []string, topK int) ([]KeywordSearchResult, error) {
+	args := []any{query, query}
+	where := `content_tsv @@ plainto_tsquery('simple', ?)`
+
+	if len(bookIDs) > 0 {
+		placeholders := make([]string, len(bookIDs))
+		for i, id := range bookIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		where += fmt.Sprintf(" AND book_id IN (%s)", strings.Join(placeholders, ", "))
+	}
+	args = append(args, topK)
+
+	rows, err := s.db.Query(
+		`SELECT id, book_id, ts_rank(content_tsv, plainto_tsquery('simple', ?)) AS rank
+		 FROM chunks WHERE `+where+`
+		 ORDER BY rank DESC LIMIT ?`,
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("keyword search: %w", err)
+	}
+	defer rows.Close()
+
+	var results []KeywordSearchResult
+	for rows.Next() {
+		var r KeywordSearchResult
+		if err := rows.Scan(&r.ChunkID, &r.BookID, &r.Score); err != nil {
+			return nil, fmt.Errorf("scan keyword search result: %w", err)
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
 // ParsedChapter is the shape Worker sends back on task completion.
 type ParsedChapter struct {
 	ID        string

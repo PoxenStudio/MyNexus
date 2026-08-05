@@ -1,0 +1,172 @@
+// Core API <-> Worker internal RPC contract. Replaces the earlier HTTP+JSON
+// /internal/* endpoints on both sides (see .claude/memory/mynexus_grpc_migration.md)
+// with gRPC over a single persistent HTTP/2 connection per direction: fewer
+// TCP/TLS handshakes than one-shot HTTP/1.1 requests, binary protobuf instead
+// of JSON marshal/unmarshal, and native support for the chat streaming case.
+//
+// Two independent services because the relationship is bidirectional:
+// Core API calls Worker to trigger ingestion/search/chat, and Worker calls
+// Core API back to report task progress and to run Postgres-only keyword
+// search (see .claude/memory/mynexus_keyword_search_gin.md). Each side is
+// simultaneously a gRPC client (of the other service) and a gRPC server (of
+// its own service).
+syntax = "proto3";
+
+package mynexus;
+
+option go_package = "mynexus/core-api/internal/grpcapi/mynexuspb";
+
+// ---- WorkerService: implemented by Worker, called by Core API ----
+
+service WorkerService {
+  // Starts parsing file_path in the background and returns immediately;
+  // Worker reports progress/completion/failure back via CoreApiService.
+  rpc TriggerIngest(IngestRequest) returns (IngestAck);
+
+  // Synchronous hybrid (vector + keyword) search.
+  rpc Search(SearchRequest) returns (SearchResponse);
+
+  // Streaming RAG chat: yields answer deltas, then exactly one citations
+  // message as the final element.
+  rpc Chat(ChatRequest) returns (stream ChatChunk);
+}
+
+message IngestRequest {
+  string task_id = 1;
+  string book_id = 2;
+  string file_path = 3;
+  string original_filename = 4;
+}
+
+message IngestAck {
+  bool accepted = 1;
+}
+
+message SearchRequest {
+  string query = 1;
+  repeated string book_ids = 2;
+  int32 top_k = 3;
+  double score_threshold = 4;
+}
+
+message SearchResult {
+  string chunk_id = 1;
+  string book_id = 2;
+  string chapter_id = 3;
+  string content = 4;
+  int32 position = 5;
+  int32 token_count = 6;
+  double score = 7;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+}
+
+message ChatMessage {
+  string role = 1;
+  string content = 2;
+}
+
+message ChatRequest {
+  repeated ChatMessage messages = 1;
+  repeated string book_ids = 2;
+  int32 top_k = 3;
+}
+
+message Citation {
+  string chunk_id = 1;
+  string chapter_id = 2;
+  string book_id = 3;
+  double score = 4;
+  string content = 5;
+}
+
+message CitationList {
+  repeated Citation items = 1;
+}
+
+// One chunk of a streamed chat reply: either an answer-text delta, or (the
+// final message in the stream) the full citation list.
+message ChatChunk {
+  oneof payload {
+    string delta = 1;
+    CitationList citations = 2;
+  }
+}
+
+// ---- CoreApiService: implemented by Core API, called by Worker ----
+
+service CoreApiService {
+  rpc ReportProgress(ProgressRequest) returns (Ack);
+  rpc ReportComplete(CompleteRequest) returns (Ack);
+  rpc ReportFail(FailRequest) returns (Ack);
+
+  // Postgres-only GIN-indexed keyword search (see
+  // .claude/memory/mynexus_keyword_search_gin.md) — Worker calls this
+  // read-only endpoint instead of building a BM25 index in-process when
+  // storage.database == "postgres"; unimplemented (NOT_FOUND) on sqlite.
+  rpc KeywordSearch(KeywordSearchRequest) returns (KeywordSearchResponse);
+}
+
+message ProgressRequest {
+  string task_id = 1;
+  int32 progress = 2;
+  string stage = 3;
+  string message = 4;
+}
+
+message Ack {
+  bool ok = 1;
+}
+
+message BookMeta {
+  string title = 1;
+  string author = 2;
+  string language = 3;
+}
+
+message Chapter {
+  string id = 1;
+  string title = 2;
+  int32 level = 3;
+  int32 sort_order = 4;
+  string content = 5;
+}
+
+message Chunk {
+  string id = 1;
+  string chapter_id = 2;
+  string content = 3;
+  int32 position = 4;
+  int32 token_count = 5;
+  string vector_id = 6;
+}
+
+message CompleteRequest {
+  string task_id = 1;
+  BookMeta book = 2;
+  repeated Chapter chapters = 3;
+  repeated Chunk chunks = 4;
+}
+
+message FailRequest {
+  string task_id = 1;
+  string error_msg = 2;
+}
+
+message KeywordSearchRequest {
+  string query = 1;
+  repeated string book_ids = 2;
+  int32 top_k = 3;
+}
+
+message KeywordSearchResult {
+  string chunk_id = 1;
+  string book_id = 2;
+  double score = 3;
+}
+
+message KeywordSearchResponse {
+  repeated KeywordSearchResult results = 1;
+}

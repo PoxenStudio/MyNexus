@@ -12,8 +12,12 @@ services:
     environment:
       - MYNEXUS_CONFIG_PATH=/app/config/config.yaml
       - MYNEXUS_SERVER_PORT=8080
-      - MYNEXUS_SERVER_INTERNAL_URL=http://core-api:8080
-      - MYNEXUS_WORKER_URL=http://worker:8001
+      # WORKER_URL is a gRPC dial target ("host:port", no "http://" scheme) —
+      # see .claude/memory/mynexus_grpc_migration.md. Core API's own gRPC
+      # server (for Worker's callbacks) listens on grpc_port from config.yaml
+      # (default 9090); it isn't published to the host, only reachable inside
+      # the compose network as core-api:9090.
+      - MYNEXUS_WORKER_URL=worker:8001
       - MYNEXUS_AUTH_JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       # STORAGE_DATABASE selects the backend without editing config/config.yaml:
       # "sqlite" (default) or "postgres" (pair with `docker compose --profile postgres up`
@@ -58,13 +62,18 @@ services:
       - MYNEXUS_CONFIG_PATH=/app/config/config.yaml
       - MYNEXUS_EMBEDDING_OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - MYNEXUS_LLM_OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Worker's gRPC dial target for calling Core API back (task progress/
+      # complete/fail, keyword search) — Core API's *grpc* port, not its
+      # browser-facing HTTP port. See .claude/memory/mynexus_grpc_migration.md.
+      - MYNEXUS_SERVER_INTERNAL_URL=core-api:9090
+      - MYNEXUS_STORAGE_DATABASE=${STORAGE_DATABASE:-sqlite}
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          # ChromaDB (HNSW index + onnxruntime import) plus FastAPI needs more
-          # headroom than a bare-bones worker — sized for a 4GB+ NAS, not the
-          # 512MB budget the earlier "avoid Chroma" decision assumed.
+          # ChromaDB (HNSW index + onnxruntime import) needs more headroom
+          # than a bare-bones worker — sized for a 4GB+ NAS, not the 512MB
+          # budget the earlier "avoid Chroma" decision assumed.
           memory: 1536M
 
   web-ui:

@@ -41,7 +41,6 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)
 	authH := handler.NewAuthHandler(adminSvc, sessions, auditSvc)
 	auditH := handler.NewAuditHandler(auditSvc)
-	internalH := handler.NewInternalHandler(bookSvc, taskSvc)
 
 	r.GET("/healthz", sys.Health)
 
@@ -63,11 +62,14 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 		protected.GET("/system/config", sys.Config)
 
 		protected.POST("/books/import", books.Import)
+		protected.POST("/books/bulk-delete", books.BulkDelete)
+		protected.POST("/books/bulk-rebuild", books.BulkRebuild)
 		protected.GET("/books", books.List)
 		protected.GET("/books/:id", books.Get)
 		protected.PUT("/books/:id", books.Update)
 		protected.DELETE("/books/:id", books.Delete)
 		protected.GET("/books/:id/chunks", books.Chunks)
+		protected.POST("/books/:id/rebuild", books.Rebuild)
 
 		protected.GET("/tasks", tasks.List)
 		protected.GET("/tasks/:id", tasks.Get)
@@ -91,12 +93,8 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 		}
 	}
 
-	internalGroup := r.Group("/internal")
-	{
-		internalGroup.POST("/tasks/:id/progress", internalH.Progress)
-		internalGroup.POST("/tasks/:id/complete", internalH.Complete)
-		internalGroup.POST("/tasks/:id/fail", internalH.Fail)
-	}
+	// Worker-facing calls (task progress/complete/fail, keyword search) are no
+	// longer HTTP — see internal/grpcserver, started separately in main.go.
 
 	return r
 }

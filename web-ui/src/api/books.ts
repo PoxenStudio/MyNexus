@@ -47,6 +47,27 @@ export async function deleteBook(id: string) {
   await apiClient.delete(`/books/${id}`);
 }
 
+export async function rebuildBook(id: string) {
+  const { data } = await apiClient.post<{ task_id: string; book_id: string }>(`/books/${id}/rebuild`);
+  return data;
+}
+
+export interface BulkResultItem {
+  id: string;
+  ok: boolean;
+  error?: string;
+}
+
+export async function bulkDeleteBooks(ids: string[]) {
+  const { data } = await apiClient.post<{ items: BulkResultItem[] }>("/books/bulk-delete", { ids });
+  return data.items;
+}
+
+export async function bulkRebuildBooks(ids: string[]) {
+  const { data } = await apiClient.post<{ items: BulkResultItem[] }>("/books/bulk-rebuild", { ids });
+  return data.items;
+}
+
 export async function uploadBook(file: File) {
   const form = new FormData();
   form.append("file", file);

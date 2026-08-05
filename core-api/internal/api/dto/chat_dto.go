@@ -18,6 +18,19 @@ type ChatCompletionRequest struct {
 	Stream    bool               `json:"stream"`
 }
 
+// CitationResponse mirrors the shape Worker's QAPipeline has always emitted
+// (chunk_id/chapter_id/book_id/score/content) — the SSE payload's JSON field
+// names are unchanged by the gRPC migration, only how Core API gets this data
+// from Worker changed (a gRPC ChatChunk.citations field now, not a raw SSE
+// "citations" JSON key relayed byte-for-byte).
+type CitationResponse struct {
+	ChunkID   string  `json:"chunk_id"`
+	ChapterID string  `json:"chapter_id"`
+	BookID    string  `json:"book_id"`
+	Score     float64 `json:"score"`
+	Content   string  `json:"content"`
+}
+
 type ChatSessionResponse struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`

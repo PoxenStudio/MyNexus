@@ -10,9 +10,14 @@ import (
 type ServerConfig struct {
 	Port        string   `yaml:"port"`
 	CORSOrigins []string `yaml:"cors_origins"`
-	// InternalURL is how Worker reaches Core API to post task progress/completion
-	// callbacks (e.g. http://core-api:8080 inside Docker, http://localhost:8080 locally).
-	InternalURL string `yaml:"internal_url"`
+	// GRPCPort is where Core API's gRPC server listens for Worker-initiated
+	// calls (ReportProgress/ReportComplete/ReportFail/KeywordSearch) — see
+	// .claude/memory/mynexus_grpc_migration.md. Separate from Port (the
+	// browser-facing HTTP/SSE API), which is unaffected by this.
+	// Worker finds this address via its own config.yaml's server.internal_url
+	// (Worker-side key, not read here — see worker/src/config.py); Core API
+	// only needs to know which local port to bind.
+	GRPCPort string `yaml:"grpc_port"`
 }
 
 type AuthConfig struct {
@@ -40,6 +45,10 @@ type StorageConfig struct {
 }
 
 type WorkerConfig struct {
+	// URL is Worker's gRPC dial target — a bare "host:port" authority (e.g.
+	// "worker:8001" in Docker, "localhost:8001" locally), NOT an "http://" URL
+	// (repurposed from the pre-gRPC-migration HTTP client base URL — see
+	// .claude/memory/mynexus_grpc_migration.md).
 	URL                string `yaml:"url"`
 	MaxConcurrentTasks int    `yaml:"max_concurrent_tasks"`
 	TaskTimeoutSeconds int    `yaml:"task_timeout_seconds"`
@@ -72,14 +81,14 @@ type Config struct {
 
 func defaults() Config {
 	return Config{
-		Server: ServerConfig{Port: "8080", CORSOrigins: []string{"*"}, InternalURL: "http://localhost:8080"},
+		Server: ServerConfig{Port: "8080", CORSOrigins: []string{"*"}, GRPCPort: "9090"},
 		Auth:   AuthConfig{TokenPrefix: "mnx_"},
 		Storage: StorageConfig{
 			Database:  "sqlite",
 			SQLite:    SQLiteConfig{Path: "./data/mynexus.db"},
 			UploadDir: "./data/uploads",
 		},
-		Worker: WorkerConfig{URL: "http://localhost:8001", MaxConcurrentTasks: 1, TaskTimeoutSeconds: 600},
+		Worker: WorkerConfig{URL: "localhost:8001", MaxConcurrentTasks: 1, TaskTimeoutSeconds: 600},
 		I18n:   I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
 		Chat:   ChatConfig{Enabled: true},
 	}
@@ -122,8 +131,8 @@ func Load() Config {
 	if v := os.Getenv("MYNEXUS_STORAGE_UPLOAD_DIR"); v != "" {
 		cfg.Storage.UploadDir = v
 	}
-	if v := os.Getenv("MYNEXUS_SERVER_INTERNAL_URL"); v != "" {
-		cfg.Server.InternalURL = v
+	if v := os.Getenv("MYNEXUS_SERVER_GRPC_PORT"); v != "" {
+		cfg.Server.GRPCPort = v
 	}
 	if v := os.Getenv("MYNEXUS_CHAT_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {

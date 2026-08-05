@@ -52,7 +52,13 @@
     },
     "detail": "详情",
     "chapters": "章节",
-    "noChapters": "暂无章节数据"
+    "noChapters": "暂无章节数据",
+    "rebuild": "重建",
+    "bulkRebuild": "批量重建",
+    "bulkDelete": "批量删除",
+    "selectedCount": "已选择 {count} 本",
+    "confirmBulkDelete": "确定要删除选中的 {count} 本书籍吗？此操作不可撤销。",
+    "confirmBulkRebuild": "确定要对选中的 {count} 本书籍重新构建吗？"
   },
   "tasks": {
     "title": "任务监控",

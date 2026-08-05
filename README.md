@@ -67,9 +67,9 @@ STORAGE_DATABASE=postgres docker compose --profile postgres up -d --build
 
 - Web 管理后台：http://localhost:3000
 - Core API：http://localhost:8080
-- Worker（内部服务，一般无需直接访问）：http://localhost:8001
+- Worker（内部服务，gRPC 端口 8001，一般无需直接访问，也无法用浏览器/curl 直接访问）：`localhost:8001`
 
-数据与配置通过卷挂载持久化在宿主机的 `./data` 与 `./config` 目录下。Worker 容器内存上限为 1536M（ChromaDB + FastAPI 的实际需求，适配 4GB+ 内存的 NAS 环境）。
+数据与配置通过卷挂载持久化在宿主机的 `./data` 与 `./config` 目录下。Worker 容器内存上限为 1536M（ChromaDB 的实际需求，适配 4GB+ 内存的 NAS 环境）。Core API 与 Worker 之间的内部通信为 gRPC（见系统设计文档 §1.3），浏览器与 Core API 之间仍是普通 HTTP/SSE，不受影响。
 
 ### 方式二：本地开发（Makefile）
 

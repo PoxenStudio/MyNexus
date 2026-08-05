@@ -96,3 +96,24 @@ type ChunkListResponse struct {
 	Page  int             `json:"page"`
 	Size  int             `json:"size"`
 }
+
+// BulkBookRequest is the body for POST /books/bulk-delete and
+// /books/bulk-rebuild (需求文档.md §6.7.3 "批量选择书籍并执行删除或重建操作").
+type BulkBookRequest struct {
+	IDs []string `json:"ids" binding:"required,min=1"`
+}
+
+type BulkResultItem struct {
+	ID    string `json:"id"`
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+type BulkResultResponse struct {
+	Items []BulkResultItem `json:"items"`
+}
+
+type RebuildResponse struct {
+	TaskID string `json:"task_id"`
+	BookID string `json:"book_id"`
+}

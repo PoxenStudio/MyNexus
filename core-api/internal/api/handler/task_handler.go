@@ -77,7 +77,7 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 
 	if err := h.worker.TriggerIngest(coordinator.IngestRequest{
 		TaskID: id, BookID: book.ID, FilePath: book.FilePath,
-		OriginalFilename: filepath.Base(book.FilePath), CallbackBaseURL: h.cfg.Server.InternalURL,
+		OriginalFilename: filepath.Base(book.FilePath),
 	}); err != nil {
 		_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
 		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)

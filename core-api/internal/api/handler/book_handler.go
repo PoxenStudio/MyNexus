@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -76,7 +77,6 @@ func (h *BookHandler) Import(c *gin.Context) {
 		BookID:           book.ID,
 		FilePath:         filePath,
 		OriginalFilename: filepath.Base(fileHeader.Filename),
-		CallbackBaseURL:  h.cfg.Server.InternalURL,
 	}); err != nil {
 		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
 		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
@@ -188,4 +188,98 @@ func (h *BookHandler) Delete(c *gin.Context) {
 		_ = h.audit.Log(actor.(string), "book.delete", "book", id, title)
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// Rebuild re-submits a book's existing uploaded file to Worker for a fresh
+// parse/split/embed pass (需求文档.md §6.7.3 "对单本书籍执行重新构建..."), creating
+// a new task rather than reusing an old one — unlike task_handler.Retry (which
+// only applies to an already-failed task), Rebuild works on any book that
+// still has its original file on disk, regardless of current status (e.g.
+// after changing the embedding model or chunk size on an already-"ready" book).
+func (h *BookHandler) Rebuild(c *gin.Context) {
+	id := c.Param("id")
+	taskID, err := h.rebuildOne(id)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "book.rebuild", "book", id, "task_id="+taskID)
+	}
+	c.JSON(http.StatusAccepted, dto.RebuildResponse{TaskID: taskID, BookID: id})
+}
+
+func (h *BookHandler) rebuildOne(bookID string) (taskID string, err error) {
+	book, err := h.books.GetBook(bookID)
+	if err != nil {
+		return "", err
+	}
+	if book.FilePath == "" {
+		return "", fmt.Errorf("book has no stored file to rebuild from")
+	}
+
+	task, err := h.tasks.CreateTask(book.ID, defaultUserID, models.TaskTypeIngest)
+	if err != nil {
+		return "", err
+	}
+	_ = h.books.SetStatus(book.ID, models.BookStatusPending)
+
+	if err := h.worker.TriggerIngest(coordinator.IngestRequest{
+		TaskID: task.ID, BookID: book.ID, FilePath: book.FilePath,
+		OriginalFilename: filepath.Base(book.FilePath),
+	}); err != nil {
+		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
+		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
+		return "", fmt.Errorf("failed to trigger ingestion: %w", err)
+	}
+	return task.ID, nil
+}
+
+// BulkDelete and BulkRebuild implement 需求文档.md §6.7.3's "批量选择书籍并执行删除
+// 或重建操作" — each book is processed independently so one failure (e.g. a
+// book whose file was already removed from disk) doesn't block the rest;
+// per-item results are returned so the UI can report exactly which ones failed.
+
+func (h *BookHandler) BulkDelete(c *gin.Context) {
+	var req dto.BulkBookRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ids is required"})
+		return
+	}
+
+	actor, _ := c.Get("actor")
+	items := make([]dto.BulkResultItem, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		if err := h.books.DeleteBook(id); err != nil {
+			items = append(items, dto.BulkResultItem{ID: id, OK: false, Error: err.Error()})
+			continue
+		}
+		items = append(items, dto.BulkResultItem{ID: id, OK: true})
+	}
+	if actor != nil {
+		_ = h.audit.Log(actor.(string), "book.bulk_delete", "book", "", strings.Join(req.IDs, ","))
+	}
+	c.JSON(http.StatusOK, dto.BulkResultResponse{Items: items})
+}
+
+func (h *BookHandler) BulkRebuild(c *gin.Context) {
+	var req dto.BulkBookRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ids is required"})
+		return
+	}
+
+	actor, _ := c.Get("actor")
+	items := make([]dto.BulkResultItem, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		if _, err := h.rebuildOne(id); err != nil {
+			items = append(items, dto.BulkResultItem{ID: id, OK: false, Error: err.Error()})
+			continue
+		}
+		items = append(items, dto.BulkResultItem{ID: id, OK: true})
+	}
+	if actor != nil {
+		_ = h.audit.Log(actor.(string), "book.bulk_rebuild", "book", "", strings.Join(req.IDs, ","))
+	}
+	c.JSON(http.StatusOK, dto.BulkResultResponse{Items: items})
 }

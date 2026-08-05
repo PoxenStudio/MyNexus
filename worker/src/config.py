@@ -49,6 +49,21 @@ class WorkerConfig:
     vector_store: str = "chroma"
     vector_store_path: str = "./data/vectorstore"
 
+    # storage_database mirrors Core API's storage.database (sqlite | postgres).
+    # RetrievalPipeline uses this to decide whether it can call Core API's
+    # GIN-indexed /internal/search/keyword endpoint (postgres only) or must
+    # fall back to its own in-process BM25 pass (sqlite — small-scale/trial
+    # deployments only, see docs/系统设计文档.md).
+    storage_database: str = "sqlite"
+
+    # core_api_base_url is Worker's gRPC dial target for calling Core API back
+    # (task progress/complete/fail, keyword search) — a bare "host:port"
+    # authority (e.g. "core-api:9090" in Docker, "localhost:9090" locally),
+    # NOT an "http://" URL. This is Core API's *gRPC* port (server.grpc_port
+    # in core-api/internal/config/config.go), not its browser-facing HTTP
+    # port. See .claude/memory/mynexus_grpc_migration.md.
+    core_api_base_url: str = "localhost:9090"
+
     raw: dict = field(default_factory=dict)
 
     @property
@@ -97,10 +112,19 @@ def load_config() -> WorkerConfig:
 
     cfg.vector_store = raw.get("storage", {}).get("vector_store", cfg.vector_store)
     cfg.vector_store_path = raw.get("storage", {}).get("vector_store_path", cfg.vector_store_path)
+    cfg.storage_database = raw.get("storage", {}).get("database", cfg.storage_database)
+    cfg.core_api_base_url = raw.get("server", {}).get("internal_url", cfg.core_api_base_url)
 
     if v := os.getenv("MYNEXUS_EMBEDDING_OPENAI_API_KEY"):
         cfg.embedding_openai.api_key = v
     if v := os.getenv("MYNEXUS_LLM_OPENAI_API_KEY"):
         cfg.llm_openai.api_key = v
+    # In Docker, config.yaml's static value is "localhost:9090" for local dev,
+    # but the worker container needs "core-api:9090"; docker-compose.yml sets
+    # this env var explicitly for the worker service.
+    if v := os.getenv("MYNEXUS_SERVER_INTERNAL_URL"):
+        cfg.core_api_base_url = v
+    if v := os.getenv("MYNEXUS_STORAGE_DATABASE"):
+        cfg.storage_database = v
 
     return cfg

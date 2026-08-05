@@ -52,7 +52,13 @@
     },
     "detail": "Detail",
     "chapters": "Chapters",
-    "noChapters": "No chapters yet"
+    "noChapters": "No chapters yet",
+    "rebuild": "Rebuild",
+    "bulkRebuild": "Bulk Rebuild",
+    "bulkDelete": "Bulk Delete",
+    "selectedCount": "{count} selected",
+    "confirmBulkDelete": "Delete the selected {count} book(s)? This cannot be undone.",
+    "confirmBulkRebuild": "Rebuild the selected {count} book(s)?"
   },
   "tasks": {
     "title": "Tasks",

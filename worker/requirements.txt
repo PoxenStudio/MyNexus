@@ -1,5 +1,5 @@
-fastapi>=0.115
-uvicorn>=0.34
+grpcio>=1.68,<2.0
+protobuf>=5.29,<7
 pyyaml>=6.0
 ebooklib>=0.18
 beautifulsoup4>=4.12

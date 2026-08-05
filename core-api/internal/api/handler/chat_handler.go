@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -23,10 +24,25 @@ func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient
 	return &ChatHandler{chats: chats, worker: worker}
 }
 
-// Completions proxies to Worker's streaming /internal/chat and relays the SSE
-// response through unchanged (docs/系统设计文档.md §1.3 "SSE 流式代理"), while
-// persisting the user message up front and the assembled assistant reply +
-// citations once the stream ends.
+// sseEvent is the same wire shape the browser has always received (see
+// web-ui/src/api/chat.ts) — Core API builds these itself now from gRPC
+// ChatEvents instead of relaying raw SSE bytes read off an HTTP body, but the
+// browser-facing contract is unchanged by the gRPC migration.
+type sseEvent struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+	} `json:"choices"`
+	Citations json.RawMessage `json:"citations,omitempty"`
+}
+
+// Completions calls Worker's streaming Chat RPC and relays it to the browser
+// as SSE (docs/系统设计文档.md §1.3 "SSE 流式代理" — the browser-facing leg stays
+// HTTP/SSE; only the Core API <-> Worker leg is gRPC, see
+// .claude/memory/mynexus_grpc_migration.md), while persisting the user
+// message up front and the assembled assistant reply + citations once the
+// stream ends.
 func (h *ChatHandler) Completions(c *gin.Context) {
 	var req dto.ChatCompletionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -53,12 +69,11 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		messages = append(messages, coordinator.ChatMessage{Role: m.Role, Content: m.Content})
 	}
 
-	body, err := h.worker.Chat(coordinator.ChatRequest{Messages: messages, BookIDs: req.BookIDs, TopK: 5})
+	stream, err := h.worker.Chat(coordinator.ChatRequest{Messages: messages, BookIDs: req.BookIDs, TopK: 5})
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "chat failed: " + err.Error()})
 		return
 	}
-	defer body.Close()
 
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -69,35 +84,45 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	var answer strings.Builder
 	citationsJSON := "[]"
 
-	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Fprintf(c.Writer, "%s\n", line)
-		c.Writer.Flush()
-
-		data, ok := strings.CutPrefix(line, "data: ")
-		if !ok || data == "[DONE]" {
-			continue
+	for {
+		event, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
 		}
-		var event struct {
-			Choices []struct {
+		if err != nil {
+			break // Worker died/disconnected mid-stream — end the SSE stream gracefully.
+		}
+
+		var frame sseEvent
+		if event.Delta != "" {
+			answer.WriteString(event.Delta)
+			frame.Choices = []struct {
 				Delta struct {
 					Content string `json:"content"`
 				} `json:"delta"`
-			} `json:"choices"`
-			Citations json.RawMessage `json:"citations"`
+			}{{Delta: struct {
+				Content string `json:"content"`
+			}{Content: event.Delta}}}
 		}
-		if json.Unmarshal([]byte(data), &event) != nil {
-			continue
+		if event.Citations != nil {
+			citations := make([]dto.CitationResponse, 0, len(event.Citations))
+			for _, cit := range event.Citations {
+				citations = append(citations, dto.CitationResponse{
+					ChunkID: cit.ChunkID, ChapterID: cit.ChapterID, BookID: cit.BookID,
+					Score: cit.Score, Content: cit.Content,
+				})
+			}
+			citationsBytes, _ := json.Marshal(citations)
+			citationsJSON = string(citationsBytes)
+			frame.Citations = json.RawMessage(citationsBytes)
 		}
-		if len(event.Choices) > 0 {
-			answer.WriteString(event.Choices[0].Delta.Content)
-		}
-		if len(event.Citations) > 0 {
-			citationsJSON = string(event.Citations)
-		}
+
+		payload, _ := json.Marshal(frame)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+		c.Writer.Flush()
 	}
+	fmt.Fprint(c.Writer, "data: [DONE]\n\n")
+	c.Writer.Flush()
 
 	_ = h.chats.AppendMessage(sessionID, "assistant", answer.String(), citationsJSON)
 	_ = h.chats.TouchSession(sessionID)

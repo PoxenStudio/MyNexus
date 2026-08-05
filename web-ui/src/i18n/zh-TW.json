@@ -52,7 +52,13 @@
     },
     "detail": "詳情",
     "chapters": "章節",
-    "noChapters": "暫無章節數據"
+    "noChapters": "暫無章節數據",
+    "rebuild": "重建",
+    "bulkRebuild": "批量重建",
+    "bulkDelete": "批量刪除",
+    "selectedCount": "已選擇 {count} 本",
+    "confirmBulkDelete": "確定要刪除選中的 {count} 本書籍嗎？此操作不可撤銷。",
+    "confirmBulkRebuild": "確定要對選中的 {count} 本書籍重新構建嗎？"
   },
   "tasks": {
     "title": "任務監控",

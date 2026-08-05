@@ -1,94 +1,98 @@
-import json
+"""Worker's network entrypoint — a gRPC server implementing WorkerService
+(see proto/mynexus.proto). Replaces the earlier FastAPI+uvicorn HTTP server
+(see .claude/memory/mynexus_grpc_migration.md): one persistent HTTP/2
+connection per direction instead of one-shot HTTP/1.1 requests, binary
+protobuf instead of JSON, and native streaming for Chat.
+"""
 
-import uvicorn
-from fastapi import BackgroundTasks, FastAPI
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from concurrent import futures
+import threading
 
+import grpc
+
+import mynexus_pb2
+import mynexus_pb2_grpc
 from config import load_config
-from pipelines.ingestion import IngestionPipeline, build_status
+from pipelines.ingestion import IngestionPipeline
 from pipelines.qa import QAPipeline
 from pipelines.retrieval import RetrievalPipeline
 
-cfg = load_config()
-app = FastAPI(title="MyNexus Worker")
-ingestion_pipeline = IngestionPipeline(cfg)
-retrieval_pipeline = RetrievalPipeline(cfg)
-qa_pipeline = QAPipeline(cfg)
 
+class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
+    def __init__(self, cfg):
+        self.ingestion = IngestionPipeline(cfg)
+        self.retrieval = RetrievalPipeline(cfg)
+        self.qa = QAPipeline(cfg)
 
-class IngestRequest(BaseModel):
-    task_id: str
-    book_id: str
-    file_path: str
-    callback_base_url: str
-    original_filename: str = ""
+    def TriggerIngest(self, request, context):
+        # Fire-and-forget in a background thread — mirrors the old FastAPI
+        # BackgroundTasks behavior: the RPC returns immediately, and Worker
+        # reports progress/completion/failure back via CoreApiClient calls
+        # made from inside IngestionPipeline.run (see grpc_client.py).
+        thread = threading.Thread(
+            target=self.ingestion.run,
+            args=(request.task_id, request.book_id, request.file_path, request.original_filename),
+            daemon=True,
+        )
+        thread.start()
+        return mynexus_pb2.IngestAck(accepted=True)
 
+    def Search(self, request, context):
+        results = self.retrieval.search(
+            request.query,
+            book_ids=list(request.book_ids) or None,
+            top_k=request.top_k or 10,
+            score_threshold=request.score_threshold,
+        )
+        return mynexus_pb2.SearchResponse(
+            results=[
+                mynexus_pb2.SearchResult(
+                    chunk_id=r["id"],
+                    book_id=r["book_id"],
+                    chapter_id=r["chapter_id"],
+                    content=r["content"],
+                    position=r["position"],
+                    token_count=r["token_count"],
+                    score=r["score"],
+                )
+                for r in results
+            ]
+        )
 
-class SearchRequest(BaseModel):
-    query: str
-    book_ids: list[str] = []
-    top_k: int = 10
-    score_threshold: float = 0.0
+    def Chat(self, request, context):
+        messages = [{"role": m.role, "content": m.content} for m in request.messages]
+        book_ids = list(request.book_ids) or None
+        top_k = request.top_k or 5
 
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatRequest(BaseModel):
-    messages: list[ChatMessage]
-    book_ids: list[str] = []
-    top_k: int = 5
-
-
-@app.get("/health")
-@app.get("/internal/health")
-def health():
-    return {"status": "ok", "service": "worker"}
-
-
-@app.get("/internal/pipeline")
-def pipeline_status():
-    return build_status()
-
-
-@app.post("/internal/ingest", status_code=202)
-def ingest(req: IngestRequest, background_tasks: BackgroundTasks):
-    background_tasks.add_task(
-        ingestion_pipeline.run, req.task_id, req.book_id, req.file_path, req.callback_base_url, req.original_filename
-    )
-    return {"accepted": True, "task_id": req.task_id}
-
-
-@app.post("/internal/search")
-def search(req: SearchRequest):
-    results = retrieval_pipeline.search(
-        req.query, book_ids=req.book_ids or None, top_k=req.top_k, score_threshold=req.score_threshold
-    )
-    return {"results": results}
-
-
-@app.post("/internal/chat")
-def chat(req: ChatRequest):
-    messages = [m.model_dump() for m in req.messages]
-
-    def event_stream():
-        for event in qa_pipeline.answer(messages, book_ids=req.book_ids or None, top_k=req.top_k):
+        for event in self.qa.answer(messages, book_ids=book_ids, top_k=top_k):
             if event["type"] == "delta":
-                chunk = {"choices": [{"delta": {"content": event["content"]}}]}
+                yield mynexus_pb2.ChatChunk(delta=event["content"])
             else:
-                chunk = {"choices": [{"delta": {}}], "citations": event["citations"]}
-            yield f"data: {json.dumps(chunk)}\n\n"
-        yield "data: [DONE]\n\n"
+                citations = [
+                    mynexus_pb2.Citation(
+                        chunk_id=c["chunk_id"],
+                        chapter_id=c["chapter_id"],
+                        book_id=c["book_id"],
+                        score=c["score"],
+                        content=c["content"],
+                    )
+                    for c in event["citations"]
+                ]
+                yield mynexus_pb2.ChatChunk(citations=mynexus_pb2.CitationList(items=citations))
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+def build_status() -> dict:
+    return {"status": "ready", "pipeline": "worker-grpc", "stages": ["parse", "clean", "split", "embed"]}
 
 
 def main():
-    print(f"worker listening on :{cfg.port}")
-    uvicorn.run(app, host="0.0.0.0", port=cfg.port, log_level="info")
+    cfg = load_config()
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=max(cfg.max_concurrent_tasks, 1) + 4))
+    mynexus_pb2_grpc.add_WorkerServiceServicer_to_server(WorkerServicer(cfg), server)
+    server.add_insecure_port(f"[::]:{cfg.port}")
+    server.start()
+    print(f"worker grpc listening on :{cfg.port}")
+    server.wait_for_termination()
 
 
 if __name__ == "__main__":

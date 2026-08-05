@@ -1,8 +1,15 @@
 server:
   port: 8080
   cors_origins: ["*"]
-  # internal_url: how Worker reaches Core API to post task progress/completion callbacks
-  internal_url: "http://localhost:8080"
+  # grpc_port: Core API's gRPC listen port (Worker-facing: task progress/
+  # complete/fail, keyword search). Separate from `port` above, which is the
+  # browser-facing HTTP/SSE API and is unaffected by this. See
+  # .claude/memory/mynexus_grpc_migration.md.
+  grpc_port: 9090
+  # internal_url: Worker's gRPC dial target for reaching Core API back — a
+  # bare "host:port" authority (NOT an "http://" URL), pointing at grpc_port
+  # above, not `port`. Read by worker/src/config.py, not by Core API itself.
+  internal_url: "localhost:9090"
 
 auth:
   jwt_secret: "change-me-in-production"
@@ -31,7 +38,9 @@ storage:
   vector_store_path: "./data/vectorstore"
 
 worker:
-  url: "http://localhost:8001"
+  # url: Core API's gRPC dial target for reaching Worker — a bare "host:port"
+  # authority (NOT an "http://" URL). Read by core-api/internal/config/config.go.
+  url: "localhost:8001"
   max_concurrent_tasks: 1
   task_timeout_seconds: 600
 

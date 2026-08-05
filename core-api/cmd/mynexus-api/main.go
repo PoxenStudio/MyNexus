@@ -6,6 +6,7 @@ import (
 
 	"mynexus/core-api/internal/api"
 	"mynexus/core-api/internal/config"
+	"mynexus/core-api/internal/grpcserver"
 	"mynexus/core-api/internal/service"
 	"mynexus/core-api/internal/storage"
 	"mynexus/core-api/internal/storage/postgres"
@@ -38,6 +39,21 @@ func main() {
 	if err := service.NewAdminUserService(store.DB()).EnsureDefaultAdmin(); err != nil {
 		log.Fatalf("failed to seed default admin account: %v", err)
 	}
+
+	// The gRPC server (Worker-facing: progress/complete/fail/keyword-search —
+	// see .claude/memory/mynexus_grpc_migration.md) and the Gin HTTP server
+	// (browser-facing) are separate listeners sharing the same *sql.DB;
+	// BookService/TaskService are stateless wrappers around it, so
+	// constructing a second instance for gRPC is safe and avoids threading
+	// api.NewRouter's internals out through this function.
+	db := store.DB()
+	grpcSrv := grpcserver.New(cfg, service.NewBookService(db, cfg.Storage.UploadDir), service.NewTaskService(db))
+	go func() {
+		log.Printf("core-api grpc listening on :%s", cfg.Server.GRPCPort)
+		if err := grpcSrv.Serve(); err != nil {
+			log.Fatalf("grpc server failed: %v", err)
+		}
+	}()
 
 	router := api.NewRouter(cfg, store)
 

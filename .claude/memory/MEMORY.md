@@ -9,3 +9,7 @@
 - [MyNexus migration versioning](mynexus_migration_versioning.md) — schema_migrations table tracks applied files now; future schema changes are new numbered files, not edits to shipped ones
 - [MyNexus admin auth](mynexus_admin_auth.md) — session-based admin login (default admin/admin, change password), chat.enabled toggle, chat page lives inside the authenticated admin app
 - [MyNexus task log and audit](mynexus_task_log_and_audit.md) — stages_log now actually populated per-stage; new admin_audit_log table/page tracks login/password-change/delete/retry/token actions
+- [MyNexus bulk book ops](mynexus_bulk_book_ops.md) — POST /books/{id}/rebuild plus bulk-delete/bulk-rebuild, per-item error handling, all audit-logged
+- [MyNexus keyword search GIN](mynexus_keyword_search_gin.md) — Postgres-only tsvector/GIN keyword search replacing Worker's BM25-over-full-corpus; Worker got read-only DB access via Core API, NOT direct writes (deliberate, see why)
+- [MyNexus gRPC migration](mynexus_grpc_migration.md) — Core API <-> Worker internal comms moved from HTTP+JSON to gRPC (proto/mynexus.proto); browser-facing HTTP/SSE unchanged; protobuf version pin is load-bearing (chromadb needs protobuf<7)
+- [MyNexus Docker images](mynexus_docker_images.md) — OCI LABELs (author poxenstudio@gmail.com), TZ/PUID/PGID ENV, Makefile build-images/build-images-multiarch targets modeled on mybooks' buildx pattern
