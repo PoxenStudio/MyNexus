@@ -9,11 +9,18 @@ auth:
   token_prefix: "mnx_"
 
 storage:
-  # database: sqlite | postgres
+  # database: sqlite (default, single-file, zero-ops — best for a single-instance
+  #   NAS deployment) | postgres (better concurrent-write throughput; use when
+  #   running multiple core-api instances or expecting heavy write concurrency).
+  # Can also be set via MYNEXUS_STORAGE_DATABASE env var (docker-compose.yml
+  # sets this so the backend is chooseable per-deployment without editing this
+  # file). See docs/Todos.md for the postgres implementation notes.
   database: sqlite
   sqlite:
     path: "./data/mynexus.db"
   postgres:
+    # dsn example: "postgres://mynexus:mynexus@postgres:5432/mynexus?sslmode=disable"
+    # can also be set via MYNEXUS_STORAGE_POSTGRES_DSN.
     dsn: ""
   upload_dir: "./data/uploads"
 

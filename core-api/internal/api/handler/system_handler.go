@@ -7,15 +7,15 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mynexus/core-api/internal/config"
-	"mynexus/core-api/internal/storage/sqlite"
+	"mynexus/core-api/internal/storage"
 )
 
 type SystemHandler struct {
 	cfg   config.Config
-	store *sqlite.Store
+	store storage.Database
 }
 
-func NewSystemHandler(cfg config.Config, store *sqlite.Store) *SystemHandler {
+func NewSystemHandler(cfg config.Config, store storage.Database) *SystemHandler {
 	return &SystemHandler{cfg: cfg, store: store}
 }
 

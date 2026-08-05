@@ -8,14 +8,16 @@ import (
 	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/coordinator"
 	"mynexus/core-api/internal/service"
-	"mynexus/core-api/internal/storage/sqlite"
+	"mynexus/core-api/internal/storage"
 )
 
 // NewRouter wires up all routes. JWT/user-login auth still isn't implemented
 // (see docs/开发技术文档.md §15) — API Token validation is enforced when a
 // token is presented, but routes remain reachable without one so the
 // (currently login-less) admin UI keeps working. See middleware.APITokenAuth.
-func NewRouter(cfg config.Config, store *sqlite.Store) *gin.Engine {
+// store is backend-agnostic (sqlite or postgres, see storage.Database) — the
+// service layer below only ever sees the shared *sql.DB.
+func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger())
 	r.Use(middleware.CORS(cfg.Server.CORSOrigins))

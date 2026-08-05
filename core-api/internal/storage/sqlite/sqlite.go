@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	_ "modernc.org/sqlite"
+
+	"mynexus/core-api/internal/storage"
 )
 
 //go:embed migrations/*.sql
@@ -36,35 +37,10 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
 
-	store := &Store{db: db}
-	if err := store.migrate(); err != nil {
+	if err := storage.RunMigrations(db, migrationFiles, "migrations"); err != nil {
 		return nil, err
 	}
-	return store, nil
-}
-
-func (s *Store) migrate() error {
-	entries, err := migrationFiles.ReadDir("migrations")
-	if err != nil {
-		return fmt.Errorf("read migrations dir: %w", err)
-	}
-
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name())
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		script, err := migrationFiles.ReadFile("migrations/" + name)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", name, err)
-		}
-		if _, err := s.db.Exec(string(script)); err != nil {
-			return fmt.Errorf("apply migration %s: %w", name, err)
-		}
-	}
-	return nil
+	return &Store{db: db}, nil
 }
 
 // DB exposes the underlying *sql.DB for service-layer queries.

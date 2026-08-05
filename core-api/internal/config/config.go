@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
@@ -23,11 +24,19 @@ type SQLiteConfig struct {
 	Path string `yaml:"path"`
 }
 
+type PostgresConfig struct {
+	DSN string `yaml:"dsn"`
+}
+
 type StorageConfig struct {
-	Database    string       `yaml:"database"`
-	SQLite      SQLiteConfig `yaml:"sqlite"`
-	VectorStore string       `yaml:"vector_store"`
-	UploadDir   string       `yaml:"upload_dir"`
+	// Database selects the backend: "sqlite" (default, single-file, NAS/single-instance
+	// deployments) or "postgres" (better concurrent-write performance, for larger/multi-
+	// instance deployments). See docs/系统设计文档.md §3.x and docs/Todos.md.
+	Database    string         `yaml:"database"`
+	SQLite      SQLiteConfig   `yaml:"sqlite"`
+	Postgres    PostgresConfig `yaml:"postgres"`
+	VectorStore string         `yaml:"vector_store"`
+	UploadDir   string         `yaml:"upload_dir"`
 }
 
 type WorkerConfig struct {
@@ -41,12 +50,21 @@ type I18nConfig struct {
 	Supported     []string `yaml:"supported"`
 }
 
+// ChatConfig gates the end-user conversation ("会话") page/feature. When
+// disabled, the /chat/* API rejects requests and the web-ui hides/blocks the
+// conversation page — some deployments may not want an AI chat surface
+// exposed at all (e.g. no LLM budget configured).
+type ChatConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type Config struct {
 	Server  ServerConfig  `yaml:"server"`
 	Auth    AuthConfig    `yaml:"auth"`
 	Storage StorageConfig `yaml:"storage"`
 	Worker  WorkerConfig  `yaml:"worker"`
 	I18n    I18nConfig    `yaml:"i18n"`
+	Chat    ChatConfig    `yaml:"chat"`
 
 	// Port kept for backward-compatible direct access; mirrors Server.Port.
 	Port string
@@ -93,6 +111,12 @@ func Load() Config {
 	}
 	if v := os.Getenv("MYNEXUS_STORAGE_SQLITE_PATH"); v != "" {
 		cfg.Storage.SQLite.Path = v
+	}
+	if v := os.Getenv("MYNEXUS_STORAGE_DATABASE"); v != "" {
+		cfg.Storage.Database = v
+	}
+	if v := os.Getenv("MYNEXUS_STORAGE_POSTGRES_DSN"); v != "" {
+		cfg.Storage.Postgres.DSN = v
 	}
 	if v := os.Getenv("MYNEXUS_STORAGE_UPLOAD_DIR"); v != "" {
 		cfg.Storage.UploadDir = v

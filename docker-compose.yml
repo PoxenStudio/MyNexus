@@ -15,6 +15,11 @@ services:
       - MYNEXUS_SERVER_INTERNAL_URL=http://core-api:8080
       - MYNEXUS_WORKER_URL=http://worker:8001
       - MYNEXUS_AUTH_JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      # STORAGE_DATABASE selects the backend without editing config/config.yaml:
+      # "sqlite" (default) or "postgres" (pair with `docker compose --profile postgres up`
+      # to also start the bundled postgres service below).
+      - MYNEXUS_STORAGE_DATABASE=${STORAGE_DATABASE:-sqlite}
+      - MYNEXUS_STORAGE_POSTGRES_DSN=${STORAGE_POSTGRES_DSN:-postgres://mynexus:mynexus@postgres:5432/mynexus?sslmode=disable}
     depends_on:
       - worker
     restart: unless-stopped
@@ -22,6 +27,21 @@ services:
       resources:
         limits:
           memory: 128M
+
+  # Optional Postgres backend — only started when storage.database is set to
+  # "postgres" (via STORAGE_DATABASE=postgres) and this profile is enabled:
+  #   STORAGE_DATABASE=postgres docker compose --profile postgres up -d
+  # Not needed for the default sqlite deployment.
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-mynexus}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mynexus}
+      - POSTGRES_DB=${POSTGRES_DB:-mynexus}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
 
   worker:
     build:
