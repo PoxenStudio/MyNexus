@@ -92,11 +92,14 @@
     "collapseSummary": "收起",
     "activeTask": "任務執行中：{type} · {stage} · {progress}%",
     "rebuild": "重建",
+    "rebuilding": "重建中…",
+    "rebuildError": "重建失敗",
     "bulkRebuild": "批量重建",
     "bulkDelete": "批量刪除",
     "selectedCount": "已選擇 {count} 本",
     "confirmBulkDelete": "確定要刪除選中的 {count} 本書籍嗎？此操作不可撤銷。",
-    "confirmBulkRebuild": "確定要對選中的 {count} 本書籍重新構建嗎？"
+    "confirmBulkRebuild": "確定要對選中的 {count} 本書籍重新構建嗎？",
+    "confirmRebuild": "確定要重新構建這本書嗎？會重新解析、分塊並生成向量索引，已有的章節內容和總結會被覆蓋。"
   },
   "tasks": {
     "title": "任務監控",

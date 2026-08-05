@@ -117,6 +117,23 @@ def main():
     # dropped instead of showing up in .tmp/worker.log.
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load_config()
+    # config.yaml is only ever read here, once, at process start (see
+    # WorkerServicer.__init__ — every pipeline is constructed a single time
+    # and reused for the process's whole lifetime). Editing config.yaml by
+    # hand (as opposed to the system settings page, which restarts both
+    # services) or restarting only Core API has zero effect on an
+    # already-running Worker process until *it* is restarted too — logging
+    # the config actually in effect here makes that mismatch obvious instead
+    # of surfacing as a confusing "wrong provider" error deep in a pipeline
+    # (see docs/Todos.md).
+    logging.info(
+        "effective config: embedding.provider=%s (%s) llm.provider=%s (%s) config_path=%s",
+        cfg.embedding_provider,
+        cfg.active_embedder.model,
+        cfg.llm_provider,
+        cfg.active_llm.model,
+        os.getenv("MYNEXUS_CONFIG_PATH", "./config/config.yaml"),
+    )
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=max(cfg.max_concurrent_tasks, 1) + 4))
     mynexus_pb2_grpc.add_WorkerServiceServicer_to_server(WorkerServicer(cfg), server)
     server.add_insecure_port(f"[::]:{cfg.port}")

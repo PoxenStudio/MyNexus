@@ -92,11 +92,14 @@
     "collapseSummary": "Collapse",
     "activeTask": "Task running: {type} · {stage} · {progress}%",
     "rebuild": "Rebuild",
+    "rebuilding": "Rebuilding…",
+    "rebuildError": "Rebuild failed",
     "bulkRebuild": "Bulk Rebuild",
     "bulkDelete": "Bulk Delete",
     "selectedCount": "{count} selected",
     "confirmBulkDelete": "Delete the selected {count} book(s)? This cannot be undone.",
-    "confirmBulkRebuild": "Rebuild the selected {count} book(s)?"
+    "confirmBulkRebuild": "Rebuild the selected {count} book(s)?",
+    "confirmRebuild": "Rebuild this book? It will be re-parsed, re-chunked, and re-embedded — the existing chapters and summaries will be overwritten."
   },
   "tasks": {
     "title": "Tasks",

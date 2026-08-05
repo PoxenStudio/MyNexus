@@ -5,6 +5,7 @@ from typing import Callable
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_llm
+from util.text_split import split_into_segments
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,30 @@ logger = logging.getLogger(__name__)
 _PROGRESS_TICK_SECONDS = 3.0
 
 _CHAPTER_PROMPT_TEMPLATE = (
-    "请用中文对下面的章节内容做摘要，控制在200字以内，只输出摘要正文本身，不要"
+    "请用中文对下面的章节内容做摘要，控制在400字以内，只输出摘要正文本身，不要"
     "加“摘要：”之类的前缀，也不要复述章节标题。\n\n"
     "章节标题：{title}\n\n正文：\n{content}"
+)
+
+# Used instead of _CHAPTER_PROMPT_TEMPLATE for one segment of a chapter too
+# long for a single LLM call (see split_into_segments) — framed as "part N
+# of M", not the whole chapter, so the model doesn't try to summarize things
+# it hasn't seen yet or assume this segment is self-contained.
+_SEGMENT_PROMPT_TEMPLATE = (
+    "请用中文对下面的内容做摘要，控制在200字以内，只输出摘要正文本身，不要"
+    "加“摘要：”之类的前缀。这段内容是《{title}》这一章节的第 {index}/{total} 部分"
+    "（不是全章，只总结这部分实际出现的内容，不要补充你认为章节其他部分可能包含的内容）。\n\n"
+    "{content}"
+)
+
+# Reduce step for a multi-segment chapter: combines each segment's summary
+# (from _SEGMENT_PROMPT_TEMPLATE) into one coherent chapter summary — the
+# same shape as _BOOK_PROMPT_TEMPLATE's chapter-summaries-to-book-summary
+# reduce, one level down.
+_CHAPTER_REDUCE_PROMPT_TEMPLATE = (
+    "下面是《{title}》这一章节按顺序分成 {total} 部分后，每部分的摘要。请把它们合并、"
+    "改写成一段完整连贯的整章摘要，就像是通读全章后写的一样，不要出现“第一部分”这类"
+    "分段措辞，控制在400字以内，只输出摘要正文本身。\n\n{segment_summaries}"
 )
 
 _BOOK_PROMPT_TEMPLATE = (
@@ -28,24 +50,23 @@ _BOOK_PROMPT_TEMPLATE = (
     "{chapter_summaries}"
 )
 
-# Chapters longer than this are truncated before being sent to the LLM, so a
-# single unusually long chapter can't fail the whole run against a
-# smaller-context model. A proper sub-chapter map-reduce pass (summarize
-# chunks of the chapter, then reduce those) would avoid the truncation
-# entirely but adds a lot of complexity — worth revisiting if this turns out
-# to be too lossy in practice.
-_MAX_CHAPTER_CHARS = 12000
-
 
 class SummaryPipeline:
-    """Map-reduce whole-book summarization.
+    """Two nested levels of map-reduce.
 
-    Map: each chapter is summarized individually and persisted immediately
-    (via report_chapter_summary) as soon as it's done, so a crash partway
-    through a long book doesn't lose the chapters already summarized.
-    Reduce: once every chapter has a summary, they're combined into one
+    Book level: each chapter is summarized individually and persisted
+    immediately (via report_chapter_summary) as soon as it's done, so a
+    crash partway through a long book doesn't lose the chapters already
+    summarized. Once every chapter has a summary, they're combined into one
     whole-book summary (report_book_summary), which also marks the task
     complete.
+
+    Chapter level (summarize_chapter): a chapter too long for one LLM call
+    is itself map-reduced instead of truncated — split_into_segments cuts it
+    at paragraph/sentence boundaries, each segment gets its own summary, and
+    those get merged into one chapter summary. Most chapters fit in a single
+    segment and this collapses to one LLM call, same as before this existed
+    (see docs/Todos.md for why plain truncation wasn't good enough).
 
     Reuses whichever LLM provider is configured for chat (`llm.provider` in
     config.yaml) — there's no separate summarization-model setting, see
@@ -75,11 +96,44 @@ class SummaryPipeline:
                     last_tick = now
         return "".join(chunks).strip()
 
-    def summarize_chapter(self, title: str, content: str, on_chars: Callable[[int], None] | None = None) -> str:
-        prompt = _CHAPTER_PROMPT_TEMPLATE.format(
-            title=title or "（未命名章节）", content=content[:_MAX_CHAPTER_CHARS]
+    def summarize_chapter(self, title: str, content: str, on_progress: Callable[[str], None] | None = None) -> str:
+        """on_progress (if given) is called with a short human-readable
+        status string — "生成中…已输出 N 字" for a single-segment chapter,
+        "第 i/total 段，已输出 N 字" then "正在合并 total 段摘要…" for a
+        multi-segment one — every _PROGRESS_TICK_SECONDS (see _complete).
+        Wraps _complete's lower-level char-count callback rather than
+        exposing it directly, since what counts as meaningful progress
+        differs between the two cases."""
+        title = title or "（未命名章节）"
+        segments = split_into_segments(content)
+        if not segments:
+            return ""
+
+        if len(segments) == 1:
+            prompt = _CHAPTER_PROMPT_TEMPLATE.format(title=title, content=segments[0])
+            on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
+            return self._complete(prompt, on_chars=on_chars)
+
+        # Map: summarize each segment on its own.
+        segment_summaries = []
+        for i, segment in enumerate(segments):
+            prompt = _SEGMENT_PROMPT_TEMPLATE.format(title=title, index=i + 1, total=len(segments), content=segment)
+            on_chars = (
+                (lambda chars, i=i, total=len(segments): on_progress(f"第 {i + 1}/{total} 段，已输出 {chars} 字"))
+                if on_progress
+                else None
+            )
+            segment_summaries.append(self._complete(prompt, on_chars=on_chars))
+
+        # Reduce: merge the segment summaries into one chapter summary.
+        if on_progress:
+            on_progress(f"正在合并 {len(segments)} 段摘要…")
+        reduce_prompt = _CHAPTER_REDUCE_PROMPT_TEMPLATE.format(
+            title=title,
+            total=len(segments),
+            segment_summaries="\n\n".join(f"[{i + 1}/{len(segments)}] {s}" for i, s in enumerate(segment_summaries)),
         )
-        return self._complete(prompt, on_chars=on_chars)
+        return self._complete(reduce_prompt)
 
     def summarize_book(self, chapter_summaries: list[tuple[str, str]]) -> str:
         joined = "\n\n".join(
@@ -122,12 +176,10 @@ class SummaryPipeline:
                 chapter_progress = 5 + int(80 * i / max(total, 1))
                 chapter_label = f"{i + 1}/{total} 《{ch.title or '未命名章节'}》"
 
-                def on_chars(chars: int, label: str = chapter_label, progress: int = chapter_progress) -> None:
-                    self.core_api.report_progress(
-                        task_id, progress, "summarizing_chapters", f"{label} 生成中…已输出 {chars} 字"
-                    )
+                def on_progress(message: str, label: str = chapter_label, progress: int = chapter_progress) -> None:
+                    self.core_api.report_progress(task_id, progress, "summarizing_chapters", f"{label} {message}")
 
-                summary = self.summarize_chapter(ch.title, ch.content, on_chars=on_chars)
+                summary = self.summarize_chapter(ch.title, ch.content, on_progress=on_progress)
                 self.core_api.report_chapter_summary(task_id, ch.id, summary)
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.

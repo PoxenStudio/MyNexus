@@ -2,8 +2,9 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
-import { getBook, summarizeBook, type BookDetail } from "../../api/books";
+import { getBook, rebuildBook, summarizeBook, type BookDetail } from "../../api/books";
 import { getTask, listTasks, type Task } from "../../api/tasks";
+import ConfirmDialog from "../../components/ConfirmDialog.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -13,6 +14,8 @@ const loading = ref(true);
 const summarizing = ref(false);
 const summarizeTask = ref<Task | null>(null);
 const summarizeError = ref("");
+const rebuildError = ref("");
+const rebuildConfirmOpen = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 // Any non-terminal task for this book — set either by onSummarize() below or,
@@ -21,7 +24,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 // previous visit) via findActiveTask(). Drives the generic "task running"
 // banner; summarize-specific UI (buttons, progress line) still keys off
 // summarizeTask/summarizing so it only lights up for that task type.
-const CHAPTER_SUMMARY_TRUNCATE_LENGTH = 500;
+const CHAPTER_SUMMARY_TRUNCATE_LENGTH = 600;
 // Chapter ids whose summary is currently shown in full — everything else
 // renders truncated (see chapterSummaryText()) with a "展开" toggle.
 const expandedChapters = ref(new Set<string>());
@@ -32,7 +35,7 @@ function isChapterSummaryLong(summary: string): boolean {
 
 function chapterSummaryText(ch: { id: string; summary: string }): string {
   if (expandedChapters.value.has(ch.id) || !isChapterSummaryLong(ch.summary)) return ch.summary;
-  return ch.summary.slice(0, CHAPTER_SUMMARY_TRUNCATE_LENGTH) + "…";
+  return ch.summary.slice(0, CHAPTER_SUMMARY_TRUNCATE_LENGTH - 100) + "…";
 }
 
 function toggleChapterSummary(id: string) {
@@ -65,6 +68,13 @@ const activeTaskLabel = computed(() => {
     progress: task.progress,
   });
 });
+
+// A rebuild re-parses/re-chunks/re-embeds the book (POST /books/{id}/rebuild,
+// same as the books-list page's "重建" button) — it replaces book.chapters
+// out from under any in-flight summarize run, so the two are mutually
+// exclusive: summarizing is disabled while a rebuild's ingest task is
+// running, and vice versa (see the template).
+const rebuilding = computed(() => activeTask.value?.type === "ingest");
 
 // Three states, per how much of the map-reduce has already landed in the DB:
 // - none started: only "Summarize Book" (restart, though restart/continue
@@ -125,6 +135,38 @@ async function onSummarize(mode: "restart" | "continue") {
   }
 }
 
+function onRebuild() {
+  if (!book.value) return;
+  rebuildConfirmOpen.value = true;
+}
+
+async function doRebuild() {
+  if (!book.value) return;
+  rebuildError.value = "";
+  try {
+    const { task_id } = await rebuildBook(book.value.id);
+    // Placeholder so the "重建中…" button/banner switch on immediately —
+    // pollTask overwrites this with the real task on its first tick, same
+    // as onSummarize does implicitly via summarizing.value.
+    const now = new Date().toISOString();
+    activeTask.value = {
+      id: task_id,
+      book_id: book.value.id,
+      type: "ingest",
+      status: "pending",
+      progress: 0,
+      error_msg: "",
+      stages_log: [],
+      created_at: now,
+      updated_at: now,
+    };
+    pollTimer = setInterval(() => pollTask(task_id), 2000);
+    await pollTask(task_id);
+  } catch (e: any) {
+    rebuildError.value = e?.response?.data?.error || t("books.rebuildError");
+  }
+}
+
 async function pollTask(taskId: string) {
   const task = await getTask(taskId);
   if (task.type === "summarize") {
@@ -141,8 +183,12 @@ async function pollTask(taskId: string) {
     stopPolling();
     summarizing.value = false;
     activeTask.value = null;
-    if (task.type === "summarize" && task.status === "failed") {
-      summarizeError.value = task.error_msg || t("books.summarizeError");
+    if (task.status === "failed") {
+      if (task.type === "summarize") {
+        summarizeError.value = task.error_msg || t("books.summarizeError");
+      } else {
+        rebuildError.value = task.error_msg || t("books.rebuildError");
+      }
     }
   }
 }
@@ -187,20 +233,23 @@ onUnmounted(stopPolling);
               <button
                 v-if="summarizeState === 'partial'"
                 class="ghost"
-                :disabled="!book.chapters.length"
+                :disabled="!book.chapters.length || rebuilding"
                 @click="onSummarize('continue')"
               >
                 {{ t("books.continueSummarize") }}
               </button>
               <button
                 class="ghost"
-                :disabled="!book.chapters.length"
+                :disabled="!book.chapters.length || rebuilding"
                 :title="!book.chapters.length ? t('books.noChaptersToSummarize') : undefined"
                 @click="onSummarize('restart')"
               >
                 {{ summarizeState === "none" ? t("books.summarize") : t("books.resummarize") }}
               </button>
             </template>
+            <button class="ghost" :disabled="summarizing || rebuilding" @click="onRebuild">
+              {{ rebuilding ? t("books.rebuilding") : t("books.rebuild") }}
+            </button>
           </div>
         </div>
         <p v-if="summarizing && summarizeTask" class="progress-line">
@@ -208,6 +257,7 @@ onUnmounted(stopPolling);
           <span v-if="summarizeStageMessage">· {{ summarizeStageMessage }}</span>
         </p>
         <p v-if="summarizeError" class="error">{{ summarizeError }}</p>
+        <p v-if="rebuildError" class="error">{{ rebuildError }}</p>
         <p v-if="book.summary" class="summary-text">{{ book.summary }}</p>
         <p v-else-if="!summarizing" class="empty">{{ t("books.noSummaryYet") }}</p>
       </div>
@@ -226,6 +276,13 @@ onUnmounted(stopPolling);
       </ol>
       <p v-else>{{ t("books.noChapters") }}</p>
     </template>
+
+    <ConfirmDialog
+      v-model="rebuildConfirmOpen"
+      :title="t('books.rebuild')"
+      :message="t('books.confirmRebuild')"
+      @confirm="doRebuild"
+    />
   </section>
 </template>
 

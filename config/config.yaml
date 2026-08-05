@@ -21,7 +21,7 @@ worker:
     max_concurrent_tasks: 1
     task_timeout_seconds: 600
 embedding:
-    provider: openai
+    provider: ollama
     openai:
         api_key: ""
         base_url: https://api.openai.com/v1
