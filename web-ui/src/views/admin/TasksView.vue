@@ -78,7 +78,7 @@ onMounted(load);
             <td colspan="7">
               <ol v-if="task.stages_log?.length" class="stage-log">
                 <li v-for="(entry, i) in task.stages_log" :key="i">
-                  <span class="stage-name">{{ entry.stage }}</span>
+                  <span class="stage-name">{{ t(`taskStage.${entry.stage}`, entry.stage) }}</span>
                   <span class="stage-progress">{{ entry.progress }}%</span>
                   <span v-if="entry.message" class="stage-message">{{ entry.message }}</span>
                   <span class="stage-time">{{ new Date(entry.at).toLocaleString() }}</span>

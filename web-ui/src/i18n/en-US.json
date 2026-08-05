@@ -47,6 +47,23 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "taskType": {
+    "ingest": "Ingestion",
+    "summarize": "Book Summarization"
+  },
+  "taskStage": {
+    "parsing": "Parsing file",
+    "metadata_done": "Metadata parsed",
+    "cleaning_done": "Text cleaned",
+    "splitting_done": "Chapters split",
+    "embedding": "Building vector index",
+    "summarizing_chapters": "Summarizing chapters",
+    "chapter_summarized": "Chapter summarized",
+    "reducing_done": "Compiling book summary",
+    "completed": "Completed",
+    "failed": "Failed",
+    "retry": "Re-submitted"
+  },
   "books": {
     "title": "Books",
     "upload": "Upload Book",
@@ -71,6 +88,9 @@
     "summarizeError": "Failed to generate summary",
     "noSummaryYet": "No summary yet — click \"Summarize Book\" to generate one",
     "noChaptersToSummarize": "This book has no chapters yet, can't summarize",
+    "expandSummary": "Expand",
+    "collapseSummary": "Collapse",
+    "activeTask": "Task running: {type} · {stage} · {progress}%",
     "rebuild": "Rebuild",
     "bulkRebuild": "Bulk Rebuild",
     "bulkDelete": "Bulk Delete",
@@ -156,10 +176,11 @@
     "chunkSize": "Chunk size",
     "chunkOverlap": "Chunk overlap",
     "strategy": "Strategy",
-    "i18n": "Locale",
+    "basic": "Basic Settings",
     "defaultLocale": "Default locale",
-    "chat": "Chat Feature",
-    "chatEnabled": "Enable the chat (Q&A) page"
+    "chatEnabled": "Enable the chat (Q&A) page",
+    "debugLogging": "Enable debug logging",
+    "debugLoggingHint": "When on, every LLM call's request and response are each saved as a file under the mynexus-llm-debug subdirectory of the OS temp dir — replay one with worker/tests/replay_llm_debug.py."
   },
   "chat": {
     "newSession": "New Session",

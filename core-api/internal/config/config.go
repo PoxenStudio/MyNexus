@@ -111,6 +111,17 @@ type ChatConfig struct {
 	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
+// DebugConfig is Worker-side only (Core API never reads it, same round-trip-
+// fidelity reasoning as ServerConfig.InternalURL above) — it just needs to
+// survive SaveToFile since the system settings page writes the whole Config.
+// LLMLogging, when true, makes every LLM call (worker/src/nodes/llm/*.py)
+// dump its request messages and full response text as a matched pair of
+// files under the OS temp dir (see worker/src/util/debug_log.py and
+// docs/部署说明.md "调试日志") — replay one with worker/tests/replay_llm_debug.py.
+type DebugConfig struct {
+	LLMLogging bool `yaml:"llm_logging" json:"llm_logging"`
+}
+
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -121,6 +132,7 @@ type Config struct {
 	Splitter  SplitterConfig  `yaml:"splitter"`
 	I18n      I18nConfig      `yaml:"i18n"`
 	Chat      ChatConfig      `yaml:"chat"`
+	Debug     DebugConfig     `yaml:"debug"`
 
 	// Port kept for backward-compatible direct access; mirrors Server.Port.
 	// yaml:"-" so SaveToFile doesn't emit a spurious top-level "port" key.
@@ -154,6 +166,7 @@ func defaults() Config {
 		Splitter: SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
 		I18n:     I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
 		Chat:     ChatConfig{Enabled: true},
+		Debug:    DebugConfig{LLMLogging: false},
 	}
 }
 
@@ -200,6 +213,11 @@ func Load() Config {
 	if v := os.Getenv("MYNEXUS_CHAT_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.Chat.Enabled = b
+		}
+	}
+	if v := os.Getenv("MYNEXUS_DEBUG_LLM_LOGGING"); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			cfg.Debug.LLMLogging = b
 		}
 	}
 

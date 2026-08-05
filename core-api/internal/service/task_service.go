@@ -49,7 +49,7 @@ func (s *TaskService) GetTask(id string) (*models.Task, error) {
 	return scanTask(row)
 }
 
-func (s *TaskService) ListTasks(page, size int, status string) ([]models.Task, int64, error) {
+func (s *TaskService) ListTasks(page, size int, status, bookID string) ([]models.Task, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -62,6 +62,10 @@ func (s *TaskService) ListTasks(page, size int, status string) ([]models.Task, i
 	if status != "" {
 		where += " AND status = ?"
 		args = append(args, status)
+	}
+	if bookID != "" {
+		where += " AND book_id = ?"
+		args = append(args, bookID)
 	}
 
 	var total int64
@@ -93,6 +97,52 @@ func (s *TaskService) ListTasks(page, size int, status string) ([]models.Task, i
 // re-submitted to Worker (see task_handler.go's Retry).
 func (s *TaskService) Retry(id string) error {
 	return s.transition(id, models.TaskStatusPending, 0, "", "retry", "")
+}
+
+// ReconcileOrphaned fails every task still pending/processing, returning the
+// tasks it touched so the caller can also fix up anything derived from task
+// state (an in-flight ingest's book status — see grpcserver.ReportFail's
+// matching Type == TaskTypeIngest guard).
+//
+// Worker runs a task in its own in-process thread with no persistence of its
+// own (see docs/系统设计文档.md §3.x "Worker 只算、Core API 统一持久化") — it
+// reports back over gRPC when done, but if either side restarts or Worker's
+// process dies mid-task, that callback never arrives and the task would
+// otherwise stay stuck at pending/processing forever with nothing to notice.
+// Called both at Core API startup (main.go: any such task predates this
+// process, so nothing is still tracking it — see docs/Todos.md) and by the
+// Worker health-check loop (main.go's watchWorkerHealth) once Worker itself
+// is found unreachable.
+func (s *TaskService) ReconcileOrphaned(reason string) ([]models.Task, error) {
+	rows, err := s.db.Query(
+		`SELECT id, book_id, user_id, type, status, progress, error_msg, stages_log, created_at, updated_at
+		 FROM tasks WHERE status IN (?, ?)`,
+		models.TaskStatusPending, models.TaskStatusProcessing,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query orphaned tasks: %w", err)
+	}
+	var orphaned []models.Task
+	for rows.Next() {
+		t, err := scanTaskRows(rows)
+		if err != nil {
+			rows.Close()
+			return nil, err
+		}
+		orphaned = append(orphaned, *t)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close() // must be closed before Fail() below issues its own queries on the same *sql.DB
+
+	for _, t := range orphaned {
+		if err := s.Fail(t.ID, reason); err != nil {
+			return nil, fmt.Errorf("fail orphaned task %s: %w", t.ID, err)
+		}
+	}
+	return orphaned, nil
 }
 
 func (s *TaskService) UpdateProgress(id string, progress int, stage, message string) error {

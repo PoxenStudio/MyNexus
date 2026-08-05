@@ -194,7 +194,7 @@ onMounted(load);
       </fieldset>
 
       <fieldset>
-        <legend>{{ t("settings.i18n") }}</legend>
+        <legend>{{ t("settings.basic") }}</legend>
         <label>
           {{ t("settings.defaultLocale") }}
           <select v-model="settings.i18n.default_locale">
@@ -203,14 +203,15 @@ onMounted(load);
             <option value="en-US">en-US</option>
           </select>
         </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>{{ t("settings.chat") }}</legend>
         <label class="checkbox-row">
           <input v-model="settings.chat.enabled" type="checkbox" />
           {{ t("settings.chatEnabled") }}
         </label>
+        <label class="checkbox-row">
+          <input v-model="settings.debug.llm_logging" type="checkbox" />
+          {{ t("settings.debugLogging") }}
+        </label>
+        <p v-if="settings.debug.llm_logging" class="hint">{{ t("settings.debugLoggingHint") }}</p>
       </fieldset>
 
       <p v-if="error" class="error">{{ error }}</p>

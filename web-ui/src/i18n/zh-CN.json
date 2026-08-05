@@ -47,6 +47,23 @@
     "completed": "已完成",
     "failed": "失败"
   },
+  "taskType": {
+    "ingest": "导入解析",
+    "summarize": "全书总结"
+  },
+  "taskStage": {
+    "parsing": "正在解析文件",
+    "metadata_done": "元数据解析完成",
+    "cleaning_done": "正文清洗完成",
+    "splitting_done": "章节切分完成",
+    "embedding": "正在生成向量索引",
+    "summarizing_chapters": "正在生成章节摘要",
+    "chapter_summarized": "章节摘要已生成",
+    "reducing_done": "正在汇总全书总结",
+    "completed": "已完成",
+    "failed": "已失败",
+    "retry": "已重新提交"
+  },
   "books": {
     "title": "书籍管理",
     "upload": "上传书籍",
@@ -71,6 +88,9 @@
     "summarizeError": "生成总结失败",
     "noSummaryYet": "暂无全书总结，点击「总结全书」生成",
     "noChaptersToSummarize": "书籍还没有章节数据，无法生成总结",
+    "expandSummary": "展开",
+    "collapseSummary": "收起",
+    "activeTask": "任务执行中：{type} · {stage} · {progress}%",
     "rebuild": "重建",
     "bulkRebuild": "批量重建",
     "bulkDelete": "批量删除",
@@ -156,10 +176,11 @@
     "chunkSize": "分块大小",
     "chunkOverlap": "分块重叠",
     "strategy": "策略",
-    "i18n": "语言",
+    "basic": "基础设置",
     "defaultLocale": "默认语言",
-    "chat": "会话功能",
-    "chatEnabled": "启用会话（问答）页面"
+    "chatEnabled": "启用会话（问答）页面",
+    "debugLogging": "打开调试日志",
+    "debugLoggingHint": "开启后，每次调用 LLM 的请求与响应都会分别保存为文件，写入系统临时目录下的 mynexus-llm-debug 子目录，可用 worker/tests/replay_llm_debug.py 重放调试。"
   },
   "chat": {
     "newSession": "新建会话",

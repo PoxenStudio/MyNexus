@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	"mynexus/core-api/internal/grpcapi/mynexuspb"
 )
@@ -28,8 +30,23 @@ type WorkerClient struct {
 // The connection is lazy/non-blocking: grpc-go connects on first RPC and
 // transparently reconnects on failure, so a Worker that isn't up yet at Core
 // API startup isn't a hard error here.
+//
+// Keepalive pings are explicit (not the grpc-go default of "none") so a dead
+// Worker — process crashed, container killed, network cut — is detected via
+// ConnState() within roughly PingTime+PingTimeout even with no task in
+// flight, instead of only surfacing on the next RPC attempt. Used by
+// main.go's watchWorkerHealth to fail any task stuck pending/processing
+// against an unreachable Worker (see task_service.go's ReconcileOrphaned).
 func NewWorkerClient(target string) *WorkerClient {
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                10 * time.Second,
+			Timeout:             5 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)
 	if err != nil {
 		// grpc.NewClient only fails on malformed target strings, not connectivity —
 		// a bad config value is a startup-time bug worth crashing loudly for.
@@ -40,6 +57,22 @@ func NewWorkerClient(target string) *WorkerClient {
 
 func (c *WorkerClient) Close() error {
 	return c.conn.Close()
+}
+
+// ConnState reports the gRPC channel's current connectivity state — see
+// watchWorkerHealth (main.go), which polls this to detect an unreachable
+// Worker.
+func (c *WorkerClient) ConnState() connectivity.State {
+	return c.conn.GetState()
+}
+
+// Connect nudges an idle channel into actively attempting a connection.
+// grpc.NewClient is lazy by default (it only connects when the first RPC is
+// made), so without this a channel that's never been used for a real call
+// would sit at Idle indefinitely and ConnState() would never reflect whether
+// Worker is actually reachable.
+func (c *WorkerClient) Connect() {
+	c.conn.Connect()
 }
 
 type IngestRequest struct {

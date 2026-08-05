@@ -17,7 +17,10 @@ import (
 // API Token instead (see the Tokens admin page) — either is accepted on
 // protected routes. store is backend-agnostic (sqlite or postgres, see
 // storage.Database) — the service layer below only ever sees the shared *sql.DB.
-func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
+// workerClient is constructed once in main.go (not here) so it can also be
+// shared with the Worker health-check loop (main.go's watchWorkerHealth) —
+// one persistent gRPC connection to Worker, not two.
+func NewRouter(cfg config.Config, store storage.Database, workerClient *coordinator.WorkerClient) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger())
 	r.Use(middleware.CORS(cfg.Server.CORSOrigins))
@@ -31,7 +34,6 @@ func NewRouter(cfg config.Config, store storage.Database) *gin.Engine {
 	adminSvc := service.NewAdminUserService(db)
 	auditSvc := service.NewAuditService(db)
 	sessions := auth.NewSessionManager()
-	workerClient := coordinator.NewWorkerClient(cfg.Worker.URL)
 
 	sys := handler.NewSystemHandler(cfg, store, workerClient, auditSvc)
 	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, auditSvc)

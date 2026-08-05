@@ -3,15 +3,19 @@ import urllib.request
 from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM
+from util.debug_log import LLMCallLogger
 from util.http import call_provider
 
 
 class OllamaLLM(BaseLLM):
     """Calls a local/LAN Ollama server's /api/chat endpoint with stream=true."""
 
-    def __init__(self, base_url: str, model: str) -> None:
+    def __init__(self, base_url: str, model: str, debug: bool = False) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        # See util/debug_log.py — dumps this call's request/response to the
+        # OS temp dir when the system settings "打开调试日志" toggle is on.
+        self.debug = debug
 
     @property
     def node_name(self) -> str:
@@ -25,17 +29,29 @@ class OllamaLLM(BaseLLM):
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        with call_provider(req, timeout=120, service="llm", provider="ollama", model=self.model) as resp:
-            for raw_line in resp:
-                line = raw_line.decode("utf-8", errors="ignore").strip()
-                if not line:
-                    continue
-                event = json.loads(line)
-                content = event.get("message", {}).get("content")
-                if content:
-                    yield content
-                if event.get("done"):
-                    break
+        logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
+        chunks: list[str] = []
+        try:
+            with call_provider(req, timeout=120, service="llm", provider="ollama", model=self.model) as resp:
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8", errors="ignore").strip()
+                    if not line:
+                        continue
+                    event = json.loads(line)
+                    content = event.get("message", {}).get("content")
+                    if content:
+                        if logger:
+                            chunks.append(content)
+                        yield content
+                    if event.get("done"):
+                        break
+        except Exception as exc:
+            if logger:
+                logger.log_error(exc)
+            raise
+        else:
+            if logger:
+                logger.log_response("".join(chunks))
 
 
 if __name__ == "__main__":

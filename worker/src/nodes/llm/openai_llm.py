@@ -3,6 +3,7 @@ import urllib.request
 from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM
+from util.debug_log import LLMCallLogger
 from util.http import call_provider
 
 
@@ -10,10 +11,13 @@ class OpenAILLM(BaseLLM):
     """Calls any OpenAI-compatible /chat/completions endpoint (OpenAI, DeepSeek, etc.)
     with stream=true and yields text deltas as they arrive."""
 
-    def __init__(self, api_key: str, base_url: str, model: str) -> None:
+    def __init__(self, api_key: str, base_url: str, model: str, debug: bool = False) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
+        # See util/debug_log.py — dumps this call's request/response to the
+        # OS temp dir when the system settings "打开调试日志" toggle is on.
+        self.debug = debug
 
     @property
     def node_name(self) -> str:
@@ -31,19 +35,31 @@ class OpenAILLM(BaseLLM):
                 "Accept": "text/event-stream",
             },
         )
-        with call_provider(req, timeout=120, service="llm", provider="openai", model=self.model) as resp:
-            for raw_line in resp:
-                line = raw_line.decode("utf-8", errors="ignore").strip()
-                if not line or not line.startswith("data:"):
-                    continue
-                data = line[len("data:") :].strip()
-                if data == "[DONE]":
-                    break
-                event = json.loads(data)
-                delta = event["choices"][0].get("delta", {})
-                content = delta.get("content")
-                if content:
-                    yield content
+        logger = LLMCallLogger("openai", self.model, self.base_url, messages) if self.debug else None
+        chunks: list[str] = []
+        try:
+            with call_provider(req, timeout=120, service="llm", provider="openai", model=self.model) as resp:
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8", errors="ignore").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[len("data:") :].strip()
+                    if data == "[DONE]":
+                        break
+                    event = json.loads(data)
+                    delta = event["choices"][0].get("delta", {})
+                    content = delta.get("content")
+                    if content:
+                        if logger:
+                            chunks.append(content)
+                        yield content
+        except Exception as exc:
+            if logger:
+                logger.log_error(exc)
+            raise
+        else:
+            if logger:
+                logger.log_response("".join(chunks))
 
 
 if __name__ == "__main__":

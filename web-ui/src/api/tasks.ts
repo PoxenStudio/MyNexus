@@ -26,7 +26,9 @@ export interface TaskListResponse {
   size: number;
 }
 
-export async function listTasks(params: { page?: number; size?: number; status?: string } = {}) {
+export async function listTasks(
+  params: { page?: number; size?: number; status?: string; book_id?: string } = {},
+) {
   const { data } = await apiClient.get<TaskListResponse>("/tasks", { params });
   return data;
 }

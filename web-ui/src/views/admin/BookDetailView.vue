@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { getBook, summarizeBook, type BookDetail } from "../../api/books";
-import { getTask, type Task } from "../../api/tasks";
+import { getTask, listTasks, type Task } from "../../api/tasks";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -14,6 +14,57 @@ const summarizing = ref(false);
 const summarizeTask = ref<Task | null>(null);
 const summarizeError = ref("");
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+// Any non-terminal task for this book — set either by onSummarize() below or,
+// on a fresh page load / navigation back, by discovering one already running
+// (triggered from elsewhere, e.g. re-ingestion or a summarize call from a
+// previous visit) via findActiveTask(). Drives the generic "task running"
+// banner; summarize-specific UI (buttons, progress line) still keys off
+// summarizeTask/summarizing so it only lights up for that task type.
+const CHAPTER_SUMMARY_TRUNCATE_LENGTH = 500;
+// Chapter ids whose summary is currently shown in full — everything else
+// renders truncated (see chapterSummaryText()) with a "展开" toggle.
+const expandedChapters = ref(new Set<string>());
+
+function isChapterSummaryLong(summary: string): boolean {
+  return summary.length > CHAPTER_SUMMARY_TRUNCATE_LENGTH;
+}
+
+function chapterSummaryText(ch: { id: string; summary: string }): string {
+  if (expandedChapters.value.has(ch.id) || !isChapterSummaryLong(ch.summary)) return ch.summary;
+  return ch.summary.slice(0, CHAPTER_SUMMARY_TRUNCATE_LENGTH) + "…";
+}
+
+function toggleChapterSummary(id: string) {
+  if (expandedChapters.value.has(id)) {
+    expandedChapters.value.delete(id);
+  } else {
+    expandedChapters.value.add(id);
+  }
+  // Set mutation alone doesn't trigger reactivity on a ref<Set> — replace it.
+  expandedChapters.value = new Set(expandedChapters.value);
+}
+
+// Latest stage message for the summarize task — e.g. summary.py's per-chapter
+// "N/total 《title》 生成中…已输出 X 字" ticks for a chapter that's taking a
+// while, so a long chapter doesn't just sit at the same percentage with no
+// sign anything is happening.
+const summarizeStageMessage = computed(() => {
+  const log = summarizeTask.value?.stages_log;
+  return log?.length ? log[log.length - 1].message : "";
+});
+
+const activeTask = ref<Task | null>(null);
+const activeTaskLabel = computed(() => {
+  const task = activeTask.value;
+  if (!task) return "";
+  const stage = task.stages_log?.length ? task.stages_log[task.stages_log.length - 1].stage : task.status;
+  return t("books.activeTask", {
+    type: t(`taskType.${task.type}`, task.type),
+    stage: t(`taskStage.${stage}`, stage),
+    progress: task.progress,
+  });
+});
 
 // Three states, per how much of the map-reduce has already landed in the DB:
 // - none started: only "Summarize Book" (restart, though restart/continue
@@ -34,9 +85,30 @@ async function load() {
   loading.value = true;
   try {
     book.value = await getBook(route.params.id as string);
+    await findActiveTask();
   } finally {
     loading.value = false;
   }
+}
+
+// Picks up a task already running against this book — e.g. an ingest/rebuild
+// triggered from the books list, or a summarize call from a previous visit —
+// so the "in progress" state survives a page reload/navigation instead of
+// only appearing when onSummarize() was clicked in this same session.
+async function findActiveTask() {
+  if (!book.value || pollTimer) return;
+  const { items } = await listTasks({ book_id: book.value.id, size: 5 });
+  const running = items.find((t) => t.status === "pending" || t.status === "processing");
+  if (!running) return;
+
+  if (running.type === "summarize") {
+    summarizing.value = true;
+    summarizeTask.value = running;
+  } else {
+    activeTask.value = running;
+  }
+  pollTimer = setInterval(() => pollTask(running.id), 2000);
+  await pollTask(running.id);
 }
 
 async function onSummarize(mode: "restart" | "continue") {
@@ -45,26 +117,33 @@ async function onSummarize(mode: "restart" | "continue") {
   summarizing.value = true;
   try {
     const { task_id } = await summarizeBook(book.value.id, mode);
-    pollTimer = setInterval(() => pollSummarize(task_id), 2000);
-    await pollSummarize(task_id);
+    pollTimer = setInterval(() => pollTask(task_id), 2000);
+    await pollTask(task_id);
   } catch (e: any) {
     summarizing.value = false;
     summarizeError.value = e?.response?.data?.error || t("books.summarizeError");
   }
 }
 
-async function pollSummarize(taskId: string) {
+async function pollTask(taskId: string) {
   const task = await getTask(taskId);
-  summarizeTask.value = task;
-  // Reload the book on every tick too — chapter summaries land one at a time
-  // (the map step) well before the task itself completes (the reduce step),
-  // so this is what makes each chapter's summary appear as it's ready.
+  if (task.type === "summarize") {
+    summarizeTask.value = task;
+  } else {
+    activeTask.value = task;
+  }
+  // Reload the book on every tick too — e.g. chapter summaries land one at a
+  // time (the map step) well before the task itself completes (the reduce
+  // step), so this is what makes each chapter's summary appear as it's ready.
   book.value = await getBook(route.params.id as string);
 
   if (task.status === "completed" || task.status === "failed") {
     stopPolling();
     summarizing.value = false;
-    if (task.status === "failed") summarizeError.value = task.error_msg || t("books.summarizeError");
+    activeTask.value = null;
+    if (task.type === "summarize" && task.status === "failed") {
+      summarizeError.value = task.error_msg || t("books.summarizeError");
+    }
   }
 }
 
@@ -95,6 +174,8 @@ onUnmounted(stopPolling);
         <dd><span :class="['badge', book.status]">{{ t(`status.${book.status}`, book.status) }}</span></dd>
       </dl>
 
+      <p v-if="activeTask" class="active-task">{{ activeTaskLabel }}</p>
+
       <div class="summary-section">
         <div class="summary-header">
           <h2>{{ t("books.bookSummary") }}</h2>
@@ -124,6 +205,7 @@ onUnmounted(stopPolling);
         </div>
         <p v-if="summarizing && summarizeTask" class="progress-line">
           {{ t("books.summarizeProgress", { progress: summarizeTask.progress }) }}
+          <span v-if="summarizeStageMessage">· {{ summarizeStageMessage }}</span>
         </p>
         <p v-if="summarizeError" class="error">{{ summarizeError }}</p>
         <p v-if="book.summary" class="summary-text">{{ book.summary }}</p>
@@ -134,7 +216,12 @@ onUnmounted(stopPolling);
       <ol v-if="book.chapters.length" class="chapters">
         <li v-for="ch in book.chapters" :key="ch.id">
           <div class="chapter-title">{{ ch.title }}</div>
-          <p v-if="ch.summary" class="chapter-summary">{{ ch.summary }}</p>
+          <p v-if="ch.summary" class="chapter-summary">
+            {{ chapterSummaryText(ch) }}
+            <button v-if="isChapterSummaryLong(ch.summary)" class="link-btn" @click="toggleChapterSummary(ch.id)">
+              {{ expandedChapters.has(ch.id) ? t("books.collapseSummary") : t("books.expandSummary") }}
+            </button>
+          </p>
         </li>
       </ol>
       <p v-else>{{ t("books.noChapters") }}</p>
@@ -203,6 +290,17 @@ onUnmounted(stopPolling);
   opacity: 0.75;
   line-height: 1.5;
 }
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-left: 0.25rem;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: inherit;
+  opacity: 1;
+  white-space: nowrap;
+}
 .badge {
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
@@ -226,5 +324,13 @@ button.ghost:disabled {
   color: #d33;
   font-size: 0.85rem;
   margin: 0.5rem 0 0;
+}
+.active-task {
+  margin: 0.75rem 0 0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-size: 0.85rem;
+  opacity: 0.85;
 }
 </style>

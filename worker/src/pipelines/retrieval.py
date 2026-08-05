@@ -1,19 +1,29 @@
+import logging
 import re
 
+import jieba
 from rank_bm25 import BM25Okapi
 
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_embedder, get_vector_store
 
-# Crude CJK-aware tokenizer: ASCII words stay whole, each CJK character
-# becomes its own token. Avoids pulling in a full segmenter (e.g. jieba) to
-# keep the worker image small — see docs/系统设计文档.md §3.4.
-_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[一-鿿]")
+# jieba lazily builds its dictionary trie (~1s for the bundled dict) on first
+# use — initialize() forces that to happen at import time instead, so the
+# cost lands on worker startup rather than stalling the first real search
+# request. setLogLevel silences jieba's own "Building prefix dict..."/
+# "Loading model cost ..." INFO-level logging on that first use.
+jieba.setLogLevel(logging.WARNING)
+jieba.initialize()
+
+# Drops jieba's punctuation/whitespace tokens (kept only if they contain at
+# least one word character — CJK ideographs count as \w under Python's
+# default Unicode-aware re), which are pure noise for BM25 term matching.
+_WORD_RE = re.compile(r"\w")
 
 
 def _tokenize(text: str) -> list[str]:
-    return _TOKEN_RE.findall(text.lower())
+    return [tok for tok in jieba.lcut(text.lower()) if _WORD_RE.search(tok)]
 
 
 class RetrievalPipeline:

@@ -21,12 +21,13 @@
 - [x] **终端用户问答/聊天页面已实现**（2026-08-05）。新增 `web-ui/src/views/ChatView.vue`（会话列表 + 消息串 + SSE 流式回答），复用已有的 `/chat/completions`（SSE）与 `/chat/sessions*` API。新增配置项 `chat.enabled`（默认 `true`，环境变量 `MYNEXUS_CHAT_ENABLED`）控制该功能整体开关：关闭时后端 `/api/v1/chat/*` 返回 403（`middleware.RequireChatEnabled`），前端隐藏导航项且路由守卫直接跳转回仪表盘。该页面位于管理后台内部，与其它页面一样需要登录后才能访问（不是独立的匿名对外页面）。详见 `mynexus_admin_auth` memory。
 - [ ] **支持无token调用**: 为了提高系统的开放性，允许用户在系统设置的基础设置中将系统配置为允许无Token访问
 - [ ] **上传文件病毒/合法性扫描缺失**：需求文档 §6.6 中标注为可选项，目前未实现。
+- [x] **重启/Worker 掉线后任务卡在"处理中"的问题已解决**（2026-08-05）。Worker 在自己的进程内存里跑一个任务（无持久化，见系统设计文档 §3.x「Worker 只算」），一旦 Core API 或 Worker 重启、或 Worker 进程中途崩溃，谁都不会再调用 `ReportProgress`/`ReportComplete`/`ReportFail` 把这个任务收尾，`pending`/`processing` 状态就会永远卡住（书籍详情页的"生成中"、任务监控页的"处理中"都不会再更新）。新增 `TaskService.ReconcileOrphaned(reason)`：把所有仍处于 `pending`/`processing` 的任务标记为失败，两处调用：① Core API 启动时（`main.go`）无条件跑一次——任何在这之前留下的 `pending`/`processing` 任务，不管是本进程重启前的还是 Worker 重启前的，都已经没有人在追踪了；② 新增 `watchWorkerHealth` 后台协程，每 20 秒轮询一次 `WorkerClient`（`coordinator/worker_client.go` 新增了显式 gRPC keepalive 参数，10s ping/5s 超时，这样一个真的挂了的 Worker 能在秒级被 `TransientFailure` 捕捉到，而不是等到下一次业务调用才发现），一旦发现 Worker 不可达就立刻做同样的回收。回收时按 `grpcserver.ReportFail` 同样的规则处理书籍状态：ingest 任务失败会把书籍状态一并置为 `failed`，summarize 任务失败不动书籍状态。已知取舍：一次瞬时的 keepalive 丢包也会被判定为"不可达"从而误杀正在跑的任务，但失败的任务本来就能在任务监控页手动重试，代价小于任务永远卡死不可见。
 
 ## 已知的可扩展性限制
 
 - [x] **混合检索的 BM25 关键词侧扩展性问题已解决（仅 Postgres 后端）**（2026-08-05）。`chunks` 表新增 `content_tsv tsvector` 生成列 + GIN 索引（`storage/postgres/migrations/0004_chunk_keyword_search.sql`，Postgres 自动维护，Core API 写入路径不用改代码），新增只读接口 `CoreApiService.KeywordSearch`（最初实现为 HTTP `POST /internal/search/keyword`，同日晚些时候随全面 gRPC 迁移改为 gRPC RPC，仅 postgres 后端可用，sqlite 返回 `NOT_FOUND`），`worker/src/pipelines/retrieval.py` 的 `RetrievalPipeline` 在 `storage.database == postgres` 时改为调用该接口（失败自动回退到原 BM25 逻辑），sqlite 后端行为不变（定位为小规模验证/试用场景，不做这个优化）。**明确决定：这次只给 Worker 加了只读查询能力，没有让 Worker 直连数据库写库**——"Worker 只算、Core API 统一持久化"这条架构原则的核心理由是避免同一套写入逻辑在 Go/Python 两边维护两份，这个理由与数据库并发能力无关，Postgres 解决不了"两套代码要保持同步"的问题，所以即使 Postgres 并发写入能力更强，也没有让 Worker 绕过 Core API 直接写 `chapters`/`chunks`/`tasks`。受限于本机没有可用的 Postgres/Docker 环境，未做真实 GIN 索引查询的端到端验证。详见 `mynexus_keyword_search_gin` memory 与系统设计文档 §3.4。
 - [ ] **分块/Token 计数为字符数近似**，非真实分词器（无 tiktoken 依赖），对中文场景影响较小，对英文文本会高估 token 数量。
-- [ ] **BM25 的中文分词为简单正则**（每个汉字视为一个 token），未引入 jieba 等真实分词器。
+- [x] **BM25 的中文分词已从简单正则改为 jieba**（2026-08-05）。`worker/src/pipelines/retrieval.py` 的 `_tokenize` 原先每个汉字视为一个 token（`_TOKEN_RE`），现在用 `jieba.lcut` 按词切分，BM25 的词频统计能反映真实词语而不是单字，提升中文关键词检索相关性；只过滤掉不含任何"词字符"的纯标点/空白 token，其余不变。`jieba.setLogLevel`/`jieba.initialize()` 在模块导入时调用，把首次建词典树（约 1s）的开销放在 Worker 启动阶段而不是第一次搜索请求上。仅影响 SQLite 后端的现场建索引路径（见上一条 Postgres/GIN 已单独解决），已加入 `worker/requirements.txt`（`jieba>=0.42`）。
 
 ---
 

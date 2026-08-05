@@ -1,10 +1,20 @@
 import logging
+import time
+from typing import Callable
 
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_llm
 
 logger = logging.getLogger(__name__)
+
+# Minimum gap between within-chapter progress ticks (see _complete's on_chars
+# callback). A large chapter can take minutes to stream back from a slow
+# model with nothing else to show for it in the meantime, so run() reports
+# how many characters have been generated so far — but each tick is a gRPC
+# call plus a stages_log append in Core API, so this is throttled by time
+# (not by every delta) to keep that from growing unbounded on a long chapter.
+_PROGRESS_TICK_SECONDS = 3.0
 
 _CHAPTER_PROMPT_TEMPLATE = (
     "请用中文对下面的章节内容做摘要，控制在200字以内，只输出摘要正文本身，不要"
@@ -47,16 +57,29 @@ class SummaryPipeline:
         self.llm = get_llm(self.config)
         self.core_api = CoreApiClient(self.config)
 
-    def _complete(self, prompt: str) -> str:
+    def _complete(self, prompt: str, on_chars: Callable[[int], None] | None = None) -> str:
         # llm.process() streams deltas (it's built for the interactive chat
-        # case); a batch job like this just wants the final text.
-        return "".join(self.llm.process([{"role": "user", "content": prompt}])).strip()
+        # case); a batch job like this just wants the final text — but for a
+        # slow/large call, on_chars (if given) still gets a callback with the
+        # running character count every _PROGRESS_TICK_SECONDS, so the caller
+        # can surface "still working" progress instead of going silent until
+        # the whole completion lands.
+        chunks: list[str] = []
+        last_tick = time.monotonic()
+        for delta in self.llm.process([{"role": "user", "content": prompt}]):
+            chunks.append(delta)
+            if on_chars is not None:
+                now = time.monotonic()
+                if now - last_tick >= _PROGRESS_TICK_SECONDS:
+                    on_chars(sum(len(c) for c in chunks))
+                    last_tick = now
+        return "".join(chunks).strip()
 
-    def summarize_chapter(self, title: str, content: str) -> str:
+    def summarize_chapter(self, title: str, content: str, on_chars: Callable[[int], None] | None = None) -> str:
         prompt = _CHAPTER_PROMPT_TEMPLATE.format(
             title=title or "（未命名章节）", content=content[:_MAX_CHAPTER_CHARS]
         )
-        return self._complete(prompt)
+        return self._complete(prompt, on_chars=on_chars)
 
     def summarize_book(self, chapter_summaries: list[tuple[str, str]]) -> str:
         joined = "\n\n".join(
@@ -92,7 +115,19 @@ class SummaryPipeline:
             summaries_by_id = {ch.id: ch.summary for ch in usable}
             total = len(to_generate)
             for i, ch in enumerate(to_generate):
-                summary = self.summarize_chapter(ch.title, ch.content)
+                # Progress before this chapter starts — the same value
+                # chapter i-1's completion reported (or the initial 5%),
+                # so within-chapter ticks below don't move the percentage,
+                # only the message.
+                chapter_progress = 5 + int(80 * i / max(total, 1))
+                chapter_label = f"{i + 1}/{total} 《{ch.title or '未命名章节'}》"
+
+                def on_chars(chars: int, label: str = chapter_label, progress: int = chapter_progress) -> None:
+                    self.core_api.report_progress(
+                        task_id, progress, "summarizing_chapters", f"{label} 生成中…已输出 {chars} 字"
+                    )
+
+                summary = self.summarize_chapter(ch.title, ch.content, on_chars=on_chars)
                 self.core_api.report_chapter_summary(task_id, ch.id, summary)
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.

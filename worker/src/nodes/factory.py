@@ -19,9 +19,9 @@ def get_embedder(cfg: WorkerConfig) -> BaseEmbedder:
 
 def get_llm(cfg: WorkerConfig) -> BaseLLM:
     if cfg.llm_provider == "ollama":
-        return OllamaLLM(cfg.llm_ollama.base_url, cfg.llm_ollama.model)
+        return OllamaLLM(cfg.llm_ollama.base_url, cfg.llm_ollama.model, debug=cfg.debug_llm_logging)
     provider = cfg.llm_openai
-    return OpenAILLM(provider.api_key, provider.base_url, provider.model)
+    return OpenAILLM(provider.api_key, provider.base_url, provider.model, debug=cfg.debug_llm_logging)
 
 
 def get_vector_store(cfg: WorkerConfig) -> BaseVectorStore:

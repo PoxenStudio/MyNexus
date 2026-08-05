@@ -30,8 +30,9 @@ func (h *TaskHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "20"))
 	status := c.Query("status")
+	bookID := c.Query("book_id")
 
-	tasks, total, err := h.tasks.ListTasks(page, size, status)
+	tasks, total, err := h.tasks.ListTasks(page, size, status, bookID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

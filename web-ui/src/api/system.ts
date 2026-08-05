@@ -77,6 +77,9 @@ export interface SystemSettings {
   chat: {
     enabled: boolean;
   };
+  debug: {
+    llm_logging: boolean;
+  };
 }
 
 export async function fetchSettings(): Promise<SystemSettings> {

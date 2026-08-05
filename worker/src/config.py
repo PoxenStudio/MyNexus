@@ -64,6 +64,15 @@ class WorkerConfig:
     # port. See .claude/memory/mynexus_grpc_migration.md.
     core_api_base_url: str = "localhost:9090"
 
+    # debug_llm_logging mirrors Core API's debug.llm_logging (system settings
+    # page, "打开调试日志"). When true, every LLM call
+    # (nodes/llm/openai_llm.py, nodes/llm/ollama_llm.py) dumps its request
+    # messages and full response text as a matched pair of files under the OS
+    # temp dir — see util/debug_log.py. Off by default: request/response
+    # bodies can contain book content and API responses, not something to
+    # leave on disk in a default deployment.
+    debug_llm_logging: bool = False
+
     raw: dict = field(default_factory=dict)
 
     @property
@@ -114,7 +123,10 @@ def load_config() -> WorkerConfig:
     cfg.vector_store_path = raw.get("storage", {}).get("vector_store_path", cfg.vector_store_path)
     cfg.storage_database = raw.get("storage", {}).get("database", cfg.storage_database)
     cfg.core_api_base_url = raw.get("server", {}).get("internal_url", cfg.core_api_base_url)
+    cfg.debug_llm_logging = raw.get("debug", {}).get("llm_logging", cfg.debug_llm_logging)
 
+    if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
+        cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")
     if v := os.getenv("MYNEXUS_EMBEDDING_OPENAI_API_KEY"):
         cfg.embedding_openai.api_key = v
     if v := os.getenv("MYNEXUS_LLM_OPENAI_API_KEY"):
