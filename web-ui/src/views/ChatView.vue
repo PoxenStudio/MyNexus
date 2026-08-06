@@ -193,7 +193,7 @@ onMounted(loadSessions);
       <div class="messages" :class="{ 'is-empty': !messages.length }">
         <div v-for="(m, i) in messages" :key="i" class="message" :class="m.role">
           <span v-if="m.role === 'assistant'" class="assistant-icon" :title="t('chat.assistant')">
-            <AppIcon name="face" :size="18" />
+            <span aria-hidden="true">✴</span>
             <span class="sr-only">{{ t("chat.assistant") }}</span>
           </span>
           <span
@@ -379,6 +379,8 @@ onMounted(loadSessions);
 }
 .assistant-icon {
   display: block;
+  font-size: 18px;
+  line-height: 1;
   opacity: 0.75;
 }
 .sr-only {

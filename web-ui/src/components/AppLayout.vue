@@ -402,7 +402,14 @@ nav {
   width: 100%;
   border: none;
   background: transparent;
-  font: inherit;
+  /* <button> doesn't inherit font-family from its DOM parent by default
+     (UA stylesheet gives it its own system font) — reset just that. Font
+     *size* is deliberately left alone: this element also carries the
+     .nav-item class, whose 0.9rem should win; `font: inherit` (the old
+     shorthand here) reset size too, but "inherit" always means "from the
+     DOM parent" (<nav>'s ~1rem default), never "from a sibling class" —
+     that's what made this button visibly bigger than the others. */
+  font-family: inherit;
   cursor: pointer;
 }
 .chevron {
