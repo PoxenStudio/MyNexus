@@ -1,4 +1,4 @@
-# 🕸️MyNexus - A private knowledge base for your books.
+# ✴MyNexus - A private knowledge base for your books.
 
 一个私有化的书籍知识库化系统，目标是将您的电子书内容转化为可检索、可问答、可扩展的知识资产。
 
