@@ -66,6 +66,7 @@
    have higher specificity than the prefers-color-scheme block above so they
    win regardless of OS setting once the user has picked one manually. */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --text: #fff;
   --text-h: #f3f4f6;
   --bg: #16171d;
@@ -86,6 +87,7 @@
 }
 
 :root[data-theme="light"] {
+  color-scheme: light;
   --text: #2b2830;
   --text-h: #08060d;
   --bg: #fff;

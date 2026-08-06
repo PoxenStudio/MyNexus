@@ -32,7 +32,7 @@ async function onSubmit() {
 <template>
   <div class="login-page">
     <div class="brand">
-      <span class="brand-mark">🕸️</span>
+      <img src="/star.svg" class="brand-logo" alt="" aria-hidden="true" />
       <span class="brand-name">MyNexus</span>
     </div>
     <form class="login-card" @submit.prevent="onSubmit">
@@ -48,6 +48,9 @@ async function onSubmit() {
       <p v-if="error" class="error">{{ error }}</p>
       <button type="submit" :disabled="submitting">{{ t("login.submit") }}</button>
     </form>
+    <div class="brand">
+      <span class="brand-mark">PoxenStudio, 2026</span>
+    </div>
   </div>
 </template>
 
@@ -76,9 +79,10 @@ async function onSubmit() {
   gap: 0.25rem;
   text-align: center;
 }
-.brand-mark {
-  font-size: 2.5rem;
-  line-height: 1;
+.brand-logo {
+  width: 42px;
+  height: 42px;
+  display: block;
 }
 .brand-name {
   font-weight: 600;

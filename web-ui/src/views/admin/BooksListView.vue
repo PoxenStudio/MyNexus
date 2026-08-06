@@ -229,7 +229,7 @@ onMounted(load);
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   margin: 0 0 0.75rem;
 }
 .bulk-bar {
