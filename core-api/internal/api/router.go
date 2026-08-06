@@ -39,7 +39,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, auditSvc)
 	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient, auditSvc)
 	search := handler.NewSearchHandler(bookSvc, workerClient)
-	chat := handler.NewChatHandler(chatSvc, workerClient)
+	chat := handler.NewChatHandler(chatSvc, workerClient, cfg.Chat.MaxSessions)
 	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)
 	authH := handler.NewAuthHandler(userSvc, sessions, auditSvc, cfg.Storage.UploadDir)
 	auditH := handler.NewAuditHandler(auditSvc)

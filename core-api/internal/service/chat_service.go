@@ -67,9 +67,46 @@ func (s *ChatService) ListSessions(userID string) ([]models.ChatSession, error) 
 	return sessions, rows.Err()
 }
 
+// DeleteSession removes a session and its messages. Deletes chat_messages
+// explicitly rather than relying on the schema's ON DELETE CASCADE — sqlite
+// only enforces foreign keys when a connection opts in via PRAGMA (this
+// project's sqlite.Open doesn't), so the cascade is a no-op there; deleting
+// both rows here keeps behavior identical across sqlite and postgres.
 func (s *ChatService) DeleteSession(id string) error {
+	if _, err := s.db.Exec(`DELETE FROM chat_messages WHERE session_id = ?`, id); err != nil {
+		return fmt.Errorf("delete chat messages: %w", err)
+	}
 	_, err := s.db.Exec(`DELETE FROM chat_sessions WHERE id = ?`, id)
 	return err
+}
+
+// EnforceSessionLimit keeps at most maxSessions sessions for userID, deleting
+// the oldest (by updated_at) once the count is exceeded. Called right after
+// CreateSession — see config.ChatConfig.MaxSessions (admin-configurable,
+// default 100, in "系统配置 > 基础设置"). <= 0 means no limit. Sessions are
+// pruned, not blocked: a user hitting the cap just quietly loses their
+// oldest conversation rather than getting an error on their next chat.
+func (s *ChatService) EnforceSessionLimit(userID string, maxSessions int) error {
+	if maxSessions <= 0 {
+		return nil
+	}
+	_, err := s.db.Exec(`
+		DELETE FROM chat_messages WHERE session_id IN (
+			SELECT id FROM chat_sessions WHERE user_id = ? AND id NOT IN (
+				SELECT id FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?
+			)
+		)`, userID, userID, maxSessions)
+	if err != nil {
+		return fmt.Errorf("prune chat messages: %w", err)
+	}
+	_, err = s.db.Exec(`
+		DELETE FROM chat_sessions WHERE user_id = ? AND id NOT IN (
+			SELECT id FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?
+		)`, userID, userID, maxSessions)
+	if err != nil {
+		return fmt.Errorf("prune chat sessions: %w", err)
+	}
+	return nil
 }
 
 func (s *ChatService) RenameSession(id, title string) error {

@@ -76,6 +76,10 @@ export interface SystemSettings {
   };
   chat: {
     enabled: boolean;
+    // Per-user cap on chat sessions (see ChatService.EnforceSessionLimit) —
+    // once a user goes over this, their oldest session is silently pruned
+    // on their next new conversation. <= 0 means no limit.
+    max_sessions: number;
   };
   keyword: {
     // Max whole-book content keywords a book detail response returns (see

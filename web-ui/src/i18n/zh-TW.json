@@ -225,6 +225,8 @@
     "basic": "基礎設定",
     "defaultLocale": "默認語言",
     "chatEnabled": "啟用會話（問答）頁面",
+    "maxSessions": "每使用者最大會話數",
+    "maxSessionsHint": "每個使用者最多保留的會話數量，超出後會自動刪除最早的會話（按最後更新時間）。",
     "maxKeywords": "內容關鍵詞數量上限",
     "maxKeywordsHint": "書籍詳情頁詞雲展示的內容關鍵詞數量上限，修改後已總結過的書籍立即按新上限展示，無需重新總結。",
     "debugLogging": "打開調試日誌",

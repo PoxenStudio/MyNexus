@@ -208,6 +208,11 @@ onMounted(load);
           {{ t("settings.chatEnabled") }}
         </label>
         <label>
+          {{ t("settings.maxSessions") }}
+          <input v-model.number="settings.chat.max_sessions" type="number" min="1" max="1000" />
+        </label>
+        <p class="hint">{{ t("settings.maxSessionsHint") }}</p>
+        <label>
           {{ t("settings.maxKeywords") }}
           <input v-model.number="settings.keyword.max_keywords" type="number" min="1" max="500" />
         </label>

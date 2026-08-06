@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,10 +19,14 @@ import (
 type ChatHandler struct {
 	chats  *service.ChatService
 	worker *coordinator.WorkerClient
+	// maxSessions is config.ChatConfig.MaxSessions, snapshotted at router
+	// wiring time (like RequireChatEnabled's cfg.Chat.Enabled) — see
+	// ChatService.EnforceSessionLimit.
+	maxSessions int
 }
 
-func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient) *ChatHandler {
-	return &ChatHandler{chats: chats, worker: worker}
+func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient, maxSessions int) *ChatHandler {
+	return &ChatHandler{chats: chats, worker: worker, maxSessions: maxSessions}
 }
 
 // sseEvent is the same wire shape the browser has always received (see
@@ -50,15 +55,30 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString("user_id")
+
 	sessionID := req.SessionID
 	if sessionID == "" {
 		bookIDsJSON, _ := json.Marshal(req.BookIDs)
-		session, err := h.chats.CreateSession(defaultUserID, string(bookIDsJSON))
+		session, err := h.chats.CreateSession(userID, string(bookIDsJSON))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		sessionID = session.ID
+		// Prune right after creating, not before — a fresh session always
+		// gets through; it's the *next* one over the cap that starts
+		// evicting the oldest.
+		if err := h.chats.EnforceSessionLimit(userID, h.maxSessions); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else if owned, err := h.sessionOwnedBy(sessionID, userID); err != nil || !owned {
+		// Caller passed someone else's session_id (or a stale/deleted one).
+		// Per-user isolation (see .claude/memory/mynexus_user_management.md)
+		// — never append to or continue a session that isn't the caller's.
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
 	}
 
 	lastUserMessage := req.Messages[len(req.Messages)-1]
@@ -128,8 +148,25 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	_ = h.chats.TouchSession(sessionID)
 }
 
+// sessionOwnedBy reports whether sessionID exists and belongs to userID.
+// Every per-session route (Get/Rename/Delete, and Completions when it's
+// handed an existing session_id) goes through this before touching a
+// session, so one user can never read, rename, delete, or piggyback
+// messages onto another user's conversation — see
+// .claude/memory/mynexus_user_management.md.
+func (h *ChatHandler) sessionOwnedBy(sessionID, userID string) (bool, error) {
+	session, err := h.chats.GetSession(sessionID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return session.UserID == userID, nil
+}
+
 func (h *ChatHandler) ListSessions(c *gin.Context) {
-	sessions, err := h.chats.ListSessions(defaultUserID)
+	sessions, err := h.chats.ListSessions(c.GetString("user_id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -143,6 +180,10 @@ func (h *ChatHandler) ListSessions(c *gin.Context) {
 
 func (h *ChatHandler) GetSession(c *gin.Context) {
 	id := c.Param("id")
+	if owned, err := h.sessionOwnedBy(id, c.GetString("user_id")); err != nil || !owned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
 	session, err := h.chats.GetSession(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
@@ -164,6 +205,10 @@ func (h *ChatHandler) GetSession(c *gin.Context) {
 
 func (h *ChatHandler) RenameSession(c *gin.Context) {
 	id := c.Param("id")
+	if owned, err := h.sessionOwnedBy(id, c.GetString("user_id")); err != nil || !owned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
 	var req dto.RenameSessionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -178,6 +223,10 @@ func (h *ChatHandler) RenameSession(c *gin.Context) {
 
 func (h *ChatHandler) DeleteSession(c *gin.Context) {
 	id := c.Param("id")
+	if owned, err := h.sessionOwnedBy(id, c.GetString("user_id")); err != nil || !owned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
 	if err := h.chats.DeleteSession(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

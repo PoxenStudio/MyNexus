@@ -225,6 +225,8 @@
     "basic": "基础设置",
     "defaultLocale": "默认语言",
     "chatEnabled": "启用会话（问答）页面",
+    "maxSessions": "每用户最大会话数",
+    "maxSessionsHint": "每个用户最多保留的会话数量，超出后会自动删除最早的会话（按最后更新时间）。",
     "maxKeywords": "内容关键词数量上限",
     "maxKeywordsHint": "书籍详情页词云展示的内容关键词数量上限，修改后已总结过的书籍立即按新上限展示，无需重新总结。",
     "debugLogging": "打开调试日志",

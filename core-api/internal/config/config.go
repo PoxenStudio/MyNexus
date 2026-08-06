@@ -109,6 +109,12 @@ type I18nConfig struct {
 // exposed at all (e.g. no LLM budget configured).
 type ChatConfig struct {
 	Enabled bool `yaml:"enabled" json:"enabled"`
+	// MaxSessions caps how many chat sessions a single user may keep at once
+	// (see ChatService.EnforceSessionLimit, called right after each new
+	// session is created) — once over the cap, the oldest sessions (by
+	// updated_at) are silently deleted, not blocked outright. <= 0 means no
+	// limit.
+	MaxSessions int `yaml:"max_sessions" json:"max_sessions"`
 }
 
 // DebugConfig is Worker-side only (Core API never reads it, same round-trip-
@@ -175,7 +181,7 @@ func defaults() Config {
 		},
 		Splitter: SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
 		I18n:     I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
-		Chat:     ChatConfig{Enabled: true},
+		Chat:     ChatConfig{Enabled: true, MaxSessions: 100},
 		Keyword:  KeywordConfig{MaxKeywords: 50},
 		Debug:    DebugConfig{LLMLogging: false},
 	}
