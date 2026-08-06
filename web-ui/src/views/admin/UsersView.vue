@@ -129,7 +129,7 @@ async function onResetPassword() {
   <section>
     <h1>{{ t("users.title") }}</h1>
 
-    <button class="primary" type="button" @click="openCreateDialog">{{ t("users.createNew") }}</button>
+    <button class="primary create-trigger" type="button" @click="openCreateDialog">{{ t("users.createNew") }}</button>
 
     <div v-if="loading">{{ t("common.loading") }}</div>
     <table v-else-if="users.length">
@@ -162,16 +162,18 @@ async function onResetPassword() {
           </td>
           <td>{{ u.status === "active" ? t("users.statusActive") : t("users.statusDisabled") }}</td>
           <td>{{ u.last_login_at ? new Date(u.last_login_at).toLocaleString() : t("users.neverLoggedIn") }}</td>
-          <td class="actions">
-            <button class="ghost" type="button" @click="openResetDialog(u)">{{ t("users.resetPassword") }}</button>
-            <button
-              v-if="u.username !== auth.username"
-              class="ghost"
-              type="button"
-              @click="askToggleStatus(u)"
-            >
-              {{ u.status === "active" ? t("users.disable") : t("users.enable") }}
-            </button>
+          <td>
+            <div class="actions">
+              <button class="ghost" type="button" @click="openResetDialog(u)">{{ t("users.resetPassword") }}</button>
+              <button
+                v-if="u.username !== auth.username"
+                class="ghost"
+                type="button"
+                @click="askToggleStatus(u)"
+              >
+                {{ u.status === "active" ? t("users.disable") : t("users.enable") }}
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -241,6 +243,12 @@ button.primary {
   color: white;
   cursor: pointer;
   font-weight: 600;
+}
+/* Spacing for the page-top trigger button only — kept off the shared
+   .primary class so it doesn't stretch the dialog's Cancel/Create row
+   (flex row default align-items: stretch matches the tallest item's outer
+   box, margin included). */
+.create-trigger {
   margin-bottom: 1rem;
 }
 table {
