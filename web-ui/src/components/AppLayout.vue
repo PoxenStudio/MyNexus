@@ -197,7 +197,7 @@ async function onLogout() {
 
     <footer class="app-footer">
       <span>{{ t("footer.name") }} v{{ appVersion }}</span>
-      <span>© {{ year }} MyNexus</span>
+      <span>© {{ year }} PoxenStudio</span>
     </footer>
   </div>
 </template>
