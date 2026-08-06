@@ -13,3 +13,4 @@
 - [MyNexus keyword search GIN](mynexus_keyword_search_gin.md) — Postgres-only tsvector/GIN keyword search replacing Worker's BM25-over-full-corpus; Worker got read-only DB access via Core API, NOT direct writes (deliberate, see why)
 - [MyNexus gRPC migration](mynexus_grpc_migration.md) — Core API <-> Worker internal comms moved from HTTP+JSON to gRPC (proto/mynexus.proto); browser-facing HTTP/SSE unchanged; protobuf version pin is load-bearing (chromadb needs protobuf<7)
 - [MyNexus Docker images](mynexus_docker_images.md) — OCI LABELs (author poxenstudio@gmail.com), TZ/PUID/PGID ENV, Makefile build-images/build-images-multiarch targets modeled on mybooks' buildx pattern
+- [MyNexus user management](mynexus_user_management.md) — admin_users renamed to users, admin/user roles, RequireAdmin gate, /settings/users admin page, last-admin/self-change guardrails

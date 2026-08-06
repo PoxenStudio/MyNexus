@@ -31,7 +31,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	taskSvc := service.NewTaskService(db)
 	chatSvc := service.NewChatService(db)
 	tokenSvc := service.NewTokenService(db, cfg.Auth.TokenPrefix)
-	adminSvc := service.NewAdminUserService(db)
+	userSvc := service.NewUserService(db)
 	auditSvc := service.NewAuditService(db)
 	sessions := auth.NewSessionManager()
 
@@ -41,8 +41,9 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	search := handler.NewSearchHandler(bookSvc, workerClient)
 	chat := handler.NewChatHandler(chatSvc, workerClient)
 	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)
-	authH := handler.NewAuthHandler(adminSvc, sessions, auditSvc, cfg.Storage.UploadDir)
+	authH := handler.NewAuthHandler(userSvc, sessions, auditSvc, cfg.Storage.UploadDir)
 	auditH := handler.NewAuditHandler(auditSvc)
+	usersH := handler.NewUserHandler(userSvc, auditSvc)
 
 	r.GET("/healthz", sys.Health)
 
@@ -53,6 +54,11 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 		v1.POST("/auth/logout", authH.Logout)
 	}
 
+	// protected: reachable by both roles (admin + plain user) once logged in.
+	// adminOnly: dashboard/back-office routes — everything a "user" role
+	// account must NOT see (books, tasks, tokens, audit log, system config,
+	// user management). See middleware.RequireAdmin and the frontend's
+	// meta.requiresAdmin route guard for the matching UI-side gate.
 	protected := v1.Group("")
 	protected.Use(middleware.RequireAuth(sessions, tokenSvc, cfg.Auth.TokenPrefix))
 	{
@@ -60,35 +66,6 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 		protected.POST("/auth/change-password", authH.ChangePassword)
 		protected.POST("/auth/avatar", authH.UploadAvatar)
 		protected.GET("/auth/avatar/:id", authH.ServeAvatar)
-
-		protected.GET("/system/health", sys.Health)
-		protected.GET("/system/stats", sys.Stats)
-		protected.GET("/system/config", sys.Config)
-		protected.GET("/system/settings", sys.Settings)
-		protected.PUT("/system/settings", sys.SaveSettings)
-
-		protected.POST("/books/import", books.Import)
-		protected.POST("/books/bulk-delete", books.BulkDelete)
-		protected.POST("/books/bulk-rebuild", books.BulkRebuild)
-		protected.GET("/books", books.List)
-		protected.GET("/books/:id", books.Get)
-		protected.PUT("/books/:id", books.Update)
-		protected.DELETE("/books/:id", books.Delete)
-		protected.GET("/books/:id/chunks", books.Chunks)
-		protected.POST("/books/:id/rebuild", books.Rebuild)
-		protected.POST("/books/:id/summarize", books.Summarize)
-
-		protected.GET("/tasks", tasks.List)
-		protected.GET("/tasks/:id", tasks.Get)
-		protected.POST("/tasks/:id/retry", tasks.Retry)
-
-		protected.POST("/search/hybrid", search.Hybrid)
-
-		protected.POST("/tokens", tokens.Create)
-		protected.GET("/tokens", tokens.List)
-		protected.DELETE("/tokens/:id", tokens.Revoke)
-
-		protected.GET("/audit-log", auditH.List)
 
 		chatGroup := protected.Group("/chat")
 		chatGroup.Use(middleware.RequireChatEnabled(cfg.Chat.Enabled))
@@ -98,6 +75,45 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			chatGroup.GET("/sessions/:id", chat.GetSession)
 			chatGroup.PUT("/sessions/:id", chat.RenameSession)
 			chatGroup.DELETE("/sessions/:id", chat.DeleteSession)
+		}
+
+		adminOnly := protected.Group("")
+		adminOnly.Use(middleware.RequireAdmin())
+		{
+			adminOnly.GET("/system/health", sys.Health)
+			adminOnly.GET("/system/stats", sys.Stats)
+			adminOnly.GET("/system/config", sys.Config)
+			adminOnly.GET("/system/settings", sys.Settings)
+			adminOnly.PUT("/system/settings", sys.SaveSettings)
+
+			adminOnly.POST("/books/import", books.Import)
+			adminOnly.POST("/books/bulk-delete", books.BulkDelete)
+			adminOnly.POST("/books/bulk-rebuild", books.BulkRebuild)
+			adminOnly.GET("/books", books.List)
+			adminOnly.GET("/books/:id", books.Get)
+			adminOnly.PUT("/books/:id", books.Update)
+			adminOnly.DELETE("/books/:id", books.Delete)
+			adminOnly.GET("/books/:id/chunks", books.Chunks)
+			adminOnly.POST("/books/:id/rebuild", books.Rebuild)
+			adminOnly.POST("/books/:id/summarize", books.Summarize)
+
+			adminOnly.GET("/tasks", tasks.List)
+			adminOnly.GET("/tasks/:id", tasks.Get)
+			adminOnly.POST("/tasks/:id/retry", tasks.Retry)
+
+			adminOnly.POST("/search/hybrid", search.Hybrid)
+
+			adminOnly.POST("/tokens", tokens.Create)
+			adminOnly.GET("/tokens", tokens.List)
+			adminOnly.DELETE("/tokens/:id", tokens.Revoke)
+
+			adminOnly.GET("/audit-log", auditH.List)
+
+			adminOnly.GET("/users", usersH.List)
+			adminOnly.POST("/users", usersH.Create)
+			adminOnly.PUT("/users/:id/role", usersH.SetRole)
+			adminOnly.PUT("/users/:id/status", usersH.SetStatus)
+			adminOnly.PUT("/users/:id/password", usersH.ResetPassword)
 		}
 	}
 

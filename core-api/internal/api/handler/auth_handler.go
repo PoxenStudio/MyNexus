@@ -15,14 +15,14 @@ import (
 )
 
 type AuthHandler struct {
-	admins    *service.AdminUserService
+	users     *service.UserService
 	sessions  *auth.SessionManager
 	audit     *service.AuditService
 	uploadDir string
 }
 
-func NewAuthHandler(admins *service.AdminUserService, sessions *auth.SessionManager, audit *service.AuditService, uploadDir string) *AuthHandler {
-	return &AuthHandler{admins: admins, sessions: sessions, audit: audit, uploadDir: uploadDir}
+func NewAuthHandler(users *service.UserService, sessions *auth.SessionManager, audit *service.AuditService, uploadDir string) *AuthHandler {
+	return &AuthHandler{users: users, sessions: sessions, audit: audit, uploadDir: uploadDir}
 }
 
 type loginRequest struct {
@@ -37,21 +37,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	userID, err := h.admins.Authenticate(req.Username, req.Password)
+	userID, role, err := h.users.Authenticate(req.Username, req.Password)
 	if err != nil {
-		_ = h.audit.Log(req.Username, "auth.login_failed", "admin_user", "", "")
+		_ = h.audit.Log(req.Username, "auth.login_failed", "user", "", "")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
 		return
 	}
 
-	sessionID, err := h.sessions.Create(userID, req.Username)
+	sessionID, err := h.sessions.Create(userID, req.Username, role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	setSessionCookie(c, sessionID)
-	_ = h.audit.Log(req.Username, "auth.login", "admin_user", userID, "")
-	c.JSON(http.StatusOK, gin.H{"username": req.Username})
+	_ = h.audit.Log(req.Username, "auth.login", "user", userID, "")
+	c.JSON(http.StatusOK, gin.H{"username": req.Username, "role": role})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -60,7 +60,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 	clearSessionCookie(c)
 	if actor, ok := c.Get("actor"); ok {
-		_ = h.audit.Log(actor.(string), "auth.logout", "admin_user", "", "")
+		_ = h.audit.Log(actor.(string), "auth.logout", "user", "", "")
 	}
 	c.Status(http.StatusNoContent)
 }
@@ -71,12 +71,17 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
 		return
 	}
-	user, err := h.admins.GetByID(userID.(string))
+	user, err := h.users.GetByID(userID.(string))
 	if err != nil || user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not logged in"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"username": user.Username, "avatar_url": avatarURL(user)})
+	c.JSON(http.StatusOK, gin.H{
+		"username":   user.Username,
+		"nickname":   user.Nickname,
+		"role":       user.Role,
+		"avatar_url": avatarURL(user),
+	})
 }
 
 type changePasswordRequest struct {
@@ -101,7 +106,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	err := h.admins.ChangePassword(userID.(string), req.OldPassword, req.NewPassword)
+	err := h.users.ChangePassword(userID.(string), req.OldPassword, req.NewPassword)
 	if errors.Is(err, service.ErrInvalidCredentials) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "old password is incorrect"})
 		return
@@ -111,7 +116,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	if actor, ok := c.Get("actor"); ok {
-		_ = h.audit.Log(actor.(string), "auth.change_password", "admin_user", userID.(string), "")
+		_ = h.audit.Log(actor.(string), "auth.change_password", "user", userID.(string), "")
 	}
 	c.Status(http.StatusNoContent)
 }
@@ -163,12 +168,12 @@ func (h *AuthHandler) UploadAvatar(c *gin.Context) {
 		return
 	}
 
-	if err := h.admins.SetAvatar(userID.(string), relPath); err != nil {
+	if err := h.users.SetAvatar(userID.(string), relPath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if actor, ok := c.Get("actor"); ok {
-		_ = h.audit.Log(actor.(string), "auth.upload_avatar", "admin_user", userID.(string), "")
+		_ = h.audit.Log(actor.(string), "auth.upload_avatar", "user", userID.(string), "")
 	}
 	c.JSON(http.StatusOK, gin.H{"avatar_url": avatarPath(userID.(string))})
 }
@@ -179,12 +184,12 @@ func removeExistingAvatar(dir, userID string) {
 	}
 }
 
-// ServeAvatar streams an admin's avatar image. Any authenticated caller can
-// view any admin's avatar (id isn't a secret, and today there's only ever
-// one admin account) — access control here is just "must be logged in".
+// ServeAvatar streams a user's avatar image. Any authenticated caller can
+// view any other user's avatar (id isn't a secret) — access control here is
+// just "must be logged in".
 func (h *AuthHandler) ServeAvatar(c *gin.Context) {
 	id := c.Param("id")
-	user, err := h.admins.GetByID(id)
+	user, err := h.users.GetByID(id)
 	if err != nil || user == nil || user.AvatarPath == "" {
 		c.Status(http.StatusNotFound)
 		return
@@ -197,7 +202,7 @@ func (h *AuthHandler) ServeAvatar(c *gin.Context) {
 
 // avatarURL/avatarPath are relative to apiClient's base URL (which already
 // includes "/api/v1" — see web-ui/src/api/client.ts), not the site root.
-func avatarURL(user *models.AdminUser) string {
+func avatarURL(user *models.User) string {
 	if user.AvatarPath == "" {
 		return ""
 	}

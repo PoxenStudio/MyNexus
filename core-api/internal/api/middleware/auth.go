@@ -21,11 +21,12 @@ import (
 func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, tokenPrefix string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if sid, err := c.Cookie(auth.SessionCookieName); err == nil {
-			if userID, username, ok := sessions.Validate(sid); ok {
+			if userID, username, role, ok := sessions.Validate(sid); ok {
 				c.Set("admin_user_id", userID)
 				c.Set("user_id", userID)
+				c.Set("role", role)
 				// "actor" labels audit log entries with a human-readable name
-				// (see AuditService) — the admin's own username for browser
+				// (see AuditService) — the user's own username for browser
 				// sessions, "token:<alias>" for API Token access below.
 				c.Set("actor", username)
 				c.Next()
@@ -37,6 +38,10 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 			if raw, ok := strings.CutPrefix(header, "Bearer "); ok && strings.HasPrefix(raw, tokenPrefix) {
 				if userID, alias, valid := tokens.Authenticate(raw); valid {
 					c.Set("user_id", userID)
+					// API tokens are an admin/automation concern (see the
+					// Tokens admin page) — treat token-authenticated
+					// requests as admin-equivalent for RequireAdmin.
+					c.Set("role", "admin")
 					actor := "token"
 					if alias != "" {
 						actor = "token:" + alias
@@ -51,6 +56,20 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 		}
 
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+	}
+}
+
+// RequireAdmin gates routes to the "admin" role only — plain "user" accounts
+// (chat + own profile) get a 403. Must run after RequireAuth so "role" is
+// already set in context.
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "admin role required"})
+			return
+		}
+		c.Next()
 	}
 }
 

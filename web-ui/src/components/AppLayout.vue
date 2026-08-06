@@ -22,23 +22,32 @@ const langMenuOpen = ref(false);
 const appVersion = (packageJson as { version: string }).version;
 const year = new Date().getFullYear();
 
+// requiresAdmin items are hidden for "user" role accounts (chat + own
+// profile only — see router.ts's requiresAdmin route guard, the matching
+// server-side gate is middleware.RequireAdmin).
 const navItems = [
-  { to: "/", name: "dashboard", icon: "dashboard" as const },
-  { to: "/books", name: "books", icon: "books" as const },
-  { to: "/tasks", name: "tasks", icon: "tasks" as const },
-  { to: "/tokens", name: "tokens", icon: "tokens" as const },
+  { to: "/", name: "dashboard", icon: "dashboard" as const, requiresAdmin: true },
+  { to: "/books", name: "books", icon: "books" as const, requiresAdmin: true },
+  { to: "/tasks", name: "tasks", icon: "tasks" as const, requiresAdmin: true },
+  { to: "/tokens", name: "tokens", icon: "tokens" as const, requiresAdmin: true },
   { to: "/chat", name: "chat", icon: "chat" as const, requiresChat: true },
-  { to: "/audit-log", name: "auditLog", icon: "auditLog" as const },
+  { to: "/audit-log", name: "auditLog", icon: "auditLog" as const, requiresAdmin: true },
 ];
 
-// The "设置" (settings) drawer entry is a group with two children rather
-// than a single link — mirrors the v-list-group pattern in MyBooks'
-// AppHeader.vue (reader/mybooks/app/src/components/AppHeader.vue), minus
-// Vuetify since this app has no UI kit dependency.
-const settingsChildren = [
-  { to: "/settings/system", labelKey: "settings.systemConfig" },
+// The "设置" (settings) drawer entry is a group with children rather than a
+// single link — mirrors the v-list-group pattern in MyBooks' AppHeader.vue
+// (reader/mybooks/app/src/components/AppHeader.vue), minus Vuetify since
+// this app has no UI kit dependency. System config / user management are
+// admin-only; "个人信息" (own password/avatar) is shared by both roles.
+const settingsChildren = computed(() => [
+  ...(auth.isAdmin
+    ? [
+        { to: "/settings/system", labelKey: "settings.systemConfig" },
+        { to: "/settings/users", labelKey: "settings.users" },
+      ]
+    : []),
   { to: "/settings/account", labelKey: "settings.adminAccount" },
-];
+]);
 const isSettingsRoute = computed(() => route.path.startsWith("/settings"));
 const SETTINGS_EXPANDED_KEY = "mynexus_settings_expanded";
 const settingsExpanded = ref(
@@ -146,7 +155,7 @@ async function onLogout() {
         <nav>
           <router-link
             v-for="item in navItems"
-            v-show="!item.requiresChat || appConfig.chatEnabled"
+            v-show="(!item.requiresAdmin || auth.isAdmin) && (!item.requiresChat || appConfig.chatEnabled)"
             :key="item.name"
             :to="item.to"
             class="nav-item"

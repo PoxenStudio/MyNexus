@@ -103,7 +103,7 @@ func main() {
 	}
 	defer store.Close()
 
-	if err := service.NewAdminUserService(store.DB()).EnsureDefaultAdmin(); err != nil {
+	if err := service.NewUserService(store.DB()).EnsureDefaultAdmin(); err != nil {
 		log.Fatalf("failed to seed default admin account: %v", err)
 	}
 
