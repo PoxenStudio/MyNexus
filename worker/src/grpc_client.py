@@ -85,3 +85,17 @@ class CoreApiClient:
         except grpc.RpcError:
             return None
         return [{"chunk_id": r.chunk_id, "book_id": r.book_id, "score": r.score} for r in resp.results]
+
+    def get_library_stats(self) -> dict | None:
+        """Backs the chat "get_library_stats" tool (see tools/library_stats.py
+        and .claude/memory/mynexus_chat_tool_calling.md). Returns None on any
+        RPC error — the tool then reports it couldn't fetch the stats rather
+        than raising and aborting the whole chat turn."""
+        try:
+            resp = self._stub.GetLibraryStats(mynexus_pb2.LibraryStatsRequest(), timeout=10)
+        except grpc.RpcError:
+            return None
+        return {
+            "total_books": resp.total_books,
+            "by_status": {c.status: c.count for c in resp.by_status},
+        }

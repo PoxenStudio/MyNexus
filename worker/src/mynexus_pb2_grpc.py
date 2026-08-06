@@ -392,6 +392,11 @@ class CoreApiServiceStub(object):
                 request_serializer=mynexus__pb2.KeywordSearchRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.KeywordSearchResponse.FromString,
                 _registered_method=True)
+        self.GetLibraryStats = channel.unary_unary(
+                '/mynexus.CoreApiService/GetLibraryStats',
+                request_serializer=mynexus__pb2.LibraryStatsRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.LibraryStatsResponse.FromString,
+                _registered_method=True)
 
 
 class CoreApiServiceServicer(object):
@@ -457,6 +462,20 @@ class CoreApiServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetLibraryStats(self, request, context):
+        """Read-only system-status query, called by Worker's QA pipeline when the
+        LLM invokes the "get_library_stats" chat tool (see
+        .claude/memory/mynexus_chat_tool_calling.md) — lets the chat assistant
+        answer "how many books are ingested" etc. without those numbers needing
+        to appear in any retrieved chunk. First of what's meant to grow into a
+        small family of read-only stats/lookup RPCs behind chat tools, not a
+        one-off: keep new ones in this same shape (empty or narrow request,
+        structured response) rather than a single do-everything RPC.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CoreApiServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -494,6 +513,11 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
                     servicer.KeywordSearch,
                     request_deserializer=mynexus__pb2.KeywordSearchRequest.FromString,
                     response_serializer=mynexus__pb2.KeywordSearchResponse.SerializeToString,
+            ),
+            'GetLibraryStats': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetLibraryStats,
+                    request_deserializer=mynexus__pb2.LibraryStatsRequest.FromString,
+                    response_serializer=mynexus__pb2.LibraryStatsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -687,6 +711,33 @@ class CoreApiService(object):
             '/mynexus.CoreApiService/KeywordSearch',
             mynexus__pb2.KeywordSearchRequest.SerializeToString,
             mynexus__pb2.KeywordSearchResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetLibraryStats(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/GetLibraryStats',
+            mynexus__pb2.LibraryStatsRequest.SerializeToString,
+            mynexus__pb2.LibraryStatsResponse.FromString,
             options,
             channel_credentials,
             insecure,

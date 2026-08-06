@@ -7,6 +7,22 @@ from util.debug_log import LLMCallLogger
 from util.http import call_provider
 
 
+def _parse_tool_calls(message: dict) -> list[dict]:
+    """Normalizes OpenAI's `message.tool_calls` shape (arguments is a JSON
+    *string* on the wire) into the {"id", "name", "arguments": dict} shape
+    BaseLLM.call documents — so pipelines/qa.py never has to know which
+    provider answered."""
+    calls = []
+    for tc in message.get("tool_calls") or []:
+        fn = tc.get("function", {})
+        try:
+            arguments = json.loads(fn.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
+        calls.append({"id": tc.get("id", ""), "name": fn.get("name", ""), "arguments": arguments})
+    return calls
+
+
 class OpenAILLM(BaseLLM):
     """Calls any OpenAI-compatible /chat/completions endpoint (OpenAI, DeepSeek, etc.)
     with stream=true and yields text deltas as they arrive."""
@@ -60,6 +76,35 @@ class OpenAILLM(BaseLLM):
         else:
             if logger:
                 logger.log_response("".join(chunks))
+
+    def call(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        body: dict = {"model": self.model, "messages": messages, "stream": False}
+        if tools:
+            body["tools"] = tools
+        payload = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=payload,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+                "Accept": "application/json",
+            },
+        )
+        logger = LLMCallLogger("openai", self.model, self.base_url, messages) if self.debug else None
+        try:
+            with call_provider(req, timeout=120, service="llm", provider="openai", model=self.model) as resp:
+                data = json.loads(resp.read())
+        except Exception as exc:
+            if logger:
+                logger.log_error(exc)
+            raise
+        message = data["choices"][0]["message"]
+        result = {"content": message.get("content"), "tool_calls": _parse_tool_calls(message)}
+        if logger:
+            logger.log_response(json.dumps(result, ensure_ascii=False))
+        return result
 
 
 if __name__ == "__main__":

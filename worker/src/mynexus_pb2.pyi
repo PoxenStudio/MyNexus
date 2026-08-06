@@ -278,3 +278,23 @@ class KeywordSearchResponse(_message.Message):
     RESULTS_FIELD_NUMBER: _ClassVar[int]
     results: _containers.RepeatedCompositeFieldContainer[KeywordSearchResult]
     def __init__(self, results: _Optional[_Iterable[_Union[KeywordSearchResult, _Mapping]]] = ...) -> None: ...
+
+class LibraryStatsRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class BookStatusCount(_message.Message):
+    __slots__ = ("status", "count")
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    status: str
+    count: int
+    def __init__(self, status: _Optional[str] = ..., count: _Optional[int] = ...) -> None: ...
+
+class LibraryStatsResponse(_message.Message):
+    __slots__ = ("total_books", "by_status")
+    TOTAL_BOOKS_FIELD_NUMBER: _ClassVar[int]
+    BY_STATUS_FIELD_NUMBER: _ClassVar[int]
+    total_books: int
+    by_status: _containers.RepeatedCompositeFieldContainer[BookStatusCount]
+    def __init__(self, total_books: _Optional[int] = ..., by_status: _Optional[_Iterable[_Union[BookStatusCount, _Mapping]]] = ...) -> None: ...

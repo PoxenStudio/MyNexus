@@ -89,7 +89,7 @@ async function onLogout() {
           :aria-label="t('header.toggleDrawer')"
           @click="toggleDrawer"
         >
-          <AppIcon name="menu" />
+          <span class="menu-emoji" aria-hidden="true">🕸️</span>
         </button>
       </div>
       <div class="app-bar-end">
@@ -143,10 +143,6 @@ async function onLogout() {
 
     <div class="body">
       <aside class="drawer">
-        <div class="brand">
-          <span class="brand-mark">🕸️</span>
-          <span class="brand-name">MyNexus</span>
-        </div>
         <nav>
           <router-link
             v-for="item in navItems"
@@ -265,6 +261,10 @@ async function onLogout() {
 .icon-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+.menu-emoji {
+  font-size: 20px;
+  line-height: 1;
 }
 
 /* Language dropdown */

@@ -1740,6 +1740,146 @@ func (x *KeywordSearchResponse) GetResults() []*KeywordSearchResult {
 	return nil
 }
 
+type LibraryStatsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LibraryStatsRequest) Reset() {
+	*x = LibraryStatsRequest{}
+	mi := &file_mynexus_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LibraryStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LibraryStatsRequest) ProtoMessage() {}
+
+func (x *LibraryStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LibraryStatsRequest.ProtoReflect.Descriptor instead.
+func (*LibraryStatsRequest) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{28}
+}
+
+type BookStatusCount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Count         int32                  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BookStatusCount) Reset() {
+	*x = BookStatusCount{}
+	mi := &file_mynexus_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BookStatusCount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BookStatusCount) ProtoMessage() {}
+
+func (x *BookStatusCount) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BookStatusCount.ProtoReflect.Descriptor instead.
+func (*BookStatusCount) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *BookStatusCount) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *BookStatusCount) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type LibraryStatsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TotalBooks    int32                  `protobuf:"varint,1,opt,name=total_books,json=totalBooks,proto3" json:"total_books,omitempty"`
+	ByStatus      []*BookStatusCount     `protobuf:"bytes,2,rep,name=by_status,json=byStatus,proto3" json:"by_status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LibraryStatsResponse) Reset() {
+	*x = LibraryStatsResponse{}
+	mi := &file_mynexus_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LibraryStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LibraryStatsResponse) ProtoMessage() {}
+
+func (x *LibraryStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LibraryStatsResponse.ProtoReflect.Descriptor instead.
+func (*LibraryStatsResponse) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *LibraryStatsResponse) GetTotalBooks() int32 {
+	if x != nil {
+		return x.TotalBooks
+	}
+	return 0
+}
+
+func (x *LibraryStatsResponse) GetByStatus() []*BookStatusCount {
+	if x != nil {
+		return x.ByStatus
+	}
+	return nil
+}
+
 var File_mynexus_proto protoreflect.FileDescriptor
 
 const file_mynexus_proto_rawDesc = "" +
@@ -1861,7 +2001,15 @@ const file_mynexus_proto_rawDesc = "" +
 	"\abook_id\x18\x02 \x01(\tR\x06bookId\x12\x14\n" +
 	"\x05score\x18\x03 \x01(\x01R\x05score\"O\n" +
 	"\x15KeywordSearchResponse\x126\n" +
-	"\aresults\x18\x01 \x03(\v2\x1c.mynexus.KeywordSearchResultR\aresults2\xed\x02\n" +
+	"\aresults\x18\x01 \x03(\v2\x1c.mynexus.KeywordSearchResultR\aresults\"\x15\n" +
+	"\x13LibraryStatsRequest\"?\n" +
+	"\x0fBookStatusCount\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x14\n" +
+	"\x05count\x18\x02 \x01(\x05R\x05count\"n\n" +
+	"\x14LibraryStatsResponse\x12\x1f\n" +
+	"\vtotal_books\x18\x01 \x01(\x05R\n" +
+	"totalBooks\x125\n" +
+	"\tby_status\x18\x02 \x03(\v2\x18.mynexus.BookStatusCountR\bbyStatus2\xed\x02\n" +
 	"\rWorkerService\x12;\n" +
 	"\rTriggerIngest\x12\x16.mynexus.IngestRequest\x1a\x12.mynexus.IngestAck\x129\n" +
 	"\x06Search\x12\x16.mynexus.SearchRequest\x1a\x17.mynexus.SearchResponse\x122\n" +
@@ -1869,7 +2017,7 @@ const file_mynexus_proto_rawDesc = "" +
 	"\bShutdown\x12\x18.mynexus.ShutdownRequest\x1a\f.mynexus.Ack\x12D\n" +
 	"\x10TriggerSummarize\x12\x19.mynexus.SummarizeRequest\x1a\x15.mynexus.SummarizeAck\x126\n" +
 	"\n" +
-	"DeleteBook\x12\x1a.mynexus.DeleteBookRequest\x1a\f.mynexus.Ack2\xc6\x03\n" +
+	"DeleteBook\x12\x1a.mynexus.DeleteBookRequest\x1a\f.mynexus.Ack2\x96\x04\n" +
 	"\x0eCoreApiService\x128\n" +
 	"\x0eReportProgress\x12\x18.mynexus.ProgressRequest\x1a\f.mynexus.Ack\x128\n" +
 	"\x0eReportMetadata\x12\x18.mynexus.MetadataRequest\x1a\f.mynexus.Ack\x128\n" +
@@ -1878,7 +2026,8 @@ const file_mynexus_proto_rawDesc = "" +
 	"ReportFail\x12\x14.mynexus.FailRequest\x1a\f.mynexus.Ack\x12D\n" +
 	"\x14ReportChapterSummary\x12\x1e.mynexus.ChapterSummaryRequest\x1a\f.mynexus.Ack\x12>\n" +
 	"\x11ReportBookSummary\x12\x1b.mynexus.BookSummaryRequest\x1a\f.mynexus.Ack\x12N\n" +
-	"\rKeywordSearch\x12\x1d.mynexus.KeywordSearchRequest\x1a\x1e.mynexus.KeywordSearchResponseB-Z+mynexus/core-api/internal/grpcapi/mynexuspbb\x06proto3"
+	"\rKeywordSearch\x12\x1d.mynexus.KeywordSearchRequest\x1a\x1e.mynexus.KeywordSearchResponse\x12N\n" +
+	"\x0fGetLibraryStats\x12\x1c.mynexus.LibraryStatsRequest\x1a\x1d.mynexus.LibraryStatsResponseB-Z+mynexus/core-api/internal/grpcapi/mynexuspbb\x06proto3"
 
 var (
 	file_mynexus_proto_rawDescOnce sync.Once
@@ -1892,7 +2041,7 @@ func file_mynexus_proto_rawDescGZIP() []byte {
 	return file_mynexus_proto_rawDescData
 }
 
-var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_mynexus_proto_goTypes = []any{
 	(*DeleteBookRequest)(nil),     // 0: mynexus.DeleteBookRequest
 	(*ShutdownRequest)(nil),       // 1: mynexus.ShutdownRequest
@@ -1922,6 +2071,9 @@ var file_mynexus_proto_goTypes = []any{
 	(*KeywordSearchRequest)(nil),  // 25: mynexus.KeywordSearchRequest
 	(*KeywordSearchResult)(nil),   // 26: mynexus.KeywordSearchResult
 	(*KeywordSearchResponse)(nil), // 27: mynexus.KeywordSearchResponse
+	(*LibraryStatsRequest)(nil),   // 28: mynexus.LibraryStatsRequest
+	(*BookStatusCount)(nil),       // 29: mynexus.BookStatusCount
+	(*LibraryStatsResponse)(nil),  // 30: mynexus.LibraryStatsResponse
 }
 var file_mynexus_proto_depIdxs = []int32{
 	17, // 0: mynexus.SummarizeRequest.chapters:type_name -> mynexus.Chapter
@@ -1935,37 +2087,40 @@ var file_mynexus_proto_depIdxs = []int32{
 	18, // 8: mynexus.CompleteRequest.chunks:type_name -> mynexus.Chunk
 	24, // 9: mynexus.BookSummaryRequest.keywords:type_name -> mynexus.Keyword
 	26, // 10: mynexus.KeywordSearchResponse.results:type_name -> mynexus.KeywordSearchResult
-	4,  // 11: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
-	6,  // 12: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
-	10, // 13: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
-	1,  // 14: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
-	2,  // 15: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
-	0,  // 16: mynexus.WorkerService.DeleteBook:input_type -> mynexus.DeleteBookRequest
-	14, // 17: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
-	19, // 18: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
-	20, // 19: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
-	21, // 20: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
-	22, // 21: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
-	23, // 22: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
-	25, // 23: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
-	5,  // 24: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
-	8,  // 25: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
-	13, // 26: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
-	15, // 27: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
-	3,  // 28: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
-	15, // 29: mynexus.WorkerService.DeleteBook:output_type -> mynexus.Ack
-	15, // 30: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
-	15, // 31: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
-	15, // 32: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
-	15, // 33: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
-	15, // 34: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
-	15, // 35: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
-	27, // 36: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
-	24, // [24:37] is the sub-list for method output_type
-	11, // [11:24] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	29, // 11: mynexus.LibraryStatsResponse.by_status:type_name -> mynexus.BookStatusCount
+	4,  // 12: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
+	6,  // 13: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
+	10, // 14: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
+	1,  // 15: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
+	2,  // 16: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
+	0,  // 17: mynexus.WorkerService.DeleteBook:input_type -> mynexus.DeleteBookRequest
+	14, // 18: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
+	19, // 19: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
+	20, // 20: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
+	21, // 21: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
+	22, // 22: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
+	23, // 23: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
+	25, // 24: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
+	28, // 25: mynexus.CoreApiService.GetLibraryStats:input_type -> mynexus.LibraryStatsRequest
+	5,  // 26: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
+	8,  // 27: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
+	13, // 28: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
+	15, // 29: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
+	3,  // 30: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
+	15, // 31: mynexus.WorkerService.DeleteBook:output_type -> mynexus.Ack
+	15, // 32: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
+	15, // 33: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
+	15, // 34: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
+	15, // 35: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
+	15, // 36: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
+	15, // 37: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
+	27, // 38: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
+	30, // 39: mynexus.CoreApiService.GetLibraryStats:output_type -> mynexus.LibraryStatsResponse
+	26, // [26:40] is the sub-list for method output_type
+	12, // [12:26] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_mynexus_proto_init() }
@@ -1983,7 +2138,7 @@ func file_mynexus_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mynexus_proto_rawDesc), len(file_mynexus_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

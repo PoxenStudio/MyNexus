@@ -391,6 +391,7 @@ const (
 	CoreApiService_ReportChapterSummary_FullMethodName = "/mynexus.CoreApiService/ReportChapterSummary"
 	CoreApiService_ReportBookSummary_FullMethodName    = "/mynexus.CoreApiService/ReportBookSummary"
 	CoreApiService_KeywordSearch_FullMethodName        = "/mynexus.CoreApiService/KeywordSearch"
+	CoreApiService_GetLibraryStats_FullMethodName      = "/mynexus.CoreApiService/GetLibraryStats"
 )
 
 // CoreApiServiceClient is the client API for CoreApiService service.
@@ -420,6 +421,15 @@ type CoreApiServiceClient interface {
 	// read-only endpoint instead of building a BM25 index in-process when
 	// storage.database == "postgres"; unimplemented (NOT_FOUND) on sqlite.
 	KeywordSearch(ctx context.Context, in *KeywordSearchRequest, opts ...grpc.CallOption) (*KeywordSearchResponse, error)
+	// Read-only system-status query, called by Worker's QA pipeline when the
+	// LLM invokes the "get_library_stats" chat tool (see
+	// .claude/memory/mynexus_chat_tool_calling.md) — lets the chat assistant
+	// answer "how many books are ingested" etc. without those numbers needing
+	// to appear in any retrieved chunk. First of what's meant to grow into a
+	// small family of read-only stats/lookup RPCs behind chat tools, not a
+	// one-off: keep new ones in this same shape (empty or narrow request,
+	// structured response) rather than a single do-everything RPC.
+	GetLibraryStats(ctx context.Context, in *LibraryStatsRequest, opts ...grpc.CallOption) (*LibraryStatsResponse, error)
 }
 
 type coreApiServiceClient struct {
@@ -500,6 +510,16 @@ func (c *coreApiServiceClient) KeywordSearch(ctx context.Context, in *KeywordSea
 	return out, nil
 }
 
+func (c *coreApiServiceClient) GetLibraryStats(ctx context.Context, in *LibraryStatsRequest, opts ...grpc.CallOption) (*LibraryStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LibraryStatsResponse)
+	err := c.cc.Invoke(ctx, CoreApiService_GetLibraryStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CoreApiServiceServer is the server API for CoreApiService service.
 // All implementations must embed UnimplementedCoreApiServiceServer
 // for forward compatibility.
@@ -527,6 +547,15 @@ type CoreApiServiceServer interface {
 	// read-only endpoint instead of building a BM25 index in-process when
 	// storage.database == "postgres"; unimplemented (NOT_FOUND) on sqlite.
 	KeywordSearch(context.Context, *KeywordSearchRequest) (*KeywordSearchResponse, error)
+	// Read-only system-status query, called by Worker's QA pipeline when the
+	// LLM invokes the "get_library_stats" chat tool (see
+	// .claude/memory/mynexus_chat_tool_calling.md) — lets the chat assistant
+	// answer "how many books are ingested" etc. without those numbers needing
+	// to appear in any retrieved chunk. First of what's meant to grow into a
+	// small family of read-only stats/lookup RPCs behind chat tools, not a
+	// one-off: keep new ones in this same shape (empty or narrow request,
+	// structured response) rather than a single do-everything RPC.
+	GetLibraryStats(context.Context, *LibraryStatsRequest) (*LibraryStatsResponse, error)
 	mustEmbedUnimplementedCoreApiServiceServer()
 }
 
@@ -557,6 +586,9 @@ func (UnimplementedCoreApiServiceServer) ReportBookSummary(context.Context, *Boo
 }
 func (UnimplementedCoreApiServiceServer) KeywordSearch(context.Context, *KeywordSearchRequest) (*KeywordSearchResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method KeywordSearch not implemented")
+}
+func (UnimplementedCoreApiServiceServer) GetLibraryStats(context.Context, *LibraryStatsRequest) (*LibraryStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetLibraryStats not implemented")
 }
 func (UnimplementedCoreApiServiceServer) mustEmbedUnimplementedCoreApiServiceServer() {}
 func (UnimplementedCoreApiServiceServer) testEmbeddedByValue()                        {}
@@ -705,6 +737,24 @@ func _CoreApiService_KeywordSearch_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CoreApiService_GetLibraryStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LibraryStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoreApiServiceServer).GetLibraryStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoreApiService_GetLibraryStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoreApiServiceServer).GetLibraryStats(ctx, req.(*LibraryStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CoreApiService_ServiceDesc is the grpc.ServiceDesc for CoreApiService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -739,6 +789,10 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "KeywordSearch",
 			Handler:    _CoreApiService_KeywordSearch_Handler,
+		},
+		{
+			MethodName: "GetLibraryStats",
+			Handler:    _CoreApiService_GetLibraryStats_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

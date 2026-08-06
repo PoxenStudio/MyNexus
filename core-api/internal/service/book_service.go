@@ -117,6 +117,28 @@ func (s *BookService) GetBook(id string) (*models.Book, error) {
 	return scanBook(row)
 }
 
+// CountByStatus powers the chat assistant's "get_library_stats" tool (see
+// .claude/memory/mynexus_chat_tool_calling.md) — a single GROUP BY instead of
+// ListBooks' full row scan, since the tool only ever needs counts.
+func (s *BookService) CountByStatus() (map[string]int, error) {
+	rows, err := s.db.Query(`SELECT status, COUNT(*) FROM books GROUP BY status`)
+	if err != nil {
+		return nil, fmt.Errorf("count books by status: %w", err)
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var n int
+		if err := rows.Scan(&status, &n); err != nil {
+			return nil, fmt.Errorf("scan book status count: %w", err)
+		}
+		counts[status] = n
+	}
+	return counts, rows.Err()
+}
+
 func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book, int64, error) {
 	if page < 1 {
 		page = 1

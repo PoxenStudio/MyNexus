@@ -181,6 +181,16 @@ service CoreApiService {
   // read-only endpoint instead of building a BM25 index in-process when
   // storage.database == "postgres"; unimplemented (NOT_FOUND) on sqlite.
   rpc KeywordSearch(KeywordSearchRequest) returns (KeywordSearchResponse);
+
+  // Read-only system-status query, called by Worker's QA pipeline when the
+  // LLM invokes the "get_library_stats" chat tool (see
+  // .claude/memory/mynexus_chat_tool_calling.md) — lets the chat assistant
+  // answer "how many books are ingested" etc. without those numbers needing
+  // to appear in any retrieved chunk. First of what's meant to grow into a
+  // small family of read-only stats/lookup RPCs behind chat tools, not a
+  // one-off: keep new ones in this same shape (empty or narrow request,
+  // structured response) rather than a single do-everything RPC.
+  rpc GetLibraryStats(LibraryStatsRequest) returns (LibraryStatsResponse);
 }
 
 message ProgressRequest {
@@ -274,4 +284,16 @@ message KeywordSearchResult {
 
 message KeywordSearchResponse {
   repeated KeywordSearchResult results = 1;
+}
+
+message LibraryStatsRequest {}
+
+message BookStatusCount {
+  string status = 1;
+  int32 count = 2;
+}
+
+message LibraryStatsResponse {
+  int32 total_books = 1;
+  repeated BookStatusCount by_status = 2;
 }

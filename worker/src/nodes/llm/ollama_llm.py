@@ -53,6 +53,37 @@ class OllamaLLM(BaseLLM):
             if logger:
                 logger.log_response("".join(chunks))
 
+    def call(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        body: dict = {"model": self.model, "messages": messages, "stream": False}
+        if tools:
+            body["tools"] = tools
+        payload = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
+        try:
+            with call_provider(req, timeout=120, service="llm", provider="ollama", model=self.model) as resp:
+                data = json.loads(resp.read())
+        except Exception as exc:
+            if logger:
+                logger.log_error(exc)
+            raise
+        message = data.get("message", {})
+        # Unlike OpenAI, Ollama returns `arguments` already as a JSON object,
+        # not a string to be json.loads'd — see BaseLLM.call's documented shape.
+        tool_calls = [
+            {"id": "", "name": tc.get("function", {}).get("name", ""), "arguments": tc.get("function", {}).get("arguments", {})}
+            for tc in message.get("tool_calls") or []
+        ]
+        result = {"content": message.get("content"), "tool_calls": tool_calls}
+        if logger:
+            logger.log_response(json.dumps(result, ensure_ascii=False))
+        return result
+
 
 if __name__ == "__main__":
     # Standalone test: run from worker/src with

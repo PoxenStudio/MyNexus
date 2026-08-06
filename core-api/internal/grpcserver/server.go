@@ -205,3 +205,21 @@ func (s *CoreAPIServer) KeywordSearch(ctx context.Context, req *mynexuspb.Keywor
 	}
 	return &mynexuspb.KeywordSearchResponse{Results: items}, nil
 }
+
+// GetLibraryStats backs the chat assistant's "get_library_stats" tool (see
+// .claude/memory/mynexus_chat_tool_calling.md) — read-only, no task/session
+// context needed, unlike every other CoreApiService RPC above.
+func (s *CoreAPIServer) GetLibraryStats(ctx context.Context, req *mynexuspb.LibraryStatsRequest) (*mynexuspb.LibraryStatsResponse, error) {
+	counts, err := s.books.CountByStatus()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+
+	total := 0
+	byStatus := make([]*mynexuspb.BookStatusCount, 0, len(counts))
+	for st, n := range counts {
+		total += n
+		byStatus = append(byStatus, &mynexuspb.BookStatusCount{Status: st, Count: int32(n)})
+	}
+	return &mynexuspb.LibraryStatsResponse{TotalBooks: int32(total), ByStatus: byStatus}, nil
+}
