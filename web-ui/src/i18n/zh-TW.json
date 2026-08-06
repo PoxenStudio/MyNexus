@@ -143,7 +143,9 @@
     "username": "用戶名",
     "password": "密碼",
     "submit": "登錄",
-    "error": "用戶名或密碼錯誤"
+    "error": "用戶名或密碼錯誤",
+    "showPassword": "顯示密碼",
+    "hidePassword": "隱藏密碼"
   },
   "settings": {
     "title": "設置",

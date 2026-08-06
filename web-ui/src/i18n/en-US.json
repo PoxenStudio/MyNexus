@@ -143,7 +143,9 @@
     "username": "Username",
     "password": "Password",
     "submit": "Log In",
-    "error": "Invalid username or password"
+    "error": "Invalid username or password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "settings": {
     "title": "Settings",

@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import AppIcon from "../components/AppIcon.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -13,6 +14,7 @@ const username = ref("");
 const password = ref("");
 const error = ref("");
 const submitting = ref(false);
+const passwordVisible = ref(false);
 
 async function onSubmit() {
   error.value = "";
@@ -33,7 +35,7 @@ async function onSubmit() {
   <div class="login-page">
     <div class="brand">
       <img src="/star.svg" class="brand-logo" alt="" aria-hidden="true" />
-      <span class="brand-name">MyNexus</span>
+      <span class="brand-name">My Nexus</span>
     </div>
     <form class="login-card" @submit.prevent="onSubmit">
       <h1>{{ t("login.title") }}</h1>
@@ -43,13 +45,29 @@ async function onSubmit() {
       </label>
       <label>
         {{ t("login.password") }}
-        <input v-model="password" type="password" autocomplete="current-password" required />
+        <div class="password-field">
+          <input
+            v-model="password"
+            :type="passwordVisible ? 'text' : 'password'"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            :title="t(passwordVisible ? 'login.hidePassword' : 'login.showPassword')"
+            :aria-label="t(passwordVisible ? 'login.hidePassword' : 'login.showPassword')"
+            @click="passwordVisible = !passwordVisible"
+          >
+            <AppIcon :name="passwordVisible ? 'eyeOff' : 'eye'" :size="18" />
+          </button>
+        </div>
       </label>
       <p v-if="error" class="error">{{ error }}</p>
       <button type="submit" :disabled="submitting">{{ t("login.submit") }}</button>
     </form>
     <div class="brand">
-      <span class="brand-mark">PoxenStudio, 2026</span>
+      <span style="color:grey">PoxenStudio, 2026</span>
     </div>
   </div>
 </template>
@@ -105,6 +123,33 @@ input {
   border-radius: 6px;
   background: transparent;
   color: inherit;
+  width: 100%;
+}
+.password-field {
+  position: relative;
+  display: flex;
+}
+.password-field input {
+  padding-right: 2.25rem;
+}
+.password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 2.25rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  opacity: 0.65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.password-toggle:hover {
+  opacity: 1;
 }
 button {
   padding: 0.5rem 0.6rem;
