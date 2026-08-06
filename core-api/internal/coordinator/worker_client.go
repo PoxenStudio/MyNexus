@@ -264,6 +264,22 @@ func (c *WorkerClient) Chat(req ChatRequest) (*ChatStream, error) {
 	return &ChatStream{stream: stream}, nil
 }
 
+// DeleteBook purges bookID's vector-store records on Worker. Called on book
+// delete and before rebuild's re-ingest so ChromaDB/SimpleVectorStore never
+// accumulates orphaned embeddings for a book_id no longer in Core API's own
+// books/chunks tables (see .claude/memory/mynexus_orphaned_vectors.md) —
+// those otherwise still surface as unresolvable citations in chat.
+func (c *WorkerClient) DeleteBook(bookID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := c.client.DeleteBook(ctx, &mynexuspb.DeleteBookRequest{BookId: bookID})
+	if err != nil {
+		return fmt.Errorf("call worker DeleteBook: %w", err)
+	}
+	return nil
+}
+
 // Shutdown asks Worker to exit shortly after acking, so it restarts and
 // picks up a just-saved config.yaml (see system_settings.go). Best-effort:
 // callers should ignore the error (Worker being unreachable already means

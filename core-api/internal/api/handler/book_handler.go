@@ -180,6 +180,12 @@ func (h *BookHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
 		return
 	}
+	// Best-effort: Worker being unreachable shouldn't block the delete the
+	// caller already got a success response for (same pattern as Shutdown in
+	// system_handler.go). Otherwise the book's chunks would still be
+	// retrievable/citable in chat with no matching books/chunks row to
+	// resolve them against (see .claude/memory/mynexus_orphaned_vectors.md).
+	go func() { _ = h.worker.DeleteBook(id) }()
 	if actor, ok := c.Get("actor"); ok {
 		title := ""
 		if book != nil {
@@ -312,6 +318,7 @@ func (h *BookHandler) BulkDelete(c *gin.Context) {
 			items = append(items, dto.BulkResultItem{ID: id, OK: false, Error: err.Error()})
 			continue
 		}
+		go func(bookID string) { _ = h.worker.DeleteBook(bookID) }(id)
 		items = append(items, dto.BulkResultItem{ID: id, OK: true})
 	}
 	if actor != nil {

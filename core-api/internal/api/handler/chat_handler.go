@@ -162,6 +162,20 @@ func (h *ChatHandler) GetSession(c *gin.Context) {
 	})
 }
 
+func (h *ChatHandler) RenameSession(c *gin.Context) {
+	id := c.Param("id")
+	var req dto.RenameSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.chats.RenameSession(id, req.Title); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *ChatHandler) DeleteSession(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.chats.DeleteSession(id); err != nil {

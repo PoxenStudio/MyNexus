@@ -36,6 +36,21 @@ _KEYWORDS_PER_SEGMENT_TOP_K = 50
 # stored here.
 _KEYWORDS_ROLLING_CAP = 150
 
+# Chapter titles skipped when building the book's keyword set — boilerplate
+# like a copyright/imprint page contributes publisher/legal terms that have
+# nothing to do with the book's actual content and would otherwise pollute
+# the keyword cloud. Matched case-insensitively as a substring, not an exact
+# title, so variants like "版权信息页" or "Copyright Page" / "Copyright ©
+# 2020" are caught too. Only affects keyword extraction — the chapter is
+# still summarized normally.
+_KEYWORD_SKIP_TITLE_SUBSTRINGS = ("版权信息", "copyright")
+
+
+def _is_keyword_skip_chapter(title: str) -> bool:
+    title = (title or "").strip().lower()
+    return any(s in title for s in _KEYWORD_SKIP_TITLE_SUBSTRINGS)
+
+
 # Minimum gap between within-chapter progress ticks (see _complete's on_chars
 # callback). A large chapter can take minutes to stream back from a slow
 # model with nothing else to show for it in the meantime, so run() reports
@@ -304,6 +319,8 @@ class SummaryPipeline:
             # segment-level one, for the same memory-bounding reason.
             keyword_totals: dict[str, float] = {}
             for ch in usable:
+                if _is_keyword_skip_chapter(ch.title):
+                    continue
                 chapter_keywords = self._extract_chapter_keywords(ch.content, lang)
                 keyword_totals = merge_topk(keyword_totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP)
             keywords = sorted(keyword_totals.items(), key=lambda item: item[1], reverse=True)
@@ -339,6 +356,8 @@ if __name__ == "__main__":
     print("=== KEYWORDS ===")
     totals: dict[str, float] = {}
     for chapter in doc.chapters:
+        if _is_keyword_skip_chapter(chapter.title):
+            continue
         chapter_keywords = pipeline._extract_chapter_keywords(chapter.content, lang)  # noqa: SLF001
         totals = merge_topk(totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP)
     for term, weight in sorted(totals.items(), key=lambda item: item[1], reverse=True):

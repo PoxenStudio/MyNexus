@@ -97,6 +97,15 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
                 ]
                 yield mynexus_pb2.ChatChunk(citations=mynexus_pb2.CitationList(items=citations))
 
+    def DeleteBook(self, request, context):
+        # Purges every vector-store record for this book_id — called by Core
+        # API on book delete and before re-ingesting on rebuild, so ChromaDB/
+        # SimpleVectorStore never keeps serving retrieval hits (and chat
+        # citations) for a book that no longer has a books/chunks row (see
+        # .claude/memory/mynexus_orphaned_vectors.md).
+        self.retrieval.vector_store.delete_by_book(request.book_id)
+        return mynexus_pb2.Ack(ok=True)
+
     def Shutdown(self, request, context):
         # Ack first, then exit shortly after on a separate thread so the
         # response actually reaches Core API before the process dies — see

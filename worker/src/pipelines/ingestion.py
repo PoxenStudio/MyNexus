@@ -80,6 +80,13 @@ class IngestionPipeline:
             self.core_api.report_progress(task_id, 60, "splitting_done")
 
             if chunks:
+                # Purge this book_id's existing vectors first — a rebuild
+                # reuses the same book_id (see book_handler.go's rebuildOne)
+                # but re-splits from scratch, so without this the old
+                # chunk_ids' vectors would linger alongside the new ones as
+                # orphans (no matching chunks row, but still retrievable and
+                # citable in chat). No-op on a first-time ingest.
+                self.vector_store.delete_by_book(book_id)
                 batch_size = 32
                 for i in range(0, len(chunks), batch_size):
                     batch = chunks[i : i + batch_size]

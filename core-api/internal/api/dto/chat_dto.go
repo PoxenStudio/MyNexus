@@ -31,6 +31,10 @@ type CitationResponse struct {
 	Content   string  `json:"content"`
 }
 
+type RenameSessionRequest struct {
+	Title string `json:"title" binding:"required"`
+}
+
 type ChatSessionResponse struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`

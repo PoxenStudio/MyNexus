@@ -96,6 +96,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			chatGroup.POST("/completions", chat.Completions)
 			chatGroup.GET("/sessions", chat.ListSessions)
 			chatGroup.GET("/sessions/:id", chat.GetSession)
+			chatGroup.PUT("/sessions/:id", chat.RenameSession)
 			chatGroup.DELETE("/sessions/:id", chat.DeleteSession)
 		}
 	}

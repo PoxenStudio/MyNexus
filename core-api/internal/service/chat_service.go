@@ -72,6 +72,12 @@ func (s *ChatService) DeleteSession(id string) error {
 	return err
 }
 
+func (s *ChatService) RenameSession(id, title string) error {
+	_, err := s.db.Exec(`UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?`,
+		title, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
 func (s *ChatService) TouchSession(id string) error {
 	_, err := s.db.Exec(`UPDATE chat_sessions SET updated_at = ? WHERE id = ?`,
 		time.Now().UTC().Format(time.RFC3339), id)

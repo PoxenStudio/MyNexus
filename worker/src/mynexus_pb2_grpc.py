@@ -61,6 +61,11 @@ class WorkerServiceStub(object):
                 request_serializer=mynexus__pb2.SummarizeRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.SummarizeAck.FromString,
                 _registered_method=True)
+        self.DeleteBook = channel.unary_unary(
+                '/mynexus.WorkerService/DeleteBook',
+                request_serializer=mynexus__pb2.DeleteBookRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
 
 
 class WorkerServiceServicer(object):
@@ -119,6 +124,19 @@ class WorkerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def DeleteBook(self, request, context):
+        """Purges every vector-store record for book_id (synchronous, unary — the
+        vector store is local to Worker so this never touches Core API's own
+        database). Called by Core API on book delete and before re-ingesting on
+        rebuild, so ChromaDB/SimpleVectorStore never accumulates orphaned
+        embeddings for a book_id that no longer exists in `books`/`chunks` —
+        those otherwise still get retrieved and cited by chat with no way to
+        resolve the id back to a real book (see .claude/memory/mynexus_orphaned_vectors.md).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -146,6 +164,11 @@ def add_WorkerServiceServicer_to_server(servicer, server):
                     servicer.TriggerSummarize,
                     request_deserializer=mynexus__pb2.SummarizeRequest.FromString,
                     response_serializer=mynexus__pb2.SummarizeAck.SerializeToString,
+            ),
+            'DeleteBook': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteBook,
+                    request_deserializer=mynexus__pb2.DeleteBookRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -285,6 +308,33 @@ class WorkerService(object):
             '/mynexus.WorkerService/TriggerSummarize',
             mynexus__pb2.SummarizeRequest.SerializeToString,
             mynexus__pb2.SummarizeAck.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteBook(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/DeleteBook',
+            mynexus__pb2.DeleteBookRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,
             insecure,

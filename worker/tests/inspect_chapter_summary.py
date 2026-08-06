@@ -19,6 +19,13 @@ as a real run. Pass --show-content to also dump the chapter's full
 parsed+cleaned text, useful for judging whether the parser/cleaner (not the
 LLM) is where the quality loss actually happened.
 
+Also prints the selected chapter's top-50 content keywords with their
+weight/frequency — the same rolling per-segment extraction
+pipelines.summary.SummaryPipeline._extract_chapter_keywords does for a real
+run (jieba TF-IDF for Chinese, NLTK noun-POS term frequency for English; see
+util/keywords.py), including the copyright/版权信息 title skip. This needs
+no LLM call, so it prints even with --dry-run.
+
 --debug writes the request/response to the OS temp dir the same way the
 system settings "打开调试日志" toggle does in production (see
 util/debug_log.py) — handy for diffing this run against a captured one from
@@ -60,9 +67,14 @@ from pipelines.ingestion import IngestionPipeline  # noqa: E402
 from pipelines.summary import (  # noqa: E402
     _CHAPTER_PROMPT_TEMPLATE,
     _CHAPTER_REDUCE_PROMPT_TEMPLATE,
+    _KEYWORDS_PER_SEGMENT_TOP_K,
+    _KEYWORDS_ROLLING_CAP,
     _SEGMENT_PROMPT_TEMPLATE,
     SummaryPipeline,
+    _is_keyword_skip_chapter,
+    _lang_bucket,
 )
+from util.keywords import extract_keywords, merge_topk  # noqa: E402
 from util.text_split import DEFAULT_HARD_LIMIT_CHARS, split_into_segments  # noqa: E402
 
 
@@ -125,6 +137,24 @@ def main() -> None:
         print("\n----- parsed+cleaned content -----")
         print(chapter.content)
         print("----- end content -----")
+
+    # Needs no LLM call — same rolling per-segment extraction a real run's
+    # _extract_chapter_keywords does (see util/keywords.py), so this prints
+    # even with --dry-run.
+    lang = _lang_bucket(document.language)
+    print(f"\n# language bucket: {lang!r} (books.language={document.language!r})")
+    if _is_keyword_skip_chapter(chapter.title):
+        print("# chapter title matches the copyright/版权信息 skip list — a real run excludes it from keywords entirely")
+    else:
+        keyword_totals: dict[str, float] = {}
+        for seg in split_into_segments(chapter.content):
+            candidates = extract_keywords(seg, lang, top_k=_KEYWORDS_PER_SEGMENT_TOP_K)
+            keyword_totals = merge_topk(keyword_totals, candidates, _KEYWORDS_ROLLING_CAP)
+        top50 = sorted(keyword_totals.items(), key=lambda kv: kv[1], reverse=True)[:50]
+        print(f"\n----- top {len(top50)} keywords (of {len(keyword_totals)} after rolling merge) -----")
+        for term, weight in top50:
+            print(f"{term}\t{weight:.4f}")
+        print("----- end keywords -----")
 
     cfg = load_config()
     if args.base_url:

@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { getBook, rebuildBook, summarizeBook, updateBook, type BookDetail } from "../../api/books";
 import { getTask, listTasks, type Task } from "../../api/tasks";
+import AppIcon from "../../components/AppIcon.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
 import KeywordCloud from "../../components/KeywordCloud.vue";
 import { languageName, languageOptions } from "../../utils/languageCodes";
@@ -277,12 +278,7 @@ onUnmounted(stopPolling);
               <template v-else>
                 {{ languageName(book.language) || "—" }}
                 <button class="icon-btn" :title="t('common.edit')" @click="startEditLanguage">
-                  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M14.85 2.85a1.5 1.5 0 0 1 2.12 0l.18.18a1.5 1.5 0 0 1 0 2.12l-9.3 9.3-3.03.9.9-3.03 9.13-9.13Zm-10.4 10.4-.7 2.36a.5.5 0 0 0 .62.62l2.36-.7-2.28-2.28Z"
-                    />
-                  </svg>
+                  <AppIcon name="edit" :size="14" />
                 </button>
               </template>
             </dd>

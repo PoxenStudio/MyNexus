@@ -49,6 +49,19 @@ service WorkerService {
   // has a summary, they're combined into one whole-book summary, reported
   // via ReportBookSummary — which also marks the task complete.
   rpc TriggerSummarize(SummarizeRequest) returns (SummarizeAck);
+
+  // Purges every vector-store record for book_id (synchronous, unary — the
+  // vector store is local to Worker so this never touches Core API's own
+  // database). Called by Core API on book delete and before re-ingesting on
+  // rebuild, so ChromaDB/SimpleVectorStore never accumulates orphaned
+  // embeddings for a book_id that no longer exists in `books`/`chunks` —
+  // those otherwise still get retrieved and cited by chat with no way to
+  // resolve the id back to a real book (see .claude/memory/mynexus_orphaned_vectors.md).
+  rpc DeleteBook(DeleteBookRequest) returns (Ack);
+}
+
+message DeleteBookRequest {
+  string book_id = 1;
 }
 
 message ShutdownRequest {}
