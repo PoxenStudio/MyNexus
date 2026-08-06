@@ -101,7 +101,7 @@ func (h *BookHandler) List(c *gin.Context) {
 
 	items := make([]dto.BookResponse, 0, len(books))
 	for _, b := range books {
-		items = append(items, dto.NewBookResponse(b))
+		items = append(items, dto.NewBookResponse(b, h.cfg.Keyword.MaxKeywords))
 	}
 	c.JSON(http.StatusOK, dto.BookListResponse{Items: items, Total: total, Page: page, Size: size})
 }
@@ -126,7 +126,7 @@ func (h *BookHandler) Get(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.BookDetailResponse{
-		BookResponse: dto.NewBookResponse(*book),
+		BookResponse: dto.NewBookResponse(*book, h.cfg.Keyword.MaxKeywords),
 		Chapters:     chapterResponses,
 	})
 }
@@ -145,13 +145,13 @@ func (h *BookHandler) Update(c *gin.Context) {
 	}
 
 	tagsJSON, _ := json.Marshal(req.Tags)
-	if err := h.books.UpdateBook(id, req.Title, req.Author, req.Category, string(tagsJSON)); err != nil {
+	if err := h.books.UpdateBook(id, req.Title, req.Author, req.Category, req.Language, string(tagsJSON)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	book, _ := h.books.GetBook(id)
-	c.JSON(http.StatusOK, dto.NewBookResponse(*book))
+	c.JSON(http.StatusOK, dto.NewBookResponse(*book, h.cfg.Keyword.MaxKeywords))
 }
 
 func (h *BookHandler) Chunks(c *gin.Context) {
@@ -258,6 +258,11 @@ func (h *BookHandler) Summarize(c *gin.Context) {
 }
 
 func (h *BookHandler) summarizeOne(bookID string, forceRestart bool) (taskID string, err error) {
+	book, err := h.books.GetBook(bookID)
+	if err != nil {
+		return "", err
+	}
+
 	chapters, err := h.books.ListChapters(bookID)
 	if err != nil {
 		return "", err
@@ -280,6 +285,7 @@ func (h *BookHandler) summarizeOne(bookID string, forceRestart bool) (taskID str
 
 	if err := h.worker.TriggerSummarize(coordinator.SummarizeRequest{
 		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: forceRestart,
+		Language: book.Language,
 	}); err != nil {
 		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
 		return "", fmt.Errorf("failed to trigger summarization: %w", err)

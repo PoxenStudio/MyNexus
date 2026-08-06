@@ -115,6 +115,11 @@ type SummarizeRequest struct {
 	// ("continue"). When true, every chapter is regenerated regardless of
 	// any existing summary ("restart").
 	ForceRestart bool
+	// Language is the book's language code (books.language — see
+	// worker/src/util/lang_detect.py). Selects the prompt language and
+	// keyword-extraction path in worker/src/pipelines/summary.py; empty is
+	// treated the same as Chinese.
+	Language string
 }
 
 // TriggerSummarize asks Worker to start a map-reduce summarization run in
@@ -134,6 +139,7 @@ func (c *WorkerClient) TriggerSummarize(req SummarizeRequest) error {
 
 	_, err := c.client.TriggerSummarize(ctx, &mynexuspb.SummarizeRequest{
 		TaskId: req.TaskID, BookId: req.BookID, Chapters: chapters, ForceRestart: req.ForceRestart,
+		Language: req.Language,
 	})
 	if err != nil {
 		return fmt.Errorf("call worker TriggerSummarize: %w", err)

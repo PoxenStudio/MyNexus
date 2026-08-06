@@ -112,7 +112,7 @@ func (s *BookService) ApplyParsedMetadata(bookID, title, author, language string
 func (s *BookService) GetBook(id string) (*models.Book, error) {
 	row := s.db.QueryRow(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, created_at, updated_at
 		 FROM books WHERE id = ?`, id)
 	return scanBook(row)
 }
@@ -145,7 +145,7 @@ func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book
 	listArgs := append(append([]any{}, args...), size, (page-1)*size)
 	rows, err := s.db.Query(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, created_at, updated_at
 		 FROM books `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list books: %w", err)
@@ -163,10 +163,18 @@ func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book
 	return books, total, rows.Err()
 }
 
-func (s *BookService) UpdateBook(id, title, author, category string, tags string) error {
+// UpdateBook writes the user-/external-caller-editable fields. language is
+// an explicit override (e.g. from MyBooks, which does its own title-based
+// detection — see .claude/memory or docs for the ingestion-side equivalent
+// in worker/src/util/lang_detect.py) — an empty string here leaves the
+// existing value untouched rather than blanking it, since most callers
+// (the admin edit form) don't surface a language field at all.
+func (s *BookService) UpdateBook(id, title, author, category, language, tags string) error {
 	_, err := s.db.Exec(
-		`UPDATE books SET title = ?, author = ?, category = ?, tags = ?, updated_at = ? WHERE id = ?`,
-		title, author, category, tags, time.Now().UTC().Format(time.RFC3339), id,
+		`UPDATE books SET title = ?, author = ?, category = ?,
+			language = CASE WHEN ? = '' THEN language ELSE ? END,
+			tags = ?, updated_at = ? WHERE id = ?`,
+		title, author, category, language, language, tags, time.Now().UTC().Format(time.RFC3339), id,
 	)
 	return err
 }
@@ -319,11 +327,13 @@ func (s *BookService) UpdateChapterSummary(chapterID, summary string) error {
 	return err
 }
 
-// SetBookSummary persists the whole-book summary — the reduce step, run once
-// after every chapter has a summary.
-func (s *BookService) SetBookSummary(bookID, summary string) error {
-	_, err := s.db.Exec(`UPDATE books SET summary = ?, updated_at = ? WHERE id = ?`,
-		summary, time.Now().UTC().Format(time.RFC3339), bookID)
+// SetBookSummary persists the whole-book summary and its extracted content
+// keywords (JSON-encoded []dto.Keyword-shaped array, already sorted by
+// weight descending — see worker/src/pipelines/summary.py) — the reduce
+// step, run once after every chapter has a summary.
+func (s *BookService) SetBookSummary(bookID, summary, keywordsJSON string) error {
+	_, err := s.db.Exec(`UPDATE books SET summary = ?, keywords = ?, updated_at = ? WHERE id = ?`,
+		summary, keywordsJSON, time.Now().UTC().Format(time.RFC3339), bookID)
 	return err
 }
 
@@ -418,7 +428,7 @@ func scanBookRows(row rowScanner) (*models.Book, error) {
 	var b models.Book
 	err := row.Scan(&b.ID, &b.UserID, &b.Title, &b.Author, &b.Publisher, &b.Language, &b.PublishDate,
 		&b.ISBN, &b.SourceOrigin, &b.SourceFormat, &b.FilePath, &b.Status, &b.Tags, &b.Category, &b.Summary,
-		&b.CreatedAt, &b.UpdatedAt)
+		&b.Keywords, &b.CreatedAt, &b.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, err
 	}

@@ -79,7 +79,13 @@ type SummarizeRequest struct {
 	// untouched and only the missing ones are (re)generated — "continue"
 	// mode. When true, every chapter is regenerated regardless of any
 	// existing summary — "restart" mode.
-	ForceRestart  bool `protobuf:"varint,4,opt,name=force_restart,json=forceRestart,proto3" json:"force_restart,omitempty"`
+	ForceRestart bool `protobuf:"varint,4,opt,name=force_restart,json=forceRestart,proto3" json:"force_restart,omitempty"`
+	// Book's language code (books.language — "en" or empty/zh*/ja, see
+	// ingestion.py's title-based detection). Selects which prompt language
+	// pipelines/summary.py writes chapter/book summaries in and which
+	// keyword-extraction path (jieba for Chinese, NLTK POS-noun-filtering for
+	// English) it runs. Empty is treated the same as Chinese.
+	Language      string `protobuf:"bytes,5,opt,name=language,proto3" json:"language,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -140,6 +146,13 @@ func (x *SummarizeRequest) GetForceRestart() bool {
 		return x.ForceRestart
 	}
 	return false
+}
+
+func (x *SummarizeRequest) GetLanguage() string {
+	if x != nil {
+		return x.Language
+	}
+	return ""
 }
 
 type SummarizeAck struct {
@@ -1391,10 +1404,18 @@ func (x *ChapterSummaryRequest) GetSummary() string {
 }
 
 type BookSummaryRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	BookId        string                 `protobuf:"bytes,2,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
-	Summary       string                 `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	TaskId  string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	BookId  string                 `protobuf:"bytes,2,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
+	Summary string                 `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Whole-book content keywords, reduced from each chapter's summary (see
+	// pipelines/summary.py), sorted by weight descending. Not the same as
+	// BookMeta/tags (user- or MyBooks-assigned labels) — these are extracted
+	// from the text itself. Core API stores them all and truncates to the
+	// system-configured max_keywords setting at read time (see
+	// config.KeywordConfig), so raising the limit later doesn't require
+	// re-summarizing.
+	Keywords      []*Keyword `protobuf:"bytes,4,rep,name=keywords,proto3" json:"keywords,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1450,6 +1471,65 @@ func (x *BookSummaryRequest) GetSummary() string {
 	return ""
 }
 
+func (x *BookSummaryRequest) GetKeywords() []*Keyword {
+	if x != nil {
+		return x.Keywords
+	}
+	return nil
+}
+
+type Keyword struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Term          string                 `protobuf:"bytes,1,opt,name=term,proto3" json:"term,omitempty"`
+	Weight        float64                `protobuf:"fixed64,2,opt,name=weight,proto3" json:"weight,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Keyword) Reset() {
+	*x = Keyword{}
+	mi := &file_mynexus_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Keyword) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Keyword) ProtoMessage() {}
+
+func (x *Keyword) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Keyword.ProtoReflect.Descriptor instead.
+func (*Keyword) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *Keyword) GetTerm() string {
+	if x != nil {
+		return x.Term
+	}
+	return ""
+}
+
+func (x *Keyword) GetWeight() float64 {
+	if x != nil {
+		return x.Weight
+	}
+	return 0
+}
+
 type KeywordSearchRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
@@ -1461,7 +1541,7 @@ type KeywordSearchRequest struct {
 
 func (x *KeywordSearchRequest) Reset() {
 	*x = KeywordSearchRequest{}
-	mi := &file_mynexus_proto_msgTypes[23]
+	mi := &file_mynexus_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1473,7 +1553,7 @@ func (x *KeywordSearchRequest) String() string {
 func (*KeywordSearchRequest) ProtoMessage() {}
 
 func (x *KeywordSearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[23]
+	mi := &file_mynexus_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1486,7 +1566,7 @@ func (x *KeywordSearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeywordSearchRequest.ProtoReflect.Descriptor instead.
 func (*KeywordSearchRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{23}
+	return file_mynexus_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *KeywordSearchRequest) GetQuery() string {
@@ -1521,7 +1601,7 @@ type KeywordSearchResult struct {
 
 func (x *KeywordSearchResult) Reset() {
 	*x = KeywordSearchResult{}
-	mi := &file_mynexus_proto_msgTypes[24]
+	mi := &file_mynexus_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1533,7 +1613,7 @@ func (x *KeywordSearchResult) String() string {
 func (*KeywordSearchResult) ProtoMessage() {}
 
 func (x *KeywordSearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[24]
+	mi := &file_mynexus_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1546,7 +1626,7 @@ func (x *KeywordSearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeywordSearchResult.ProtoReflect.Descriptor instead.
 func (*KeywordSearchResult) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{24}
+	return file_mynexus_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *KeywordSearchResult) GetChunkId() string {
@@ -1579,7 +1659,7 @@ type KeywordSearchResponse struct {
 
 func (x *KeywordSearchResponse) Reset() {
 	*x = KeywordSearchResponse{}
-	mi := &file_mynexus_proto_msgTypes[25]
+	mi := &file_mynexus_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1591,7 +1671,7 @@ func (x *KeywordSearchResponse) String() string {
 func (*KeywordSearchResponse) ProtoMessage() {}
 
 func (x *KeywordSearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[25]
+	mi := &file_mynexus_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1604,7 +1684,7 @@ func (x *KeywordSearchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeywordSearchResponse.ProtoReflect.Descriptor instead.
 func (*KeywordSearchResponse) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{25}
+	return file_mynexus_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *KeywordSearchResponse) GetResults() []*KeywordSearchResult {
@@ -1619,12 +1699,13 @@ var File_mynexus_proto protoreflect.FileDescriptor
 const file_mynexus_proto_rawDesc = "" +
 	"\n" +
 	"\rmynexus.proto\x12\amynexus\"\x11\n" +
-	"\x0fShutdownRequest\"\x97\x01\n" +
+	"\x0fShutdownRequest\"\xb3\x01\n" +
 	"\x10SummarizeRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x17\n" +
 	"\abook_id\x18\x02 \x01(\tR\x06bookId\x12,\n" +
 	"\bchapters\x18\x03 \x03(\v2\x10.mynexus.ChapterR\bchapters\x12#\n" +
-	"\rforce_restart\x18\x04 \x01(\bR\fforceRestart\"*\n" +
+	"\rforce_restart\x18\x04 \x01(\bR\fforceRestart\x12\x1a\n" +
+	"\blanguage\x18\x05 \x01(\tR\blanguage\"*\n" +
 	"\fSummarizeAck\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\"\x8b\x01\n" +
 	"\rIngestRequest\x12\x17\n" +
@@ -1714,11 +1795,15 @@ const file_mynexus_proto_rawDesc = "" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1d\n" +
 	"\n" +
 	"chapter_id\x18\x02 \x01(\tR\tchapterId\x12\x18\n" +
-	"\asummary\x18\x03 \x01(\tR\asummary\"`\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\"\x8e\x01\n" +
 	"\x12BookSummaryRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x17\n" +
 	"\abook_id\x18\x02 \x01(\tR\x06bookId\x12\x18\n" +
-	"\asummary\x18\x03 \x01(\tR\asummary\"\\\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12,\n" +
+	"\bkeywords\x18\x04 \x03(\v2\x10.mynexus.KeywordR\bkeywords\"5\n" +
+	"\aKeyword\x12\x12\n" +
+	"\x04term\x18\x01 \x01(\tR\x04term\x12\x16\n" +
+	"\x06weight\x18\x02 \x01(\x01R\x06weight\"\\\n" +
 	"\x14KeywordSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x19\n" +
 	"\bbook_ids\x18\x02 \x03(\tR\abookIds\x12\x13\n" +
@@ -1757,7 +1842,7 @@ func file_mynexus_proto_rawDescGZIP() []byte {
 	return file_mynexus_proto_rawDescData
 }
 
-var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_mynexus_proto_goTypes = []any{
 	(*ShutdownRequest)(nil),       // 0: mynexus.ShutdownRequest
 	(*SummarizeRequest)(nil),      // 1: mynexus.SummarizeRequest
@@ -1782,9 +1867,10 @@ var file_mynexus_proto_goTypes = []any{
 	(*FailRequest)(nil),           // 20: mynexus.FailRequest
 	(*ChapterSummaryRequest)(nil), // 21: mynexus.ChapterSummaryRequest
 	(*BookSummaryRequest)(nil),    // 22: mynexus.BookSummaryRequest
-	(*KeywordSearchRequest)(nil),  // 23: mynexus.KeywordSearchRequest
-	(*KeywordSearchResult)(nil),   // 24: mynexus.KeywordSearchResult
-	(*KeywordSearchResponse)(nil), // 25: mynexus.KeywordSearchResponse
+	(*Keyword)(nil),               // 23: mynexus.Keyword
+	(*KeywordSearchRequest)(nil),  // 24: mynexus.KeywordSearchRequest
+	(*KeywordSearchResult)(nil),   // 25: mynexus.KeywordSearchResult
+	(*KeywordSearchResponse)(nil), // 26: mynexus.KeywordSearchResponse
 }
 var file_mynexus_proto_depIdxs = []int32{
 	16, // 0: mynexus.SummarizeRequest.chapters:type_name -> mynexus.Chapter
@@ -1796,36 +1882,37 @@ var file_mynexus_proto_depIdxs = []int32{
 	15, // 6: mynexus.CompleteRequest.book:type_name -> mynexus.BookMeta
 	16, // 7: mynexus.CompleteRequest.chapters:type_name -> mynexus.Chapter
 	17, // 8: mynexus.CompleteRequest.chunks:type_name -> mynexus.Chunk
-	24, // 9: mynexus.KeywordSearchResponse.results:type_name -> mynexus.KeywordSearchResult
-	3,  // 10: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
-	5,  // 11: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
-	9,  // 12: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
-	0,  // 13: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
-	1,  // 14: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
-	13, // 15: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
-	18, // 16: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
-	19, // 17: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
-	20, // 18: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
-	21, // 19: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
-	22, // 20: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
-	23, // 21: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
-	4,  // 22: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
-	7,  // 23: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
-	12, // 24: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
-	14, // 25: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
-	2,  // 26: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
-	14, // 27: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
-	14, // 28: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
-	14, // 29: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
-	14, // 30: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
-	14, // 31: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
-	14, // 32: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
-	25, // 33: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
-	22, // [22:34] is the sub-list for method output_type
-	10, // [10:22] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	23, // 9: mynexus.BookSummaryRequest.keywords:type_name -> mynexus.Keyword
+	25, // 10: mynexus.KeywordSearchResponse.results:type_name -> mynexus.KeywordSearchResult
+	3,  // 11: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
+	5,  // 12: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
+	9,  // 13: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
+	0,  // 14: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
+	1,  // 15: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
+	13, // 16: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
+	18, // 17: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
+	19, // 18: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
+	20, // 19: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
+	21, // 20: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
+	22, // 21: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
+	24, // 22: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
+	4,  // 23: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
+	7,  // 24: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
+	12, // 25: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
+	14, // 26: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
+	2,  // 27: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
+	14, // 28: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
+	14, // 29: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
+	14, // 30: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
+	14, // 31: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
+	14, // 32: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
+	14, // 33: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
+	26, // 34: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
+	23, // [23:35] is the sub-list for method output_type
+	11, // [11:23] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_mynexus_proto_init() }
@@ -1843,7 +1930,7 @@ func file_mynexus_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mynexus_proto_rawDesc), len(file_mynexus_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

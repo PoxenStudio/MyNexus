@@ -61,11 +61,15 @@ class CoreApiClient:
             mynexus_pb2.ChapterSummaryRequest(task_id=task_id, chapter_id=chapter_id, summary=summary)
         )
 
-    def report_book_summary(self, task_id: str, book_id: str, summary: str) -> None:
-        """Reduce step: persists the whole-book summary and marks the
-        summarize task complete."""
+    def report_book_summary(
+        self, task_id: str, book_id: str, summary: str, keywords: list[tuple[str, float]] | None = None
+    ) -> None:
+        """Reduce step: persists the whole-book summary plus its extracted
+        content keywords (see pipelines/summary.py's run()/util/keywords.py),
+        and marks the summarize task complete."""
+        keyword_msgs = [mynexus_pb2.Keyword(term=term, weight=weight) for term, weight in (keywords or [])]
         self._stub.ReportBookSummary(
-            mynexus_pb2.BookSummaryRequest(task_id=task_id, book_id=book_id, summary=summary)
+            mynexus_pb2.BookSummaryRequest(task_id=task_id, book_id=book_id, summary=summary, keywords=keyword_msgs)
         )
 
     def keyword_search(self, query: str, book_ids: list[str] | None, top_k: int) -> list[dict] | None:

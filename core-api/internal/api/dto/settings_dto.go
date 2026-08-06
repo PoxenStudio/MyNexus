@@ -14,5 +14,6 @@ type SystemSettings struct {
 	Splitter  config.SplitterConfig  `json:"splitter"`
 	I18n      config.I18nConfig      `json:"i18n"`
 	Chat      config.ChatConfig      `json:"chat"`
+	Keyword   config.KeywordConfig   `json:"keyword"`
 	Debug     config.DebugConfig     `json:"debug"`
 }

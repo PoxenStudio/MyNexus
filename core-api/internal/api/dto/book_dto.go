@@ -2,40 +2,66 @@ package dto
 
 import (
 	"encoding/json"
+	"sort"
 
 	"mynexus/core-api/internal/models"
 )
 
-type BookResponse struct {
-	ID           string   `json:"id"`
-	UserID       string   `json:"user_id"`
-	Title        string   `json:"title"`
-	Author       string   `json:"author"`
-	Publisher    string   `json:"publisher"`
-	Language     string   `json:"language"`
-	PublishDate  string   `json:"publish_date"`
-	ISBN         string   `json:"isbn"`
-	SourceOrigin string   `json:"source_origin"`
-	SourceFormat string   `json:"source_format"`
-	Status       string   `json:"status"`
-	Tags         []string `json:"tags"`
-	Category     string   `json:"category"`
-	Summary      string   `json:"summary"`
-	CreatedAt    string   `json:"created_at"`
-	UpdatedAt    string   `json:"updated_at"`
+// KeywordResponse is one whole-book content keyword — extracted from the
+// text itself (see worker/src/pipelines/summary.py), distinct from Tags
+// (user-/MyBooks-assigned labels).
+type KeywordResponse struct {
+	Term   string  `json:"term"`
+	Weight float64 `json:"weight"`
 }
 
-func NewBookResponse(b models.Book) BookResponse {
+type BookResponse struct {
+	ID           string            `json:"id"`
+	UserID       string            `json:"user_id"`
+	Title        string            `json:"title"`
+	Author       string            `json:"author"`
+	Publisher    string            `json:"publisher"`
+	Language     string            `json:"language"`
+	PublishDate  string            `json:"publish_date"`
+	ISBN         string            `json:"isbn"`
+	SourceOrigin string            `json:"source_origin"`
+	SourceFormat string            `json:"source_format"`
+	Status       string            `json:"status"`
+	Tags         []string          `json:"tags"`
+	Category     string            `json:"category"`
+	Summary      string            `json:"summary"`
+	Keywords     []KeywordResponse `json:"keywords"`
+	CreatedAt    string            `json:"created_at"`
+	UpdatedAt    string            `json:"updated_at"`
+}
+
+// NewBookResponse truncates Keywords to maxKeywords (config.KeywordConfig —
+// see the system settings page), sorted by weight descending first so
+// raising the limit later always surfaces the next-highest-weight terms
+// already sitting in storage, no re-summarization needed. Pass maxKeywords
+// <= 0 to skip truncation (e.g. an internal caller that wants everything).
+func NewBookResponse(b models.Book, maxKeywords int) BookResponse {
 	var tags []string
 	_ = json.Unmarshal([]byte(b.Tags), &tags)
 	if tags == nil {
 		tags = []string{}
 	}
+
+	var keywords []KeywordResponse
+	_ = json.Unmarshal([]byte(b.Keywords), &keywords)
+	if keywords == nil {
+		keywords = []KeywordResponse{}
+	}
+	sort.Slice(keywords, func(i, j int) bool { return keywords[i].Weight > keywords[j].Weight })
+	if maxKeywords > 0 && len(keywords) > maxKeywords {
+		keywords = keywords[:maxKeywords]
+	}
+
 	return BookResponse{
 		ID: b.ID, UserID: b.UserID, Title: b.Title, Author: b.Author, Publisher: b.Publisher,
 		Language: b.Language, PublishDate: b.PublishDate, ISBN: b.ISBN, SourceOrigin: b.SourceOrigin,
 		SourceFormat: b.SourceFormat, Status: b.Status, Tags: tags, Category: b.Category, Summary: b.Summary,
-		CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
+		Keywords: keywords, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
 	}
 }
 
@@ -68,6 +94,11 @@ type UpdateBookRequest struct {
 	Author   string   `json:"author"`
 	Category string   `json:"category"`
 	Tags     []string `json:"tags"`
+	// Language is optional — an external caller (e.g. MyBooks, which does
+	// its own title-based language detection) can pass a language code here
+	// to override whatever ingestion auto-detected; an empty string leaves
+	// the existing value untouched (see BookService.UpdateBook).
+	Language string `json:"language"`
 }
 
 type ImportResponse struct {

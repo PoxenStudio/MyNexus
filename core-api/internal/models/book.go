@@ -30,7 +30,14 @@ type Book struct {
 	// Summary is the whole-book summary produced by the map-reduce
 	// summarization pipeline (see worker/src/pipelines/summary.py); empty
 	// until a summarize task completes for this book.
-	Summary   string
+	Summary string
+	// Keywords is a JSON array of {"term","weight"} objects, reduced from
+	// each chapter's summary during summarization (ReportBookSummary) —
+	// content keywords, distinct from Tags (user-/MyBooks-assigned labels).
+	// Stored unsorted-length (not pre-truncated); the read path truncates to
+	// config.KeywordConfig.MaxKeywords so raising that setting later doesn't
+	// require re-summarizing. Empty until a summarize task completes.
+	Keywords  string // JSON array, stored as-is
 	CreatedAt string
 	UpdatedAt string
 }

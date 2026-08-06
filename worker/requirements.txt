@@ -6,4 +6,12 @@ beautifulsoup4>=4.12
 numpy>=1.26
 rank-bm25>=0.2
 jieba>=0.42
+# Traditional/Simplified Chinese detection for title-based language
+# detection (util/lang_detect.py, ported from MyBooks' detect_title_language()).
+opencc-python-reimplemented>=0.1.7
+# POS tagging for English keyword extraction (pipelines/summary.py) — noun
+# filtering, same rationale as jieba's POS whitelist on the Chinese side.
+# punkt + averaged_perceptron_tagger model data must be pre-downloaded into
+# the image at build time (see Dockerfile) — not fetched at runtime.
+nltk>=3.9
 chromadb>=0.5

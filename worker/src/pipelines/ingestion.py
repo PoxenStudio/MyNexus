@@ -10,6 +10,7 @@ from nodes.parsers.registry import ParserRegistry
 from nodes.parsers.txt_parser import TxtParser
 from nodes.splitters.token_splitter import TokenSplitter
 from schemas.document import ParsedDocument
+from util.lang_detect import detect_title_language
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,17 @@ class IngestionPipeline:
             chapter.content = self.cleaner.process(chapter.content)
             if not chapter.id:
                 chapter.id = str(uuid.uuid4())
+
+        # A directly uploaded file's embedded language metadata is
+        # unreliable (missing entirely on TXT, often wrong/default on EPUB)
+        # — the title is a better signal, so it wins outright rather than
+        # only filling gaps. detect_title_language returns None for an
+        # ASCII-only title (can't tell CJK from anything else purely from
+        # script), which pipelines/summary.py's language split treats as
+        # English — so that's what gets stored here too (MyBooks' code for
+        # English, "eng" — see util/lang_detect.py), not whatever the parser
+        # happened to read from file metadata.
+        document.language = detect_title_language(document.title) or "eng"
         return document
 
     def run(self, task_id: str, book_id: str, file_path: str, display_name: str = "") -> None:

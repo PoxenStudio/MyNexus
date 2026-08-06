@@ -7,6 +7,7 @@ package grpcserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 
@@ -14,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"mynexus/core-api/internal/api/dto"
 	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/grpcapi/mynexuspb"
 	"mynexus/core-api/internal/models"
@@ -161,7 +163,17 @@ func (s *CoreAPIServer) ReportBookSummary(ctx context.Context, req *mynexuspb.Bo
 	if _, err := s.tasks.GetTask(req.TaskId); err != nil {
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
-	if err := s.books.SetBookSummary(req.BookId, req.Summary); err != nil {
+
+	keywords := make([]dto.KeywordResponse, 0, len(req.Keywords))
+	for _, kw := range req.Keywords {
+		keywords = append(keywords, dto.KeywordResponse{Term: kw.Term, Weight: kw.Weight})
+	}
+	keywordsJSON, err := json.Marshal(keywords)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal keywords: %v", err)
+	}
+
+	if err := s.books.SetBookSummary(req.BookId, req.Summary, string(keywordsJSON)); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	if err := s.tasks.Complete(req.TaskId); err != nil {

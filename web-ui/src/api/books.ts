@@ -1,5 +1,10 @@
 import { apiClient } from "./client";
 
+export interface Keyword {
+  term: string;
+  weight: number;
+}
+
 export interface Book {
   id: string;
   title: string;
@@ -11,6 +16,11 @@ export interface Book {
   tags: string[];
   category: string;
   summary: string;
+  // Whole-book content keywords extracted from chapter summaries (see
+  // worker/src/pipelines/summary.py) — distinct from tags (user-/MyBooks-
+  // assigned labels). Sorted by weight descending, already truncated to the
+  // system's max_keywords setting server-side.
+  keywords: Keyword[];
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +51,23 @@ export async function listBooks(params: { page?: number; size?: number; status?:
 
 export async function getBook(id: string) {
   const { data } = await apiClient.get<BookDetail>(`/books/${id}`);
+  return data;
+}
+
+export interface UpdateBookRequest {
+  title: string;
+  author: string;
+  category: string;
+  tags: string[];
+  language: string;
+}
+
+// PUT /books/{id} overwrites title/author/category/tags wholesale (no
+// server-side merge) — callers that only want to change one field (e.g.
+// the language editor in BookDetailView.vue) must send the book's current
+// values for the rest, not just the one field being edited.
+export async function updateBook(id: string, body: UpdateBookRequest) {
+  const { data } = await apiClient.put<Book>(`/books/${id}`, body);
   return data;
 }
 

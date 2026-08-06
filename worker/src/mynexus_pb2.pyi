@@ -5,6 +5,30 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class ShutdownRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class SummarizeRequest(_message.Message):
+    __slots__ = ("task_id", "book_id", "chapters", "force_restart", "language")
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    CHAPTERS_FIELD_NUMBER: _ClassVar[int]
+    FORCE_RESTART_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    book_id: str
+    chapters: _containers.RepeatedCompositeFieldContainer[Chapter]
+    force_restart: bool
+    language: str
+    def __init__(self, task_id: _Optional[str] = ..., book_id: _Optional[str] = ..., chapters: _Optional[_Iterable[_Union[Chapter, _Mapping]]] = ..., force_restart: bool = ..., language: _Optional[str] = ...) -> None: ...
+
+class SummarizeAck(_message.Message):
+    __slots__ = ("accepted",)
+    ACCEPTED_FIELD_NUMBER: _ClassVar[int]
+    accepted: bool
+    def __init__(self, accepted: bool = ...) -> None: ...
+
 class IngestRequest(_message.Message):
     __slots__ = ("task_id", "book_id", "file_path", "original_filename")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
@@ -134,18 +158,20 @@ class BookMeta(_message.Message):
     def __init__(self, title: _Optional[str] = ..., author: _Optional[str] = ..., language: _Optional[str] = ...) -> None: ...
 
 class Chapter(_message.Message):
-    __slots__ = ("id", "title", "level", "sort_order", "content")
+    __slots__ = ("id", "title", "level", "sort_order", "content", "summary")
     ID_FIELD_NUMBER: _ClassVar[int]
     TITLE_FIELD_NUMBER: _ClassVar[int]
     LEVEL_FIELD_NUMBER: _ClassVar[int]
     SORT_ORDER_FIELD_NUMBER: _ClassVar[int]
     CONTENT_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
     id: str
     title: str
     level: int
     sort_order: int
     content: str
-    def __init__(self, id: _Optional[str] = ..., title: _Optional[str] = ..., level: _Optional[int] = ..., sort_order: _Optional[int] = ..., content: _Optional[str] = ...) -> None: ...
+    summary: str
+    def __init__(self, id: _Optional[str] = ..., title: _Optional[str] = ..., level: _Optional[int] = ..., sort_order: _Optional[int] = ..., content: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
 
 class Chunk(_message.Message):
     __slots__ = ("id", "chapter_id", "content", "position", "token_count", "vector_id")
@@ -162,6 +188,14 @@ class Chunk(_message.Message):
     token_count: int
     vector_id: str
     def __init__(self, id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., content: _Optional[str] = ..., position: _Optional[int] = ..., token_count: _Optional[int] = ..., vector_id: _Optional[str] = ...) -> None: ...
+
+class MetadataRequest(_message.Message):
+    __slots__ = ("task_id", "book")
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    BOOK_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    book: BookMeta
+    def __init__(self, task_id: _Optional[str] = ..., book: _Optional[_Union[BookMeta, _Mapping]] = ...) -> None: ...
 
 class CompleteRequest(_message.Message):
     __slots__ = ("task_id", "book", "chapters", "chunks")
@@ -182,6 +216,36 @@ class FailRequest(_message.Message):
     task_id: str
     error_msg: str
     def __init__(self, task_id: _Optional[str] = ..., error_msg: _Optional[str] = ...) -> None: ...
+
+class ChapterSummaryRequest(_message.Message):
+    __slots__ = ("task_id", "chapter_id", "summary")
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    chapter_id: str
+    summary: str
+    def __init__(self, task_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
+
+class BookSummaryRequest(_message.Message):
+    __slots__ = ("task_id", "book_id", "summary", "keywords")
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    KEYWORDS_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    book_id: str
+    summary: str
+    keywords: _containers.RepeatedCompositeFieldContainer[Keyword]
+    def __init__(self, task_id: _Optional[str] = ..., book_id: _Optional[str] = ..., summary: _Optional[str] = ..., keywords: _Optional[_Iterable[_Union[Keyword, _Mapping]]] = ...) -> None: ...
+
+class Keyword(_message.Message):
+    __slots__ = ("term", "weight")
+    TERM_FIELD_NUMBER: _ClassVar[int]
+    WEIGHT_FIELD_NUMBER: _ClassVar[int]
+    term: str
+    weight: float
+    def __init__(self, term: _Optional[str] = ..., weight: _Optional[float] = ...) -> None: ...
 
 class KeywordSearchRequest(_message.Message):
     __slots__ = ("query", "book_ids", "top_k")

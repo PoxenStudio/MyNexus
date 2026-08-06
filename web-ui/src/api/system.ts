@@ -77,6 +77,12 @@ export interface SystemSettings {
   chat: {
     enabled: boolean;
   };
+  keyword: {
+    // Max whole-book content keywords a book detail response returns (see
+    // dto.NewBookResponse) — applied at read time, so raising this later
+    // surfaces more already-extracted keywords without re-summarizing.
+    max_keywords: number;
+  };
   debug: {
     llm_logging: boolean;
   };

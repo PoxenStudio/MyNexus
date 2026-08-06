@@ -5,6 +5,7 @@ from typing import Callable
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_llm
+from util.keywords import extract_keywords
 from util.text_split import split_into_segments
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,55 @@ _BOOK_PROMPT_TEMPLATE = (
     "500字以内，覆盖全书的主要内容、脉络和核心观点，只输出总结正文本身。\n\n"
     "{chapter_summaries}"
 )
+
+# English counterparts of the four templates above, used when the book's
+# language (SummarizeRequest.language, from books.language — MyBooks-style
+# 3-letter codes, see util/lang_detect.py) buckets to "en" (see
+# _lang_bucket). Everything else (empty/"zho"/"zha"/"jpn"/any other code —
+# e.g. "fra"/"deu" from a future MyBooks import, which this pipeline has no
+# dedicated prompt set for) uses the Chinese templates unchanged — the
+# project deliberately only maintains two prompt sets, see the design
+# discussion this was built from.
+_CHAPTER_PROMPT_TEMPLATE_EN = (
+    "Summarize the following chapter in English, in no more than 400 words. "
+    "Output only the summary text itself — no prefix like \"Summary:\", and "
+    "don't just restate the chapter title.\n\n"
+    "Chapter title: {title}\n\nContent:\n{content}"
+)
+
+_SEGMENT_PROMPT_TEMPLATE_EN = (
+    "Summarize the following text in English, in no more than 200 words. "
+    "Output only the summary text itself, no prefix like \"Summary:\". This is "
+    "part {index}/{total} of the chapter \"{title}\" (not the whole chapter — "
+    "only summarize what actually appears in this part, don't guess at what "
+    "the rest of the chapter might contain).\n\n{content}"
+)
+
+_CHAPTER_REDUCE_PROMPT_TEMPLATE_EN = (
+    "Below are the summaries of chapter \"{title}\", split into {total} parts in "
+    "order. Merge and rewrite them into one coherent chapter summary, as if "
+    "written after reading the whole chapter straight through — don't use "
+    "phrasing like \"part one\". No more than 400 words, output only the "
+    "summary text itself.\n\n{segment_summaries}"
+)
+
+_BOOK_PROMPT_TEMPLATE_EN = (
+    "Below are the summaries of every chapter of a book. Synthesize them into "
+    "one overall book summary in English, no more than 500 words, covering "
+    "the book's main content, structure and core ideas. Output only the "
+    "summary text itself.\n\n{chapter_summaries}"
+)
+
+
+def _lang_bucket(language: str) -> str:
+    """Buckets books.language (MyBooks-style 3-letter code, e.g. "eng"/
+    "zho"/"zha"/"jpn" — see util/lang_detect.py) down to the two prompt/
+    keyword-extraction paths this pipeline actually maintains: "en" for
+    English ("eng"), "zh" for everything else — Traditional Chinese and
+    Japanese books are summarized in Chinese too, by design, and any other
+    code this pipeline has no dedicated prompt set for falls back to
+    Chinese rather than erroring."""
+    return "en" if (language or "").strip().lower() == "eng" else "zh"
 
 
 class SummaryPipeline:
@@ -96,28 +146,39 @@ class SummaryPipeline:
                     last_tick = now
         return "".join(chunks).strip()
 
-    def summarize_chapter(self, title: str, content: str, on_progress: Callable[[str], None] | None = None) -> str:
+    def summarize_chapter(
+        self, title: str, content: str, lang: str = "zh", on_progress: Callable[[str], None] | None = None
+    ) -> str:
         """on_progress (if given) is called with a short human-readable
         status string — "生成中…已输出 N 字" for a single-segment chapter,
         "第 i/total 段，已输出 N 字" then "正在合并 total 段摘要…" for a
         multi-segment one — every _PROGRESS_TICK_SECONDS (see _complete).
         Wraps _complete's lower-level char-count callback rather than
         exposing it directly, since what counts as meaningful progress
-        differs between the two cases."""
+        differs between the two cases.
+
+        lang: "en" or "zh" (see _lang_bucket) — selects which prompt
+        language the summary itself is written in; the progress messages
+        stay Chinese either way since they're UI-facing status text, not
+        part of the generated summary."""
         title = title or "（未命名章节）"
         segments = split_into_segments(content)
         if not segments:
             return ""
 
+        chapter_tmpl = _CHAPTER_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_PROMPT_TEMPLATE
+        segment_tmpl = _SEGMENT_PROMPT_TEMPLATE_EN if lang == "en" else _SEGMENT_PROMPT_TEMPLATE
+        reduce_tmpl = _CHAPTER_REDUCE_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_REDUCE_PROMPT_TEMPLATE
+
         if len(segments) == 1:
-            prompt = _CHAPTER_PROMPT_TEMPLATE.format(title=title, content=segments[0])
+            prompt = chapter_tmpl.format(title=title, content=segments[0])
             on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
             return self._complete(prompt, on_chars=on_chars)
 
         # Map: summarize each segment on its own.
         segment_summaries = []
         for i, segment in enumerate(segments):
-            prompt = _SEGMENT_PROMPT_TEMPLATE.format(title=title, index=i + 1, total=len(segments), content=segment)
+            prompt = segment_tmpl.format(title=title, index=i + 1, total=len(segments), content=segment)
             on_chars = (
                 (lambda chars, i=i, total=len(segments): on_progress(f"第 {i + 1}/{total} 段，已输出 {chars} 字"))
                 if on_progress
@@ -128,21 +189,23 @@ class SummaryPipeline:
         # Reduce: merge the segment summaries into one chapter summary.
         if on_progress:
             on_progress(f"正在合并 {len(segments)} 段摘要…")
-        reduce_prompt = _CHAPTER_REDUCE_PROMPT_TEMPLATE.format(
+        reduce_prompt = reduce_tmpl.format(
             title=title,
             total=len(segments),
             segment_summaries="\n\n".join(f"[{i + 1}/{len(segments)}] {s}" for i, s in enumerate(segment_summaries)),
         )
         return self._complete(reduce_prompt)
 
-    def summarize_book(self, chapter_summaries: list[tuple[str, str]]) -> str:
+    def summarize_book(self, chapter_summaries: list[tuple[str, str]], lang: str = "zh") -> str:
         joined = "\n\n".join(
             f"[{i + 1}] {title or '（未命名章节）'}\n{summary}" for i, (title, summary) in enumerate(chapter_summaries)
         )
-        prompt = _BOOK_PROMPT_TEMPLATE.format(chapter_summaries=joined)
+        prompt = (_BOOK_PROMPT_TEMPLATE_EN if lang == "en" else _BOOK_PROMPT_TEMPLATE).format(chapter_summaries=joined)
         return self._complete(prompt)
 
-    def run(self, task_id: str, book_id: str, chapters: list, force_restart: bool = True) -> None:
+    def run(
+        self, task_id: str, book_id: str, chapters: list, force_restart: bool = True, language: str = ""
+    ) -> None:
         """chapters: protobuf Chapter messages (id/title/content/summary —
         see mynexus.proto's SummarizeRequest). Never raises: failures are
         reported via report_fail instead, mirroring ingestion.py's run(),
@@ -154,8 +217,12 @@ class SummaryPipeline:
         used to resume a partial run (e.g. after a retry) without paying
         to redo chapters that already succeeded. force_restart=True
         ("restart") regenerates every chapter regardless.
+
+        language: books.language (see util/lang_detect.py) — bucketed via
+        _lang_bucket to pick the prompt language and keyword-extraction path.
         """
         try:
+            lang = _lang_bucket(language)
             usable = [ch for ch in chapters if ch.content.strip()]
             if not usable:
                 raise ValueError("book has no chapter content to summarize")
@@ -179,7 +246,7 @@ class SummaryPipeline:
                 def on_progress(message: str, label: str = chapter_label, progress: int = chapter_progress) -> None:
                     self.core_api.report_progress(task_id, progress, "summarizing_chapters", f"{label} {message}")
 
-                summary = self.summarize_chapter(ch.title, ch.content, on_progress=on_progress)
+                summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress)
                 self.core_api.report_chapter_summary(task_id, ch.id, summary)
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
@@ -187,9 +254,23 @@ class SummaryPipeline:
                 self.core_api.report_progress(task_id, progress, "chapter_summarized", f"{i + 1}/{total}")
 
             chapter_summaries = [(ch.title, summaries_by_id[ch.id]) for ch in usable]
-            book_summary = self.summarize_book(chapter_summaries)
+            book_summary = self.summarize_book(chapter_summaries, lang=lang)
+
+            # Keywords are extracted from every usable chapter's *final*
+            # summary (not just the ones (re)generated this run) and reduced
+            # by summing weight across chapters, so a "continue" run against
+            # a book that already had chapter summaries but no keywords
+            # (e.g. summarized before this feature existed) still ends up
+            # with a complete book-level keyword set, not just coverage of
+            # whatever chapters happened to be regenerated.
+            keyword_totals: dict[str, float] = {}
+            for _, summary in chapter_summaries:
+                for term, weight in extract_keywords(summary, lang):
+                    keyword_totals[term] = keyword_totals.get(term, 0.0) + weight
+            keywords = sorted(keyword_totals.items(), key=lambda item: item[1], reverse=True)
+
             self.core_api.report_progress(task_id, 95, "reducing_done")
-            self.core_api.report_book_summary(task_id, book_id, book_summary)
+            self.core_api.report_book_summary(task_id, book_id, book_summary, keywords)
         except Exception as exc:  # noqa: BLE001
             logger.exception("summarization failed (task_id=%s book_id=%s)", task_id, book_id)
             self.core_api.report_fail(task_id, str(exc))
@@ -207,11 +288,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     doc = IngestionPipeline().parse_and_clean(args.file_path)
+    lang = _lang_bucket(doc.language)
     pipeline = SummaryPipeline()
     summaries = []
     for chapter in doc.chapters:
-        s = pipeline.summarize_chapter(chapter.title, chapter.content)
+        s = pipeline.summarize_chapter(chapter.title, chapter.content, lang=lang)
         print(f"[{chapter.title}]\n{s}\n")
         summaries.append((chapter.title, s))
     print("=== BOOK SUMMARY ===")
-    print(pipeline.summarize_book(summaries))
+    print(pipeline.summarize_book(summaries, lang=lang))
+    print("=== KEYWORDS ===")
+    totals: dict[str, float] = {}
+    for _, s in summaries:
+        for term, weight in extract_keywords(s, lang):
+            totals[term] = totals.get(term, 0.0) + weight
+    for term, weight in sorted(totals.items(), key=lambda item: item[1], reverse=True):
+        print(f"{term}\t{weight:.3f}")

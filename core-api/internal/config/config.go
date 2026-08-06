@@ -122,6 +122,15 @@ type DebugConfig struct {
 	LLMLogging bool `yaml:"llm_logging" json:"llm_logging"`
 }
 
+// KeywordConfig caps how many whole-book content keywords (books.keywords —
+// see worker/src/pipelines/summary.py) a book detail response returns.
+// Applied at read time (dto.NewBookResponse), not at extraction/storage
+// time, so raising the limit surfaces more of a book's already-extracted
+// keywords immediately without re-summarizing it.
+type KeywordConfig struct {
+	MaxKeywords int `yaml:"max_keywords" json:"max_keywords"`
+}
+
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -132,6 +141,7 @@ type Config struct {
 	Splitter  SplitterConfig  `yaml:"splitter"`
 	I18n      I18nConfig      `yaml:"i18n"`
 	Chat      ChatConfig      `yaml:"chat"`
+	Keyword   KeywordConfig   `yaml:"keyword"`
 	Debug     DebugConfig     `yaml:"debug"`
 
 	// Port kept for backward-compatible direct access; mirrors Server.Port.
@@ -166,6 +176,7 @@ func defaults() Config {
 		Splitter: SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
 		I18n:     I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
 		Chat:     ChatConfig{Enabled: true},
+		Keyword:  KeywordConfig{MaxKeywords: 50},
 		Debug:    DebugConfig{LLMLogging: false},
 	}
 }

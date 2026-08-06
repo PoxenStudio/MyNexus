@@ -207,6 +207,11 @@ onMounted(load);
           <input v-model="settings.chat.enabled" type="checkbox" />
           {{ t("settings.chatEnabled") }}
         </label>
+        <label>
+          {{ t("settings.maxKeywords") }}
+          <input v-model.number="settings.keyword.max_keywords" type="number" min="1" max="500" />
+        </label>
+        <p class="hint">{{ t("settings.maxKeywordsHint") }}</p>
         <label class="checkbox-row">
           <input v-model="settings.debug.llm_logging" type="checkbox" />
           {{ t("settings.debugLogging") }}

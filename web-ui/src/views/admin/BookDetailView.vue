@@ -2,14 +2,55 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
-import { getBook, rebuildBook, summarizeBook, type BookDetail } from "../../api/books";
+import { getBook, rebuildBook, summarizeBook, updateBook, type BookDetail } from "../../api/books";
 import { getTask, listTasks, type Task } from "../../api/tasks";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
+import KeywordCloud from "../../components/KeywordCloud.vue";
+import { languageName, languageOptions } from "../../utils/languageCodes";
 
 const { t } = useI18n();
 const route = useRoute();
 const book = ref<BookDetail | null>(null);
 const loading = ref(true);
+
+const editingLanguage = ref(false);
+const languageDraft = ref("");
+const languageSaving = ref(false);
+const languageError = ref("");
+
+function startEditLanguage() {
+  if (!book.value) return;
+  languageDraft.value = book.value.language;
+  languageError.value = "";
+  editingLanguage.value = true;
+}
+
+function cancelEditLanguage() {
+  editingLanguage.value = false;
+}
+
+async function saveLanguage() {
+  if (!book.value) return;
+  languageSaving.value = true;
+  languageError.value = "";
+  try {
+    // PUT overwrites title/author/category/tags wholesale — carry the
+    // book's current values through so only language actually changes.
+    const updated = await updateBook(book.value.id, {
+      title: book.value.title,
+      author: book.value.author,
+      category: book.value.category,
+      tags: book.value.tags,
+      language: languageDraft.value,
+    });
+    book.value.language = updated.language;
+    editingLanguage.value = false;
+  } catch (e: any) {
+    languageError.value = e?.response?.data?.error || t("books.languageSaveError");
+  } finally {
+    languageSaving.value = false;
+  }
+}
 
 const summarizing = ref(false);
 const summarizeTask = ref<Task | null>(null);
@@ -210,15 +251,51 @@ onUnmounted(stopPolling);
 
     <div v-if="loading">{{ t("common.loading") }}</div>
     <template v-else-if="book">
-      <h1>{{ book.title || book.id }}</h1>
-      <dl class="meta">
-        <dt>{{ t("books.table.author") }}</dt>
-        <dd>{{ book.author || "—" }}</dd>
-        <dt>{{ t("books.table.format") }}</dt>
-        <dd>{{ book.source_format }}</dd>
-        <dt>{{ t("books.table.status") }}</dt>
-        <dd><span :class="['badge', book.status]">{{ t(`status.${book.status}`, book.status) }}</span></dd>
-      </dl>
+      <div class="detail-grid">
+        <div class="info-card">
+          <h1>{{ book.title || book.id }}</h1>
+          <dl class="meta">
+            <dt>{{ t("books.table.author") }}</dt>
+            <dd>{{ book.author || "—" }}</dd>
+            <dt>{{ t("books.table.format") }}</dt>
+            <dd>{{ book.source_format }}</dd>
+            <dt>{{ t("books.table.status") }}</dt>
+            <dd><span :class="['badge', book.status]">{{ t(`status.${book.status}`, book.status) }}</span></dd>
+            <dt>{{ t("books.language") }}</dt>
+            <dd class="language-row">
+              <template v-if="editingLanguage">
+                <select v-model="languageDraft" :disabled="languageSaving">
+                  <option v-for="opt in languageOptions" :key="opt.code" :value="opt.code">{{ opt.name }}</option>
+                </select>
+                <button class="icon-btn" :disabled="languageSaving" :title="t('common.save')" @click="saveLanguage">
+                  ✓
+                </button>
+                <button class="icon-btn" :disabled="languageSaving" :title="t('common.cancel')" @click="cancelEditLanguage">
+                  ✕
+                </button>
+              </template>
+              <template v-else>
+                {{ languageName(book.language) || "—" }}
+                <button class="icon-btn" :title="t('common.edit')" @click="startEditLanguage">
+                  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M14.85 2.85a1.5 1.5 0 0 1 2.12 0l.18.18a1.5 1.5 0 0 1 0 2.12l-9.3 9.3-3.03.9.9-3.03 9.13-9.13Zm-10.4 10.4-.7 2.36a.5.5 0 0 0 .62.62l2.36-.7-2.28-2.28Z"
+                    />
+                  </svg>
+                </button>
+              </template>
+            </dd>
+          </dl>
+          <p v-if="languageError" class="error">{{ languageError }}</p>
+        </div>
+        <div class="keyword-card">
+          <h2>{{ t("books.keywords") }}</h2>
+          <KeywordCloud :keywords="book.keywords">
+            <template #empty>{{ t("books.noKeywords") }}</template>
+          </KeywordCloud>
+        </div>
+      </div>
 
       <p v-if="activeTask" class="active-task">{{ activeTaskLabel }}</p>
 
@@ -287,15 +364,69 @@ onUnmounted(stopPolling);
 </template>
 
 <style scoped>
+/* Left: book info card (title + metadata). Right: content-keyword cloud
+   card. Equal-width columns on wide screens; below 900px they stack into
+   one column, keyword card second, so the page never scrolls horizontally. */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  margin: 1rem 0;
+}
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.info-card h1 {
+  margin: 0 0 0.5rem;
+}
+.keyword-card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.keyword-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
 .meta {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.25rem 1rem;
-  margin: 1rem 0;
+  margin: 0;
   font-size: 0.9rem;
 }
 .meta dt {
   opacity: 0.7;
+}
+.language-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  border-radius: 5px;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.language-row select {
+  font-size: 0.85rem;
 }
 .summary-section {
   margin: 1.5rem 0;

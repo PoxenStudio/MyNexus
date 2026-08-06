@@ -75,7 +75,8 @@ func (h *SystemHandler) Settings(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, dto.SystemSettings{
 		Storage: cfg.Storage, Worker: cfg.Worker, Embedding: cfg.Embedding,
-		LLM: cfg.LLM, Splitter: cfg.Splitter, I18n: cfg.I18n, Chat: cfg.Chat, Debug: cfg.Debug,
+		LLM: cfg.LLM, Splitter: cfg.Splitter, I18n: cfg.I18n, Chat: cfg.Chat,
+		Keyword: cfg.Keyword, Debug: cfg.Debug,
 	})
 }
 
@@ -107,6 +108,7 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	onDisk.Splitter = body.Splitter
 	onDisk.I18n = body.I18n
 	onDisk.Chat = body.Chat
+	onDisk.Keyword = body.Keyword
 	onDisk.Debug = body.Debug
 
 	if err := config.SaveToFile(onDisk); err != nil {
