@@ -5,10 +5,36 @@ from typing import Callable
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_llm
-from util.keywords import extract_keywords
+from util.keywords import extract_keywords, merge_topk
 from util.text_split import split_into_segments
 
 logger = logging.getLogger(__name__)
+
+# Keywords are extracted from each chapter's raw *content*, not its LLM-
+# generated summary — a summary is short (~400 words) and paraphrased, which
+# leaves too little of the book's actual vocabulary and too few term
+# occurrences for TF-IDF/frequency stats to say much. Raw content has both,
+# but a book's full text is too much to hold as one flat candidate pool, so
+# extraction is done in a rolling reduce, two levels deep, mirroring the
+# chapter-level map-reduce split_into_segments already does for LLM calls
+# (reused here purely to bound each extract_keywords call's input size —
+# jieba/NLTK have no LLM-style context-window limit, this is just about
+# keeping each pass's working set small):
+#   segment -> chapter: each segment's top _KEYWORDS_PER_SEGMENT_TOP_K
+#     candidates are merged into a running per-chapter total.
+#   chapter -> book: each chapter's running total is merged into a running
+#     book-level total.
+# Both levels are pruned back to _KEYWORDS_ROLLING_CAP after every merge
+# (see util.keywords.merge_topk), so the in-memory term set never grows
+# past a small multiple of that regardless of how many chapters/segments a
+# book has — a term only survives by re-qualifying (i.e. actually being
+# common enough to matter), not by being seen once and remembered forever.
+_KEYWORDS_PER_SEGMENT_TOP_K = 50
+# Comfortably above the default max_keywords system setting (50 — see
+# config.KeywordConfig) so raising that setting still has real headroom to
+# surface; Core API truncates further at read time regardless of what's
+# stored here.
+_KEYWORDS_ROLLING_CAP = 150
 
 # Minimum gap between within-chapter progress ticks (see _complete's on_chars
 # callback). A large chapter can take minutes to stream back from a slow
@@ -203,6 +229,17 @@ class SummaryPipeline:
         prompt = (_BOOK_PROMPT_TEMPLATE_EN if lang == "en" else _BOOK_PROMPT_TEMPLATE).format(chapter_summaries=joined)
         return self._complete(prompt)
 
+    def _extract_chapter_keywords(self, content: str, lang: str) -> dict[str, float]:
+        """Rolling top-K keyword extraction across one chapter's segments —
+        see the module-level comment above _KEYWORDS_PER_SEGMENT_TOP_K for
+        why this runs on split_into_segments pieces and why it's a rolling
+        merge rather than one extract_keywords call over the whole chapter."""
+        totals: dict[str, float] = {}
+        for segment in split_into_segments(content):
+            candidates = extract_keywords(segment, lang, top_k=_KEYWORDS_PER_SEGMENT_TOP_K)
+            totals = merge_topk(totals, candidates, _KEYWORDS_ROLLING_CAP)
+        return totals
+
     def run(
         self, task_id: str, book_id: str, chapters: list, force_restart: bool = True, language: str = ""
     ) -> None:
@@ -256,17 +293,19 @@ class SummaryPipeline:
             chapter_summaries = [(ch.title, summaries_by_id[ch.id]) for ch in usable]
             book_summary = self.summarize_book(chapter_summaries, lang=lang)
 
-            # Keywords are extracted from every usable chapter's *final*
-            # summary (not just the ones (re)generated this run) and reduced
-            # by summing weight across chapters, so a "continue" run against
-            # a book that already had chapter summaries but no keywords
-            # (e.g. summarized before this feature existed) still ends up
-            # with a complete book-level keyword set, not just coverage of
-            # whatever chapters happened to be regenerated.
+            # Keywords are extracted from every usable chapter's raw
+            # *content* (not the LLM summary — see the comment above
+            # _KEYWORDS_PER_SEGMENT_TOP_K), independent of which chapters
+            # were actually (re)generated this run, so a "continue" run
+            # against a book that already had chapter summaries always ends
+            # up with a complete book-level keyword set, not just coverage
+            # of whatever chapters happened to be regenerated. Rolling
+            # reduce at the book level mirrors _extract_chapter_keywords'
+            # segment-level one, for the same memory-bounding reason.
             keyword_totals: dict[str, float] = {}
-            for _, summary in chapter_summaries:
-                for term, weight in extract_keywords(summary, lang):
-                    keyword_totals[term] = keyword_totals.get(term, 0.0) + weight
+            for ch in usable:
+                chapter_keywords = self._extract_chapter_keywords(ch.content, lang)
+                keyword_totals = merge_topk(keyword_totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP)
             keywords = sorted(keyword_totals.items(), key=lambda item: item[1], reverse=True)
 
             self.core_api.report_progress(task_id, 95, "reducing_done")
@@ -299,8 +338,8 @@ if __name__ == "__main__":
     print(pipeline.summarize_book(summaries, lang=lang))
     print("=== KEYWORDS ===")
     totals: dict[str, float] = {}
-    for _, s in summaries:
-        for term, weight in extract_keywords(s, lang):
-            totals[term] = totals.get(term, 0.0) + weight
+    for chapter in doc.chapters:
+        chapter_keywords = pipeline._extract_chapter_keywords(chapter.content, lang)  # noqa: SLF001
+        totals = merge_topk(totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP)
     for term, weight in sorted(totals.items(), key=lambda item: item[1], reverse=True):
         print(f"{term}\t{weight:.3f}")
