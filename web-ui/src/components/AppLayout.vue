@@ -89,7 +89,7 @@ async function onLogout() {
           :aria-label="t('header.toggleDrawer')"
           @click="toggleDrawer"
         >
-          <span class="menu-emoji" aria-hidden="true">🕸️</span>
+          <img src="/star.svg" class="menu-emoji" alt="" aria-hidden="true" />
         </button>
       </div>
       <div class="app-bar-end">
@@ -263,8 +263,17 @@ async function onLogout() {
   outline-offset: 1px;
 }
 .menu-emoji {
-  font-size: 20px;
-  line-height: 1;
+  width: 36px;
+  height: 36px;
+  display: block;
+  transition: transform 0.35s ease, opacity 0.15s ease;
+}
+.icon-btn:hover .menu-emoji {
+  transform: scale(1.12) rotate(90deg);
+}
+.icon-btn:active .menu-emoji {
+  transform: scale(0.95) rotate(90deg);
+  opacity: 0.85;
 }
 
 /* Language dropdown */

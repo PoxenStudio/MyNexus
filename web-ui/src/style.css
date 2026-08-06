@@ -1,5 +1,5 @@
 :root {
-  --text: #6b6375;
+  --text: #2b2830;
   --text-h: #08060d;
   --bg: #fff;
   --border: #e5e4e7;
@@ -86,7 +86,7 @@
 }
 
 :root[data-theme="light"] {
-  --text: #6b6375;
+  --text: #2b2830;
   --text-h: #08060d;
   --bg: #fff;
   --border: #e5e4e7;
