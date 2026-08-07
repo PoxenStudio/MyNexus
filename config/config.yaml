@@ -52,3 +52,10 @@ i18n:
         - en-US
 chat:
     enabled: true
+    max_sessions: 100
+keyword:
+    max_keywords: 50
+debug:
+    llm_logging: true
+summary:
+    skip_backmatter_chapters: false

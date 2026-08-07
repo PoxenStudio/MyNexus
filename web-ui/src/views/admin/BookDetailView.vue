@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
-import { getBook, rebuildBook, summarizeBook, updateBook, type BookDetail } from "../../api/books";
+import { getBook, rebuildBook, summarizeBook, updateBook, updateBookSummary, type BookDetail } from "../../api/books";
 import { apiClient } from "../../api/client";
 import { getTask, listTasks, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
@@ -81,6 +81,40 @@ async function saveLanguage() {
     languageError.value = e?.response?.data?.error || t("books.languageSaveError");
   } finally {
     languageSaving.value = false;
+  }
+}
+
+// Manual touch-up of the generated whole-book summary (typo/wrong fact/
+// phrasing) — a plain textarea, not a rich editor: this is meant for small
+// edits to already-generated Markdown text, not authoring it from scratch.
+const editingSummary = ref(false);
+const summaryDraft = ref("");
+const summarySaving = ref(false);
+const summaryEditError = ref("");
+
+function startEditSummary() {
+  if (!book.value) return;
+  summaryDraft.value = book.value.summary;
+  summaryEditError.value = "";
+  editingSummary.value = true;
+}
+
+function cancelEditSummary() {
+  editingSummary.value = false;
+}
+
+async function saveSummary() {
+  if (!book.value) return;
+  summarySaving.value = true;
+  summaryEditError.value = "";
+  try {
+    const updated = await updateBookSummary(book.value.id, summaryDraft.value);
+    book.value.summary = updated.summary;
+    editingSummary.value = false;
+  } catch (e: any) {
+    summaryEditError.value = e?.response?.data?.error || t("books.summarySaveError");
+  } finally {
+    summarySaving.value = false;
   }
 }
 
@@ -339,6 +373,14 @@ onUnmounted(() => {
             >
               <AppIcon name="refresh" :size="16" />
             </button>
+            <button
+              v-if="book.summary && !summarizing && !rebuilding && !editingSummary"
+              class="icon-btn"
+              :title="t('common.edit')"
+              @click="startEditSummary"
+            >
+              <AppIcon name="edit" :size="14" />
+            </button>
           </h2>
           <div class="summary-actions">
             <template v-if="summarizing">
@@ -373,7 +415,19 @@ onUnmounted(() => {
         </p>
         <p v-if="summarizeError" class="error">{{ summarizeError }}</p>
         <p v-if="rebuildError" class="error">{{ rebuildError }}</p>
-        <div v-if="book.summary" class="summary-body">
+        <div v-if="editingSummary" class="summary-edit">
+          <textarea v-model="summaryDraft" class="summary-textarea" rows="12"></textarea>
+          <p v-if="summaryEditError" class="error">{{ summaryEditError }}</p>
+          <div class="summary-edit-actions">
+            <button class="primary" :disabled="summarySaving" @click="saveSummary">
+              {{ summarySaving ? t("common.loading") : t("common.save") }}
+            </button>
+            <button type="button" :disabled="summarySaving" @click="cancelEditSummary">
+              {{ t("common.cancel") }}
+            </button>
+          </div>
+        </div>
+        <div v-else-if="book.summary" class="summary-body">
           <MarkdownContent :content="book.summary" class="summary-text" />
         </div>
         <p v-else-if="!summarizing" class="empty">{{ t("books.noSummaryYet") }}</p>
@@ -552,6 +606,37 @@ onUnmounted(() => {
 }
 .summary-text {
   font-size: 17.6px;
+}
+.summary-edit {
+  margin: 0.75rem 0 0;
+}
+.summary-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+.summary-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.summary-edit-actions button {
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.summary-edit-actions button[type="button"] {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
 }
 .empty {
   margin: 0.75rem 0 0;

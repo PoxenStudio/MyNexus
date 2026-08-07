@@ -98,6 +98,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.GET("/books/:id", books.Get)
 			adminOnly.GET("/books/:id/cover", books.Cover)
 			adminOnly.PUT("/books/:id", books.Update)
+			adminOnly.PUT("/books/:id/summary", books.UpdateSummary)
 			adminOnly.DELETE("/books/:id", books.Delete)
 			adminOnly.GET("/books/:id/chunks", books.Chunks)
 			adminOnly.POST("/books/:id/rebuild", books.Rebuild)

@@ -72,7 +72,7 @@ _CHAPTER_PROMPT_TEMPLATE = (
 # of M", not the whole chapter, so the model doesn't try to summarize things
 # it hasn't seen yet or assume this segment is self-contained.
 _SEGMENT_PROMPT_TEMPLATE = (
-    "请用中文对下面的内容做摘要，控制在200字以内，只输出摘要正文本身，不要"
+    "请用中文对下面的内容做摘要，控制在400字以内，只输出摘要正文本身，不要"
     "加“摘要：”之类的前缀。这段内容是《{title}》这一章节的第 {index}/{total} 部分"
     "（不是全章，只总结这部分实际出现的内容，不要补充你认为章节其他部分可能包含的内容）。"
     "这是书籍章节摘要任务，不是对话，不要以“感谢你提供的详细信息”“您描述了”之类"
@@ -87,15 +87,16 @@ _SEGMENT_PROMPT_TEMPLATE = (
 _CHAPTER_REDUCE_PROMPT_TEMPLATE = (
     "下面是《{title}》这一章节按顺序分成 {total} 部分后，每部分的摘要。请把它们合并、"
     "改写成一段完整连贯的整章摘要，就像是通读全章后写的一样，不要出现“第一部分”这类"
-    "分段措辞，控制在400字以内，只输出摘要正文本身。这是书籍章节摘要任务，不是对话，"
+    "分段措辞，控制在800字以内，只输出摘要正文本身。这是书籍章节摘要任务，不是对话，"
     "不要以“感谢你提供的详细信息”“您描述了”之类回应用户消息的语气开头，直接从摘要"
     "内容本身写起。\n\n{segment_summaries}"
 )
 
 _BOOK_PROMPT_TEMPLATE = (
-    "下面是一本书每一章的摘要，请综合这些内容，写一段全书的整体总结，控制在"
-    "500字以内，覆盖全书的主要内容、脉络和核心观点，只输出总结正文本身。这是书籍"
-    "整体摘要任务，不是对话，不要以“感谢你提供的详细信息”“您描述了”之类回应用户"
+    "下面是一本书中每一章的摘要，请综合这些内容，写一段对全书的整体总结，控制在"
+    "1000字以内，覆盖全书的主要内容、脉络和核心观点，只输出总结正文本身。这是书籍"
+    "整体摘要概括任务，不是对某段文字的摘要，你总结的对象是一本书的内容，不是一段文字。"
+    "当前任务也不是对话，不要以“感谢你提供的详细信息”“您描述了”之类回应用户"
     "消息的语气开头，直接从摘要内容本身写起。\n\n"
     "{chapter_summaries}"
 )
@@ -120,7 +121,7 @@ _CHAPTER_PROMPT_TEMPLATE_EN = (
 )
 
 _SEGMENT_PROMPT_TEMPLATE_EN = (
-    "Summarize the following text in English, in no more than 200 words. "
+    "Summarize the following text in English, in no more than 400 words. "
     "Output only the summary text itself, no prefix like \"Summary:\". This is "
     "part {index}/{total} of the chapter \"{title}\" (not the whole chapter — "
     "only summarize what actually appears in this part, don't guess at what "
@@ -135,7 +136,7 @@ _CHAPTER_REDUCE_PROMPT_TEMPLATE_EN = (
     "Below are the summaries of chapter \"{title}\", split into {total} parts in "
     "order. Merge and rewrite them into one coherent chapter summary, as if "
     "written after reading the whole chapter straight through — don't use "
-    "phrasing like \"part one\". No more than 400 words, output only the "
+    "phrasing like \"part one\". No more than 800 words, output only the "
     "summary text itself. This is a book-chapter summarization task, not a "
     "conversation — don't open with a conversational reply like \"Thank you "
     "for providing the detailed information\" or \"You described...\"; start "
@@ -144,7 +145,7 @@ _CHAPTER_REDUCE_PROMPT_TEMPLATE_EN = (
 
 _BOOK_PROMPT_TEMPLATE_EN = (
     "Below are the summaries of every chapter of a book. Synthesize them into "
-    "one overall book summary in English, no more than 500 words, covering "
+    "one overall book summary in English, no more than 1000 words, covering "
     "the book's main content, structure and core ideas. Output only the "
     "summary text itself. This is a book summarization task, not a "
     "conversation — don't open with a conversational reply like \"Thank you "

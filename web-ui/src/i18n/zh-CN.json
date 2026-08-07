@@ -88,6 +88,7 @@
     "noKeywords": "无",
     "language": "语言",
     "languageSaveError": "保存语言失败",
+    "summarySaveError": "保存全书总结失败",
     "bookSummary": "全书总结",
     "summarize": "总结全书",
     "continueSummarize": "继续总结全书",

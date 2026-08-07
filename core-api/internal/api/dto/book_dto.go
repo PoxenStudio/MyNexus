@@ -114,6 +114,15 @@ type UpdateBookRequest struct {
 	Language string `json:"language"`
 }
 
+// UpdateBookSummaryRequest is the book-detail page's "全书总结" edit box —
+// a manual touch-up of the LLM-generated whole-book summary (typos, a
+// wrong fact, phrasing) that doesn't warrant a full re-summarize run. Only
+// the summary text changes; keywords (also stored on books, see
+// BookService.SetBookSummary) are left untouched.
+type UpdateBookSummaryRequest struct {
+	Summary string `json:"summary"`
+}
+
 type ImportResponse struct {
 	TaskID string `json:"task_id"`
 	BookID string `json:"book_id"`

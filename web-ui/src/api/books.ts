@@ -75,6 +75,14 @@ export async function updateBook(id: string, body: UpdateBookRequest) {
   return data;
 }
 
+// PUT /books/{id}/summary — a dedicated endpoint (distinct from updateBook
+// above) so a manual wording tweak to the generated summary can't clobber
+// title/author/category/tags/language in the same request.
+export async function updateBookSummary(id: string, summary: string) {
+  const { data } = await apiClient.put<Book>(`/books/${id}/summary`, { summary });
+  return data;
+}
+
 export async function deleteBook(id: string) {
   await apiClient.delete(`/books/${id}`);
 }

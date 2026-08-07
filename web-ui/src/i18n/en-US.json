@@ -88,6 +88,7 @@
     "noKeywords": "None",
     "language": "Language",
     "languageSaveError": "Failed to save language",
+    "summarySaveError": "Failed to save the book summary",
     "bookSummary": "Book Summary",
     "summarize": "Summarize Book",
     "continueSummarize": "Continue Summarizing",

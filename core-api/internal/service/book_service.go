@@ -480,6 +480,16 @@ func (s *BookService) SetBookSummary(bookID, summary, keywordsJSON string) error
 	return err
 }
 
+// UpdateBookSummary overwrites just the whole-book summary text (the
+// book-detail page's manual edit box — see dto.UpdateBookSummaryRequest),
+// leaving keywords untouched unlike SetBookSummary, which the map-reduce
+// summarize pipeline uses and always writes both together.
+func (s *BookService) UpdateBookSummary(bookID, summary string) error {
+	_, err := s.db.Exec(`UPDATE books SET summary = ?, updated_at = ? WHERE id = ?`,
+		summary, time.Now().UTC().Format(time.RFC3339), bookID)
+	return err
+}
+
 // ChapterTitle looks up a single chapter's title, used to enrich search
 // results with a human-readable chapter reference.
 func (s *BookService) ChapterTitle(chapterID string) (string, error) {

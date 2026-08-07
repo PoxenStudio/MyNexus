@@ -191,6 +191,32 @@ func (h *BookHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.NewBookResponse(*book, h.cfg.Keyword.MaxKeywords))
 }
 
+// UpdateSummary handles the book-detail page's "全书总结" edit box — a
+// manual touch-up of the generated summary, distinct from Update (which
+// covers title/author/category/tags/language) so a small wording fix can't
+// accidentally clobber those in the same request.
+func (h *BookHandler) UpdateSummary(c *gin.Context) {
+	id := c.Param("id")
+	if _, err := h.books.GetBook(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
+		return
+	}
+
+	var req dto.UpdateBookSummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.books.UpdateBookSummary(id, req.Summary); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	book, _ := h.books.GetBook(id)
+	c.JSON(http.StatusOK, dto.NewBookResponse(*book, h.cfg.Keyword.MaxKeywords))
+}
+
 func (h *BookHandler) Chunks(c *gin.Context) {
 	id := c.Param("id")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
