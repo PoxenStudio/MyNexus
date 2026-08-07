@@ -15,6 +15,11 @@ const { t } = useI18n();
 const books = ref<Book[]>([]);
 const loading = ref(true);
 const uploading = ref(false);
+// {current, total} while a multi-file upload is running — current is the
+// 1-based index of the file in flight, so the label reads "1/3" not "0/3"
+// the instant the batch starts. null when nothing is uploading.
+const uploadProgress = ref<{ current: number; total: number } | null>(null);
+const uploadErrors = ref<string[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const selected = ref<Set<string>>(new Set());
 const bulkRunning = ref(false);
@@ -36,26 +41,42 @@ async function load() {
 }
 
 async function onFileSelected(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  await doUpload(file);
+  const files = (e.target as HTMLInputElement).files;
+  if (files?.length) await doUploadMany([...files]);
   if (fileInput.value) fileInput.value.value = "";
 }
 
-async function doUpload(file: File) {
+// Uploads each file as its own POST /books/import (the backend has no
+// multi-file endpoint — one book == one request, one task) sequentially
+// rather than in parallel: Worker processes one ingest task at a time by
+// default (worker.max_concurrent_tasks), so firing them all at once would
+// just queue up on the server side anyway, with no feedback for which file
+// is currently being handled. One failed file doesn't stop the rest —
+// errors are collected and shown together at the end, same pattern as
+// onBulkDelete/onBulkRebuild's per-item results.
+async function doUploadMany(files: File[]) {
   uploading.value = true;
+  uploadErrors.value = [];
   try {
-    await uploadBook(file);
+    for (let i = 0; i < files.length; i++) {
+      uploadProgress.value = { current: i + 1, total: files.length };
+      try {
+        await uploadBook(files[i]);
+      } catch (e: any) {
+        uploadErrors.value.push(`${files[i].name}: ${e?.response?.data?.error || e.message}`);
+      }
+    }
     await load();
   } finally {
     uploading.value = false;
+    uploadProgress.value = null;
   }
 }
 
 function onDrop(e: DragEvent) {
   dragOver.value = false;
-  const file = e.dataTransfer?.files?.[0];
-  if (file) doUpload(file);
+  const files = e.dataTransfer?.files;
+  if (files?.length) doUploadMany([...files]);
 }
 
 async function onDelete(id: string) {
@@ -126,14 +147,20 @@ onMounted(load);
         ref="fileInput"
         type="file"
         accept=".epub,.txt"
+        multiple
         class="upload-input"
         :disabled="uploading"
         @change="onFileSelected"
       />
       <span class="upload-icon">📤</span>
       <span class="upload-title">{{ t("books.upload") }}</span>
-      <span class="upload-hint">{{ uploading ? t("common.loading") : t("books.uploadHint") }}</span>
+      <span class="upload-hint">
+        {{ uploadProgress ? t("books.uploadProgress", uploadProgress) : t("books.uploadHint") }}
+      </span>
     </label>
+    <ul v-if="uploadErrors.length" class="bulk-errors">
+      <li v-for="(err, i) in uploadErrors" :key="i">{{ err }}</li>
+    </ul>
 
     <div class="toolbar">
       <button class="ghost" @click="load">{{ t("common.refresh") }}</button>

@@ -68,7 +68,8 @@
   "books": {
     "title": "Books",
     "upload": "Upload Book",
-    "uploadHint": "Click or drag an .epub / .txt file here",
+    "uploadHint": "Click or drag one or more .epub / .txt files here",
+    "uploadProgress": "Uploading {current}/{total}…",
     "table": {
       "title": "Title",
       "author": "Author",

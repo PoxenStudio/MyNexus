@@ -68,7 +68,8 @@
   "books": {
     "title": "書籍管理",
     "upload": "上傳書籍",
-    "uploadHint": "點擊或拖曳 .epub / .txt 檔案到此處",
+    "uploadHint": "點擊或拖曳一個或多個 .epub / .txt 檔案到此處",
+    "uploadProgress": "正在上傳第 {current}/{total} 本…",
     "table": {
       "title": "書名",
       "author": "作者",
