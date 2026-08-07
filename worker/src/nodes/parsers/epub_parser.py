@@ -73,7 +73,11 @@ class EpubParser(BaseParser):
         if not chapters:
             chapters.append(ParsedChapter(title=title or "Untitled", level=1, order=0, content=""))
 
-        return ParsedDocument(title=title, author=author, language=language, chapters=chapters)
+        cover, cover_content_type = self._extract_cover(book)
+        return ParsedDocument(
+            title=title, author=author, language=language, chapters=chapters,
+            cover=cover, cover_content_type=cover_content_type,
+        )
 
     @staticmethod
     def _extract_text(soup: BeautifulSoup) -> str:
@@ -129,6 +133,37 @@ class EpubParser(BaseParser):
             if text:
                 blocks.append(text)
         return "\n".join(blocks)
+
+    @staticmethod
+    def _extract_cover(book: "epub.EpubBook") -> tuple[bytes, str]:
+        """Best-effort cover lookup, in the order real-world EPUBs actually
+        expose one:
+          1. Items ebooklib itself classifies as ITEM_COVER — EPUB3's
+             `<item properties="cover-image">` manifest entry.
+          2. EPUB2's `<meta name="cover" content="<manifest-id>"/>` pointing
+             at an image item (no properties="cover-image" support in EPUB2).
+          3. Any image item whose id/filename looks like "cover" — some
+             EPUB2 books skip the <meta> declaration too and just name the
+             file itself (e.g. "cover.jpg").
+        Returns (b"", "") if none of these find anything; the caller
+        (ingestion.py) falls back to a title-generated cover in that case."""
+        for item in book.get_items_of_type(ebooklib.ITEM_COVER):
+            return item.get_content(), item.media_type
+
+        cover_meta = book.get_metadata("OPF", "cover")
+        if cover_meta:
+            cover_id = cover_meta[0][1].get("content")
+            if cover_id:
+                item = book.get_item_with_id(cover_id)
+                if item is not None:
+                    return item.get_content(), item.media_type
+
+        for item in book.get_items_of_type(ebooklib.ITEM_IMAGE):
+            name = (item.get_id() + item.get_name()).lower()
+            if "cover" in name:
+                return item.get_content(), item.media_type
+
+        return b"", ""
 
     @staticmethod
     def _meta(book: "epub.EpubBook", name: str) -> str:

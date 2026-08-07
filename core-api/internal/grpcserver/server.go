@@ -124,6 +124,21 @@ func (s *CoreAPIServer) ReportComplete(ctx context.Context, req *mynexuspb.Compl
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 
+	// Worker always tries to produce a cover (extracted from the EPUB, or
+	// title-generated as a fallback — see worker/src/util/cover_generator.py)
+	// regardless of whether one's already set, since it has no visibility
+	// into Core API's database (see .claude/memory/mynexus_m2_decisions.md).
+	// So the decision of whether to keep it lives here: only accept it if
+	// the book doesn't already have a cover from an explicit cover_url given
+	// at import time (BookHandler.Import) — that one wins by running first,
+	// before this ingest even started. Best-effort either way; a cover is
+	// never worth failing an otherwise-successful ingest over.
+	if len(req.Cover) > 0 {
+		if hasCover, err := s.books.HasCover(task.BookID); err == nil && !hasCover {
+			_, _ = s.books.SaveCoverBytes(task.BookID, req.Cover, req.CoverContentType)
+		}
+	}
+
 	// Auto-chain a summarize run onto every completed ingest (fresh import
 	// or Rebuild — both go through TriggerIngest/ReportComplete) so chapter
 	// + book summaries show up without the user having to separately click

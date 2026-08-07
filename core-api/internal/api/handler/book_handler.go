@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -64,6 +65,22 @@ func (h *BookHandler) Import(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// cover_url: optional, for callers that already know a cover image URL
+	// for this book (e.g. MyBooks' own cover endpoint — see
+	// docs/系统设计文档.md's import-url design note). Downloaded to local
+	// storage right here, synchronously, rather than stored as a URL and
+	// fetched on demand later — the source system isn't guaranteed to still
+	// be reachable whenever a user opens this book's page afterwards.
+	// Best-effort: a failed download just leaves the book without a cover
+	// yet, to be filled in by Worker's EPUB-extraction/title-generation
+	// fallback at ingest completion (see grpcserver.ReportComplete) — it
+	// never fails the import itself.
+	if coverURL := c.PostForm("cover_url"); coverURL != "" {
+		if _, err := h.books.DownloadCover(book.ID, coverURL); err != nil {
+			log.Printf("book %s: failed to download cover from %s: %v", book.ID, coverURL, err)
+		}
 	}
 
 	task, err := h.tasks.CreateTask(book.ID, defaultUserID, models.TaskTypeIngest)
@@ -129,6 +146,26 @@ func (h *BookHandler) Get(c *gin.Context) {
 		BookResponse: dto.NewBookResponse(*book, h.cfg.Keyword.MaxKeywords),
 		Chapters:     chapterResponses,
 	})
+}
+
+// Cover streams a book's cover image (see BookService's coverDir) — mirrors
+// AuthHandler.ServeAvatar. 404 if the book has none yet (not-yet-ingested,
+// ingested but Worker found/generated nothing, or the file was deleted from
+// under us); BookDetailView.vue falls back to its own title-initial
+// placeholder in that case (see its @error handler on the <img> tag).
+func (h *BookHandler) Cover(c *gin.Context) {
+	id := c.Param("id")
+	book, err := h.books.GetBook(id)
+	if err != nil || book.CoverPath == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	// Cache-Control: covers are effectively immutable once set (never
+	// overwritten in place — Rebuild/ReportComplete only fill an empty
+	// cover_path, they don't replace an existing one), so a long-lived
+	// browser cache is safe.
+	c.Header("Cache-Control", "public, max-age=604800")
+	c.File(book.CoverPath)
 }
 
 func (h *BookHandler) Update(c *gin.Context) {

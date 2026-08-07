@@ -24,6 +24,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # environment isn't assumed to have internet access, so this can't be
 # fetched lazily on first use like it normally would be.
 RUN python3 -m nltk.downloader -d "$NLTK_DATA" punkt_tab averaged_perceptron_tagger_eng
+# Bundled font for util/cover_generator.py's title-based fallback cover —
+# baked in so cover generation works out of the box with no deploy-time
+# step; a deployer can still override it by dropping a font at
+# data/fonts/MiSans-Normal.woff (shared bind mount, see docker-compose.yml)
+# or via config.yaml's cover.font_path, without rebuilding this image.
+COPY assets ./assets
 COPY src ./src
 WORKDIR /app/src
 EXPOSE 8001

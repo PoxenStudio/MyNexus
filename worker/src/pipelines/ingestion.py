@@ -10,6 +10,7 @@ from nodes.parsers.registry import ParserRegistry
 from nodes.parsers.txt_parser import TxtParser
 from nodes.splitters.token_splitter import TokenSplitter
 from schemas.document import ParsedDocument
+from util import cover_generator
 from util.lang_detect import detect_title_language
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,21 @@ class IngestionPipeline:
         # English, "eng" — see util/lang_detect.py), not whatever the parser
         # happened to read from file metadata.
         document.language = detect_title_language(document.title) or "eng"
+
+        # Fallback cover: the parser found nothing embedded (always true for
+        # TXT, sometimes true for an EPUB with no cover item — see
+        # nodes/parsers/epub_parser.py's _extract_cover) and Core API hasn't
+        # already downloaded one from an explicit cover_url at import time
+        # either (Worker has no visibility into that — see
+        # grpcserver.ReportComplete, which is where that priority is
+        # actually enforced; generating here unconditionally when empty is
+        # harmless, just possibly-discarded work on Core API's side).
+        if not document.cover:
+            cover_bytes = cover_generator.generate_cover(document.title, font_path=self.config.cover_font_path)
+            if cover_bytes:
+                document.cover = cover_bytes
+                document.cover_content_type = "image/jpeg"
+
         return document
 
     def run(self, task_id: str, book_id: str, file_path: str, display_name: str = "") -> None:

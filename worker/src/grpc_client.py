@@ -48,7 +48,10 @@ class CoreApiClient:
             for c in chunks
         ]
         self._stub.ReportComplete(
-            mynexus_pb2.CompleteRequest(task_id=task_id, book=book, chapters=chapters, chunks=chunk_msgs)
+            mynexus_pb2.CompleteRequest(
+                task_id=task_id, book=book, chapters=chapters, chunks=chunk_msgs,
+                cover=document.cover, cover_content_type=document.cover_content_type,
+            )
         )
 
     def report_fail(self, task_id: str, error_msg: str) -> None:

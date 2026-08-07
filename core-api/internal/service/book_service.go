@@ -1,10 +1,12 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,10 +20,17 @@ import (
 type BookService struct {
 	db        *sql.DB
 	uploadDir string
+	// coverDir is a sibling of uploadDir (uploadDir's default is
+	// ./data/uploads, so this defaults to ./data/covers) rather than its own
+	// config key — one less setting to plumb through config.yaml/the system
+	// settings page for what's otherwise the same kind of "local file cache
+	// derived from an id" storage as uploadDir itself. See SaveCoverBytes.
+	coverDir string
 }
 
 func NewBookService(db *sql.DB, uploadDir string) *BookService {
-	return &BookService{db: db, uploadDir: uploadDir}
+	coverDir := filepath.Join(filepath.Dir(uploadDir), "covers")
+	return &BookService{db: db, uploadDir: uploadDir, coverDir: coverDir}
 }
 
 // CreateBook inserts a new book row in pending status. FilePath is filled in
@@ -112,7 +121,7 @@ func (s *BookService) ApplyParsedMetadata(bookID, title, author, language string
 func (s *BookService) GetBook(id string) (*models.Book, error) {
 	row := s.db.QueryRow(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, keywords, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, created_at, updated_at
 		 FROM books WHERE id = ?`, id)
 	return scanBook(row)
 }
@@ -167,7 +176,7 @@ func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book
 	listArgs := append(append([]any{}, args...), size, (page-1)*size)
 	rows, err := s.db.Query(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, keywords, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, created_at, updated_at
 		 FROM books `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list books: %w", err)
@@ -212,7 +221,119 @@ func (s *BookService) DeleteBook(id string) error {
 	if book.FilePath != "" {
 		_ = os.Remove(book.FilePath)
 	}
+	if book.CoverPath != "" {
+		_ = os.Remove(book.CoverPath)
+	}
 	return nil
+}
+
+// coverExtByContentType maps a Content-Type/MIME string to the file
+// extension SaveCoverBytes stores it under. Anything not in here is treated
+// as "not a usable cover image" by both SaveCoverBytes and DownloadCover.
+var coverExtByContentType = map[string]string{
+	"image/jpeg": ".jpg",
+	"image/jpg":  ".jpg",
+	"image/png":  ".png",
+	"image/webp": ".webp",
+	"image/gif":  ".gif",
+}
+
+// maxCoverDownloadSize caps how much of a cover_url response body
+// DownloadCover will read — well above what any real cover image needs, so
+// a misbehaving or malicious URL can't be used to fill up disk.
+const maxCoverDownloadSize = 10 << 20 // 10MB
+
+// HasCover reports whether bookID already has a cover on file. Used by
+// grpcserver.ReportComplete to decide whether Worker's extracted/generated
+// cover should be persisted, so it never overwrites a cover already
+// downloaded from an explicit cover_url at import time (see DownloadCover) —
+// that one wins by virtue of running first, before Worker's ingest pipeline
+// even starts.
+func (s *BookService) HasCover(bookID string) (bool, error) {
+	var coverPath string
+	if err := s.db.QueryRow(`SELECT cover_path FROM books WHERE id = ?`, bookID).Scan(&coverPath); err != nil {
+		return false, err
+	}
+	return coverPath != "", nil
+}
+
+// SaveCoverBytes writes data to coverDir/<bookID><ext> (ext derived from
+// contentType) and records the resulting path as the book's cover_path,
+// overwriting whatever was there before — callers that must not clobber an
+// existing cover check HasCover first. Returns ("", nil) — not an error —
+// when contentType isn't a recognized image type or data is empty, since
+// both DownloadCover (a URL can 404 into an HTML error page) and Worker's
+// report (extraction/generation can legitimately come up empty) need to
+// treat "nothing usable" as a normal, non-fatal outcome.
+func (s *BookService) SaveCoverBytes(bookID string, data []byte, contentType string) (string, error) {
+	ext := coverExtByContentType[strings.ToLower(strings.TrimSpace(contentType))]
+	if ext == "" || len(data) == 0 {
+		return "", nil
+	}
+
+	if err := os.MkdirAll(s.coverDir, 0o755); err != nil {
+		return "", fmt.Errorf("create cover dir: %w", err)
+	}
+	destPath := filepath.Join(s.coverDir, bookID+ext)
+	if err := os.WriteFile(destPath, data, 0o644); err != nil {
+		return "", fmt.Errorf("write cover file: %w", err)
+	}
+
+	if _, err := s.db.Exec(`UPDATE books SET cover_path = ?, updated_at = ? WHERE id = ?`,
+		destPath, time.Now().UTC().Format(time.RFC3339), bookID); err != nil {
+		return "", fmt.Errorf("update book cover_path: %w", err)
+	}
+	return destPath, nil
+}
+
+// DownloadCover fetches coverURL and saves it via SaveCoverBytes — the
+// explicit-cover_url path from BookHandler.Import's cover_url form field.
+// Fetched synchronously and immediately at import time rather than deferred
+// to display time, because the system supplying the URL (e.g. MyBooks)
+// isn't guaranteed to still be reachable whenever a user later opens this
+// book's page — the whole point is to have a local copy that outlives that.
+// Returns an error for the caller to log and swallow, not something that
+// should fail the import itself (see BookHandler.Import).
+func (s *BookService) DownloadCover(bookID, coverURL string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, coverURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("build cover request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetch cover: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fetch cover: unexpected status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxCoverDownloadSize+1))
+	if err != nil {
+		return "", fmt.Errorf("read cover response: %w", err)
+	}
+	if len(data) > maxCoverDownloadSize {
+		return "", fmt.Errorf("cover response exceeds %d bytes", maxCoverDownloadSize)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if idx := strings.IndexByte(contentType, ';'); idx >= 0 {
+		contentType = contentType[:idx] // strip "; charset=..." etc.
+	}
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+	path, err := s.SaveCoverBytes(bookID, data, contentType)
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", fmt.Errorf("unsupported cover content type %q", contentType)
+	}
+	return path, nil
 }
 
 // SaveChapters replaces bookID's chapters. Chapter IDs are assigned by
@@ -450,7 +571,7 @@ func scanBookRows(row rowScanner) (*models.Book, error) {
 	var b models.Book
 	err := row.Scan(&b.ID, &b.UserID, &b.Title, &b.Author, &b.Publisher, &b.Language, &b.PublishDate,
 		&b.ISBN, &b.SourceOrigin, &b.SourceFormat, &b.FilePath, &b.Status, &b.Tags, &b.Category, &b.Summary,
-		&b.Keywords, &b.CreatedAt, &b.UpdatedAt)
+		&b.Keywords, &b.CoverPath, &b.CreatedAt, &b.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, err
 	}

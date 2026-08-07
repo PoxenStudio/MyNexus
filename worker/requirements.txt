@@ -15,3 +15,9 @@ opencc-python-reimplemented>=0.1.7
 # the image at build time (see Dockerfile) — not fetched at runtime.
 nltk>=3.9
 chromadb>=0.5
+# util/cover_generator.py's title-based fallback book cover.
+Pillow>=10.0
+# WOFF->TTF conversion fallback for cover_generator.py when Pillow's
+# FreeType build can't load a .woff font file directly — see its
+# _woff_to_ttf_bytes doc comment.
+fonttools>=4.50

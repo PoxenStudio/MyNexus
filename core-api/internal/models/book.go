@@ -37,7 +37,11 @@ type Book struct {
 	// Stored unsorted-length (not pre-truncated); the read path truncates to
 	// config.KeywordConfig.MaxKeywords so raising that setting later doesn't
 	// require re-summarizing. Empty until a summarize task completes.
-	Keywords  string // JSON array, stored as-is
+	Keywords string // JSON array, stored as-is
+	// CoverPath is the local on-disk path to the cover image (see
+	// BookService's coverDir/SetCover), empty until one is downloaded,
+	// extracted, or generated — see storage/sqlite/migrations/0008_book_cover.sql.
+	CoverPath string
 	CreatedAt string
 	UpdatedAt string
 }

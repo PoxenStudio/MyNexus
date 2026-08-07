@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { getBook, rebuildBook, summarizeBook, updateBook, type BookDetail } from "../../api/books";
+import { apiClient } from "../../api/client";
 import { getTask, listTasks, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
@@ -14,6 +15,26 @@ const { t } = useI18n();
 const route = useRoute();
 const book = ref<BookDetail | null>(null);
 const loading = ref(true);
+
+// Cover image (see core-api's BookHandler.Cover) — relative to apiClient's
+// base URL like AuthHandler's avatar_url (see auth store's fullAvatarUrl for
+// the same pattern). "" whenever the book has none yet (not ingested, or
+// Worker produced nothing — shouldn't normally happen once ingest
+// completes, since a title-generated fallback always fills the gap, see
+// worker/src/util/cover_generator.py) or the <img> failed to load, in
+// either case falling back to a plain title-initial placeholder below.
+const coverBroken = ref(false);
+watch(
+  () => book.value?.id,
+  () => {
+    coverBroken.value = false;
+  },
+);
+const coverUrl = computed(() => {
+  if (!book.value?.cover_url || coverBroken.value) return "";
+  return apiClient.defaults.baseURL + book.value.cover_url;
+});
+const coverInitial = computed(() => (book.value?.title || book.value?.id || "?").charAt(0).toUpperCase());
 
 const editingLanguage = ref(false);
 const languageDraft = ref("");
@@ -231,36 +252,49 @@ onUnmounted(stopPolling);
     <template v-else-if="book">
       <div class="detail-grid">
         <div class="info-card">
-          <h1>{{ book.title || book.id }}</h1>
-          <dl class="meta">
-            <dt>{{ t("books.table.author") }}</dt>
-            <dd>{{ book.author || "—" }}</dd>
-            <dt>{{ t("books.table.format") }}</dt>
-            <dd>{{ book.source_format }}</dd>
-            <dt>{{ t("books.table.status") }}</dt>
-            <dd><span :class="['badge', book.status]">{{ t(`status.${book.status}`, book.status) }}</span></dd>
-            <dt>{{ t("books.language") }}</dt>
-            <dd class="language-row">
-              <template v-if="editingLanguage">
-                <select v-model="languageDraft" :disabled="languageSaving">
-                  <option v-for="opt in languageOptions" :key="opt.code" :value="opt.code">{{ opt.name }}</option>
-                </select>
-                <button class="icon-btn" :disabled="languageSaving" :title="t('common.save')" @click="saveLanguage">
-                  ✓
-                </button>
-                <button class="icon-btn" :disabled="languageSaving" :title="t('common.cancel')" @click="cancelEditLanguage">
-                  ✕
-                </button>
-              </template>
-              <template v-else>
-                {{ languageName(book.language) || "—" }}
-                <button class="icon-btn" :title="t('common.edit')" @click="startEditLanguage">
-                  <AppIcon name="edit" :size="14" />
-                </button>
-              </template>
-            </dd>
-          </dl>
-          <p v-if="languageError" class="error">{{ languageError }}</p>
+          <div class="info-card-body">
+            <div class="cover">
+              <img v-if="coverUrl" :src="coverUrl" :alt="book.title" @error="coverBroken = true" />
+              <div v-else class="cover-fallback" aria-hidden="true">{{ coverInitial }}</div>
+            </div>
+            <div class="info-main">
+              <h1>{{ book.title || book.id }}</h1>
+              <dl class="meta">
+                <dt>{{ t("books.table.author") }}</dt>
+                <dd>{{ book.author || "—" }}</dd>
+                <dt>{{ t("books.table.format") }}</dt>
+                <dd>{{ book.source_format }}</dd>
+                <dt>{{ t("books.table.status") }}</dt>
+                <dd><span :class="['badge', book.status]">{{ t(`status.${book.status}`, book.status) }}</span></dd>
+                <dt>{{ t("books.language") }}</dt>
+                <dd class="language-row">
+                  <template v-if="editingLanguage">
+                    <select v-model="languageDraft" :disabled="languageSaving">
+                      <option v-for="opt in languageOptions" :key="opt.code" :value="opt.code">{{ opt.name }}</option>
+                    </select>
+                    <button class="icon-btn" :disabled="languageSaving" :title="t('common.save')" @click="saveLanguage">
+                      ✓
+                    </button>
+                    <button
+                      class="icon-btn"
+                      :disabled="languageSaving"
+                      :title="t('common.cancel')"
+                      @click="cancelEditLanguage"
+                    >
+                      ✕
+                    </button>
+                  </template>
+                  <template v-else>
+                    {{ languageName(book.language) || "—" }}
+                    <button class="icon-btn" :title="t('common.edit')" @click="startEditLanguage">
+                      <AppIcon name="edit" :size="14" />
+                    </button>
+                  </template>
+                </dd>
+              </dl>
+              <p v-if="languageError" class="error">{{ languageError }}</p>
+            </div>
+          </div>
         </div>
         <div class="keyword-card">
           <h2>{{ t("books.keywords") }}</h2>
@@ -359,8 +393,46 @@ onUnmounted(stopPolling);
     grid-template-columns: 1fr;
   }
 }
+.info-card-body {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.info-main {
+  flex: 1;
+  min-width: 0;
+}
 .info-card h1 {
   margin: 0 0 0.5rem;
+}
+/* Fixed-size box (2:3, a typical book-cover ratio) so the layout doesn't
+   jump around while the image loads or when a book has none yet — the
+   fallback below fills exactly the same box. */
+.cover {
+  flex-shrink: 0;
+  width: 96px;
+  height: 144px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: var(--elevation-1, 0 1px 3px rgba(0, 0, 0, 0.15));
+  background: var(--code-bg);
+}
+.cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-bg);
 }
 .keyword-card {
   padding: 1rem 1.25rem;

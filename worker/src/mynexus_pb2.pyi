@@ -204,16 +204,20 @@ class MetadataRequest(_message.Message):
     def __init__(self, task_id: _Optional[str] = ..., book: _Optional[_Union[BookMeta, _Mapping]] = ...) -> None: ...
 
 class CompleteRequest(_message.Message):
-    __slots__ = ("task_id", "book", "chapters", "chunks")
+    __slots__ = ("task_id", "book", "chapters", "chunks", "cover", "cover_content_type")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
     BOOK_FIELD_NUMBER: _ClassVar[int]
     CHAPTERS_FIELD_NUMBER: _ClassVar[int]
     CHUNKS_FIELD_NUMBER: _ClassVar[int]
+    COVER_FIELD_NUMBER: _ClassVar[int]
+    COVER_CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     task_id: str
     book: BookMeta
     chapters: _containers.RepeatedCompositeFieldContainer[Chapter]
     chunks: _containers.RepeatedCompositeFieldContainer[Chunk]
-    def __init__(self, task_id: _Optional[str] = ..., book: _Optional[_Union[BookMeta, _Mapping]] = ..., chapters: _Optional[_Iterable[_Union[Chapter, _Mapping]]] = ..., chunks: _Optional[_Iterable[_Union[Chunk, _Mapping]]] = ...) -> None: ...
+    cover: bytes
+    cover_content_type: str
+    def __init__(self, task_id: _Optional[str] = ..., book: _Optional[_Union[BookMeta, _Mapping]] = ..., chapters: _Optional[_Iterable[_Union[Chapter, _Mapping]]] = ..., chunks: _Optional[_Iterable[_Union[Chunk, _Mapping]]] = ..., cover: _Optional[bytes] = ..., cover_content_type: _Optional[str] = ...) -> None: ...
 
 class FailRequest(_message.Message):
     __slots__ = ("task_id", "error_msg")

@@ -31,8 +31,16 @@ type BookResponse struct {
 	Category     string            `json:"category"`
 	Summary      string            `json:"summary"`
 	Keywords     []KeywordResponse `json:"keywords"`
-	CreatedAt    string            `json:"created_at"`
-	UpdatedAt    string            `json:"updated_at"`
+	// CoverURL is "" if the book has no cover yet (not yet ingested, or
+	// ingestion produced nothing usable — see grpcserver.ReportComplete),
+	// otherwise "/books/{id}/cover" (relative to apiClient's base URL, which
+	// already includes "/api/v1" — see web-ui/src/api/client.ts, and
+	// AuthHandler's avatarURL for the same pattern). Never the original
+	// cover_url or on-disk cover_path — those are download/storage details,
+	// not something callers should see or depend on.
+	CoverURL  string `json:"cover_url"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // NewBookResponse truncates Keywords to maxKeywords (config.KeywordConfig —
@@ -57,11 +65,16 @@ func NewBookResponse(b models.Book, maxKeywords int) BookResponse {
 		keywords = keywords[:maxKeywords]
 	}
 
+	coverURL := ""
+	if b.CoverPath != "" {
+		coverURL = "/books/" + b.ID + "/cover"
+	}
+
 	return BookResponse{
 		ID: b.ID, UserID: b.UserID, Title: b.Title, Author: b.Author, Publisher: b.Publisher,
 		Language: b.Language, PublishDate: b.PublishDate, ISBN: b.ISBN, SourceOrigin: b.SourceOrigin,
 		SourceFormat: b.SourceFormat, Status: b.Status, Tags: tags, Category: b.Category, Summary: b.Summary,
-		Keywords: keywords, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
+		Keywords: keywords, CoverURL: coverURL, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
 	}
 }
 

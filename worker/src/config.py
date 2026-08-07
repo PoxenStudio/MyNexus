@@ -64,6 +64,13 @@ class WorkerConfig:
     # port. See .claude/memory/mynexus_grpc_migration.md.
     core_api_base_url: str = "localhost:9090"
 
+    # cover_font_path optionally overrides util/cover_generator.py's font
+    # resolution (see that module's doc comment for the full fallback
+    # chain — this is checked first, before the shared data/fonts/ volume
+    # and the font baked into the Worker image). Empty (the default) skips
+    # straight to that fallback chain.
+    cover_font_path: str = ""
+
     # debug_llm_logging mirrors Core API's debug.llm_logging (system settings
     # page, "打开调试日志"). When true, every LLM call
     # (nodes/llm/openai_llm.py, nodes/llm/ollama_llm.py) dumps its request
@@ -124,6 +131,7 @@ def load_config() -> WorkerConfig:
     cfg.storage_database = raw.get("storage", {}).get("database", cfg.storage_database)
     cfg.core_api_base_url = raw.get("server", {}).get("internal_url", cfg.core_api_base_url)
     cfg.debug_llm_logging = raw.get("debug", {}).get("llm_logging", cfg.debug_llm_logging)
+    cfg.cover_font_path = raw.get("cover", {}).get("font_path", cfg.cover_font_path)
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
         cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")

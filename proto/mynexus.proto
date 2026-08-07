@@ -238,6 +238,16 @@ message CompleteRequest {
   BookMeta book = 2;
   repeated Chapter chapters = 3;
   repeated Chunk chunks = 4;
+  // Cover image bytes, if Worker was able to produce one — either extracted
+  // from the source file (EPUB cover item) or, failing that, generated from
+  // the book's title (see worker/src/util/cover_generator.py). Empty if
+  // neither worked (cover_content_type is empty too in that case). Core API
+  // only persists this when the book doesn't already have a cover from an
+  // explicit cover_url given at import time — see grpcserver.ReportComplete
+  // and BookHandler.Import's cover_url form field.
+  bytes cover = 5;
+  // MIME type of `cover` (e.g. "image/jpeg", "image/png"); empty iff cover is empty.
+  string cover_content_type = 6;
 }
 
 message FailRequest {

@@ -21,6 +21,10 @@ export interface Book {
   // assigned labels). Sorted by weight descending, already truncated to the
   // system's max_keywords setting server-side.
   keywords: Keyword[];
+  // "" if the book has no cover yet, otherwise a path relative to
+  // apiClient's base URL (see core-api's BookHandler.Cover / dto.NewBookResponse) —
+  // never a raw filesystem path or the original cover_url given at import.
+  cover_url: string;
   created_at: string;
   updated_at: string;
 }

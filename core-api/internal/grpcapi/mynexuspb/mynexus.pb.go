@@ -1270,13 +1270,23 @@ func (x *MetadataRequest) GetBook() *BookMeta {
 }
 
 type CompleteRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	Book          *BookMeta              `protobuf:"bytes,2,opt,name=book,proto3" json:"book,omitempty"`
-	Chapters      []*Chapter             `protobuf:"bytes,3,rep,name=chapters,proto3" json:"chapters,omitempty"`
-	Chunks        []*Chunk               `protobuf:"bytes,4,rep,name=chunks,proto3" json:"chunks,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	TaskId   string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Book     *BookMeta              `protobuf:"bytes,2,opt,name=book,proto3" json:"book,omitempty"`
+	Chapters []*Chapter             `protobuf:"bytes,3,rep,name=chapters,proto3" json:"chapters,omitempty"`
+	Chunks   []*Chunk               `protobuf:"bytes,4,rep,name=chunks,proto3" json:"chunks,omitempty"`
+	// Cover image bytes, if Worker was able to produce one — either extracted
+	// from the source file (EPUB cover item) or, failing that, generated from
+	// the book's title (see worker/src/util/cover_generator.py). Empty if
+	// neither worked (cover_content_type is empty too in that case). Core API
+	// only persists this when the book doesn't already have a cover from an
+	// explicit cover_url given at import time — see grpcserver.ReportComplete
+	// and BookHandler.Import's cover_url form field.
+	Cover []byte `protobuf:"bytes,5,opt,name=cover,proto3" json:"cover,omitempty"`
+	// MIME type of `cover` (e.g. "image/jpeg", "image/png"); empty iff cover is empty.
+	CoverContentType string `protobuf:"bytes,6,opt,name=cover_content_type,json=coverContentType,proto3" json:"cover_content_type,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CompleteRequest) Reset() {
@@ -1335,6 +1345,20 @@ func (x *CompleteRequest) GetChunks() []*Chunk {
 		return x.Chunks
 	}
 	return nil
+}
+
+func (x *CompleteRequest) GetCover() []byte {
+	if x != nil {
+		return x.Cover
+	}
+	return nil
+}
+
+func (x *CompleteRequest) GetCoverContentType() string {
+	if x != nil {
+		return x.CoverContentType
+	}
+	return ""
 }
 
 type FailRequest struct {
@@ -1970,12 +1994,14 @@ const file_mynexus_proto_rawDesc = "" +
 	"\tvector_id\x18\x06 \x01(\tR\bvectorId\"Q\n" +
 	"\x0fMetadataRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12%\n" +
-	"\x04book\x18\x02 \x01(\v2\x11.mynexus.BookMetaR\x04book\"\xa7\x01\n" +
+	"\x04book\x18\x02 \x01(\v2\x11.mynexus.BookMetaR\x04book\"\xeb\x01\n" +
 	"\x0fCompleteRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12%\n" +
 	"\x04book\x18\x02 \x01(\v2\x11.mynexus.BookMetaR\x04book\x12,\n" +
 	"\bchapters\x18\x03 \x03(\v2\x10.mynexus.ChapterR\bchapters\x12&\n" +
-	"\x06chunks\x18\x04 \x03(\v2\x0e.mynexus.ChunkR\x06chunks\"C\n" +
+	"\x06chunks\x18\x04 \x03(\v2\x0e.mynexus.ChunkR\x06chunks\x12\x14\n" +
+	"\x05cover\x18\x05 \x01(\fR\x05cover\x12,\n" +
+	"\x12cover_content_type\x18\x06 \x01(\tR\x10coverContentType\"C\n" +
 	"\vFailRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1b\n" +
 	"\terror_msg\x18\x02 \x01(\tR\berrorMsg\"i\n" +
