@@ -14,6 +14,7 @@ import (
 	"mynexus/core-api/internal/api/dto"
 	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/coordinator"
+	"mynexus/core-api/internal/dispatch"
 	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
 )
@@ -26,15 +27,16 @@ var supportedFormats = map[string]bool{".epub": true, ".txt": true}
 const defaultUserID = "local-user"
 
 type BookHandler struct {
-	books  *service.BookService
-	tasks  *service.TaskService
-	worker *coordinator.WorkerClient
-	audit  *service.AuditService
-	cfg    config.Config
+	books      *service.BookService
+	tasks      *service.TaskService
+	worker     *coordinator.WorkerClient
+	dispatcher *dispatch.Dispatcher
+	audit      *service.AuditService
+	cfg        config.Config
 }
 
-func NewBookHandler(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient, audit *service.AuditService) *BookHandler {
-	return &BookHandler{books: books, tasks: tasks, worker: worker, audit: audit, cfg: cfg}
+func NewBookHandler(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient, dispatcher *dispatch.Dispatcher, audit *service.AuditService) *BookHandler {
+	return &BookHandler{books: books, tasks: tasks, worker: worker, dispatcher: dispatcher, audit: audit, cfg: cfg}
 }
 
 func (h *BookHandler) Import(c *gin.Context) {
@@ -61,8 +63,10 @@ func (h *BookHandler) Import(c *gin.Context) {
 		return
 	}
 
-	filePath, err := h.books.SaveUploadedFile(book.ID, fileHeader)
-	if err != nil {
+	// The dispatcher (below) reads the saved path back off the book row
+	// itself when it actually dispatches, rather than needing it threaded
+	// through here.
+	if _, err := h.books.SaveUploadedFile(book.ID, fileHeader); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -88,18 +92,14 @@ func (h *BookHandler) Import(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
-	if err := h.worker.TriggerIngest(coordinator.IngestRequest{
-		TaskID:           task.ID,
-		BookID:           book.ID,
-		FilePath:         filePath,
-		OriginalFilename: filepath.Base(fileHeader.Filename),
-	}); err != nil {
-		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
-		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger ingestion: " + err.Error()})
-		return
-	}
+	// Queued, not necessarily dispatched yet — TryDispatch hands it to
+	// Worker right away if there's a free worker.max_concurrent_tasks slot,
+	// otherwise it's left queued (see internal/dispatch.Dispatcher) and
+	// picked up automatically once one frees up. Either way this is a
+	// successful import from the caller's point of view: the file is saved
+	// and the task exists, so there's nothing to report as failed here even
+	// if Worker happens to be unreachable right now.
+	h.dispatcher.TryDispatch()
 
 	c.JSON(http.StatusAccepted, dto.ImportResponse{TaskID: task.ID, BookID: book.ID})
 }
@@ -267,14 +267,13 @@ func (h *BookHandler) rebuildOne(bookID string) (taskID string, err error) {
 	}
 	_ = h.books.SetStatus(book.ID, models.BookStatusPending)
 
-	if err := h.worker.TriggerIngest(coordinator.IngestRequest{
-		TaskID: task.ID, BookID: book.ID, FilePath: book.FilePath,
-		OriginalFilename: filepath.Base(book.FilePath),
-	}); err != nil {
-		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
-		_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
-		return "", fmt.Errorf("failed to trigger ingestion: %w", err)
-	}
+	// Queued, not necessarily dispatched yet — see the matching comment in
+	// Import. BulkRebuild is exactly the bulk-trigger case
+	// worker.max_concurrent_tasks exists to guard against: without the
+	// dispatcher queue, selecting 20 books and clicking "批量重建" used to
+	// fire 20 concurrent TriggerIngest calls at Worker regardless of this
+	// setting.
+	h.dispatcher.TryDispatch()
 	return task.ID, nil
 }
 

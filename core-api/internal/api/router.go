@@ -8,6 +8,7 @@ import (
 	"mynexus/core-api/internal/auth"
 	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/coordinator"
+	"mynexus/core-api/internal/dispatch"
 	"mynexus/core-api/internal/service"
 	"mynexus/core-api/internal/storage"
 )
@@ -17,10 +18,14 @@ import (
 // API Token instead (see the Tokens admin page) — either is accepted on
 // protected routes. store is backend-agnostic (sqlite or postgres, see
 // storage.Database) — the service layer below only ever sees the shared *sql.DB.
-// workerClient is constructed once in main.go (not here) so it can also be
-// shared with the Worker health-check loop (main.go's watchWorkerHealth) —
-// one persistent gRPC connection to Worker, not two.
-func NewRouter(cfg config.Config, store storage.Database, workerClient *coordinator.WorkerClient) *gin.Engine {
+// workerClient and dispatcher are both constructed once in main.go (not
+// here) so they can also be shared with the Worker health-check loop
+// (main.go's watchWorkerHealth) and the gRPC server (grpcserver.New) — one
+// persistent gRPC connection to Worker, and one Dispatcher (its in-process
+// mutex only actually serializes dispatch attempts if every caller shares
+// the same instance — see internal/dispatch.Dispatcher), not a separate
+// one of each per entry point.
+func NewRouter(cfg config.Config, store storage.Database, workerClient *coordinator.WorkerClient, dispatcher *dispatch.Dispatcher) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger())
 	r.Use(middleware.CORS(cfg.Server.CORSOrigins))
@@ -36,8 +41,8 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	sessions := auth.NewSessionManager()
 
 	sys := handler.NewSystemHandler(cfg, store, workerClient, auditSvc)
-	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, auditSvc)
-	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient, auditSvc)
+	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, dispatcher, auditSvc)
+	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient, dispatcher, auditSvc)
 	search := handler.NewSearchHandler(bookSvc, workerClient)
 	chat := handler.NewChatHandler(chatSvc, workerClient, cfg.Chat.MaxSessions)
 	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)

@@ -33,6 +33,14 @@ function toggleExpand(id: string) {
   expanded.value = expanded.value === id ? null : id;
 }
 
+// A "pending" ingest task that hasn't been dispatched to Worker yet is
+// waiting on worker.max_concurrent_tasks, not just "about to start" —
+// worth a distinct label so a big batch (bulk rebuild, several uploads at
+// once) doesn't look identical to a task Worker is already crunching on.
+function taskStatusKey(task: Task): string {
+  return task.status === "pending" && !task.dispatched ? "status.queued" : `status.${task.status}`;
+}
+
 onMounted(load);
 </script>
 
@@ -59,7 +67,7 @@ onMounted(load);
           <tr class="row" @click="toggleExpand(task.id)">
             <td class="mono">{{ task.id.slice(0, 8) }}</td>
             <td class="mono">{{ task.book_id.slice(0, 8) }}</td>
-            <td><span :class="['badge', task.status]">{{ t(`status.${task.status}`, task.status) }}</span></td>
+            <td><span :class="['badge', task.status]">{{ t(taskStatusKey(task), task.status) }}</span></td>
             <td>{{ task.progress }}%</td>
             <td class="error">{{ task.error_msg }}</td>
             <td>{{ new Date(task.updated_at).toLocaleString() }}</td>

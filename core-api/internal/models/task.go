@@ -21,8 +21,14 @@ type Task struct {
 	Progress  int
 	ErrorMsg  string
 	StagesLog string // JSON array of StageLogEntry, stored as-is
-	CreatedAt string
-	UpdatedAt string
+	// DispatchedAt is "" while the task is still queued, waiting for a free
+	// worker.max_concurrent_tasks slot (see internal/dispatch.Dispatcher) —
+	// set once it's actually been handed to Worker. Distinct from Status:
+	// a queued task and a dispatched-but-not-yet-progressed one are both
+	// still TaskStatusPending.
+	DispatchedAt string
+	CreatedAt    string
+	UpdatedAt    string
 }
 
 // StageLogEntry is one entry in a Task's stages_log JSON array — a structured

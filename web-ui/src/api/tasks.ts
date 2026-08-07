@@ -14,6 +14,11 @@ export interface Task {
   status: string;
   progress: number;
   error_msg: string;
+  // false while an ingest task is queued waiting for a free
+  // worker.max_concurrent_tasks slot (see core-api's internal/dispatch) —
+  // always true for a summarize task. A "pending" task with dispatched
+  // false is what should be labeled "queued" rather than plain "pending".
+  dispatched: boolean;
   stages_log: StageLogEntry[];
   created_at: string;
   updated_at: string;

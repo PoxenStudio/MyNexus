@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"path/filepath"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -10,20 +9,22 @@ import (
 	"mynexus/core-api/internal/api/dto"
 	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/coordinator"
+	"mynexus/core-api/internal/dispatch"
 	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
 )
 
 type TaskHandler struct {
-	tasks  *service.TaskService
-	books  *service.BookService
-	worker *coordinator.WorkerClient
-	audit  *service.AuditService
-	cfg    config.Config
+	tasks      *service.TaskService
+	books      *service.BookService
+	worker     *coordinator.WorkerClient
+	dispatcher *dispatch.Dispatcher
+	audit      *service.AuditService
+	cfg        config.Config
 }
 
-func NewTaskHandler(cfg config.Config, tasks *service.TaskService, books *service.BookService, worker *coordinator.WorkerClient, audit *service.AuditService) *TaskHandler {
-	return &TaskHandler{tasks: tasks, books: books, worker: worker, audit: audit, cfg: cfg}
+func NewTaskHandler(cfg config.Config, tasks *service.TaskService, books *service.BookService, worker *coordinator.WorkerClient, dispatcher *dispatch.Dispatcher, audit *service.AuditService) *TaskHandler {
+	return &TaskHandler{tasks: tasks, books: books, worker: worker, dispatcher: dispatcher, audit: audit, cfg: cfg}
 }
 
 func (h *TaskHandler) List(c *gin.Context) {
@@ -98,16 +99,13 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 			return
 		}
 	} else {
+		// Queued, not necessarily dispatched yet — same as a freshly
+		// created ingest task (see BookHandler.Import/rebuildOne):
+		// TaskService.Retry already reset dispatched_at to NULL, so this
+		// goes through the concurrency-capped queue rather than bypassing
+		// it. See internal/dispatch.Dispatcher.
 		_ = h.books.SetStatus(book.ID, models.BookStatusPending)
-		if err := h.worker.TriggerIngest(coordinator.IngestRequest{
-			TaskID: id, BookID: book.ID, FilePath: book.FilePath,
-			OriginalFilename: filepath.Base(book.FilePath),
-		}); err != nil {
-			_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
-			_ = h.books.SetStatus(book.ID, models.BookStatusFailed)
-			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger ingestion: " + err.Error()})
-			return
-		}
+		h.dispatcher.TryDispatch()
 	}
 
 	if actor, ok := c.Get("actor"); ok {

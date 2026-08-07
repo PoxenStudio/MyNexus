@@ -101,7 +101,15 @@ const activeTask = ref<Task | null>(null);
 const activeTaskLabel = computed(() => {
   const task = activeTask.value;
   if (!task) return "";
-  const stage = task.stages_log?.length ? task.stages_log[task.stages_log.length - 1].stage : task.status;
+  // Queued (waiting on worker.max_concurrent_tasks — see core-api's
+  // internal/dispatch) wins over the stage log even if one somehow exists,
+  // since a queued task hasn't actually started running yet regardless.
+  const stage =
+    task.status === "pending" && !task.dispatched
+      ? "queued"
+      : task.stages_log?.length
+        ? task.stages_log[task.stages_log.length - 1].stage
+        : task.status;
   return t("books.activeTask", {
     type: t(`taskType.${task.type}`, task.type),
     stage: t(`taskStage.${stage}`, stage),
@@ -196,6 +204,7 @@ async function doRebuild() {
       status: "pending",
       progress: 0,
       error_msg: "",
+      dispatched: false,
       stages_log: [],
       created_at: now,
       updated_at: now,

@@ -43,6 +43,7 @@
   },
   "status": {
     "pending": "待處理",
+    "queued": "排隊中",
     "processing": "處理中",
     "ready": "已就緒",
     "completed": "已完成",
@@ -53,6 +54,8 @@
     "summarize": "全書總結"
   },
   "taskStage": {
+    "queued": "排隊等待中，將在有空閒名額時自動開始",
+    "requeued": "重新排隊",
     "parsing": "正在解析檔案",
     "metadata_done": "元數據解析完成",
     "cleaning_done": "正文清洗完成",

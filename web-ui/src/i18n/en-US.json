@@ -43,6 +43,7 @@
   },
   "status": {
     "pending": "Pending",
+    "queued": "Queued",
     "processing": "Processing",
     "ready": "Ready",
     "completed": "Completed",
@@ -53,6 +54,8 @@
     "summarize": "Book Summarization"
   },
   "taskStage": {
+    "queued": "Queued — will start automatically once a slot is free",
+    "requeued": "Requeued",
     "parsing": "Parsing file",
     "metadata_done": "Metadata parsed",
     "cleaning_done": "Text cleaned",

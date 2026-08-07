@@ -18,6 +18,7 @@ import (
 	"mynexus/core-api/internal/api/dto"
 	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/coordinator"
+	"mynexus/core-api/internal/dispatch"
 	"mynexus/core-api/internal/grpcapi/mynexuspb"
 	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
@@ -26,14 +27,15 @@ import (
 type CoreAPIServer struct {
 	mynexuspb.UnimplementedCoreApiServiceServer
 
-	books  *service.BookService
-	tasks  *service.TaskService
-	worker *coordinator.WorkerClient
-	cfg    config.Config
+	books      *service.BookService
+	tasks      *service.TaskService
+	worker     *coordinator.WorkerClient
+	dispatcher *dispatch.Dispatcher
+	cfg        config.Config
 }
 
-func New(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient) *CoreAPIServer {
-	return &CoreAPIServer{cfg: cfg, books: books, tasks: tasks, worker: worker}
+func New(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient, dispatcher *dispatch.Dispatcher) *CoreAPIServer {
+	return &CoreAPIServer{cfg: cfg, books: books, tasks: tasks, worker: worker, dispatcher: dispatcher}
 }
 
 // Serve blocks, listening on cfg.Server.GRPCPort — run it in a goroutine from main.go.
@@ -123,6 +125,10 @@ func (s *CoreAPIServer) ReportComplete(ctx context.Context, req *mynexuspb.Compl
 	if err := s.tasks.Complete(req.TaskId); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
+	// This ingest task just freed a worker.max_concurrent_tasks slot —
+	// immediately try handing the next queued one to Worker instead of
+	// waiting for the next unrelated trigger/health-check tick to notice.
+	s.dispatcher.TryDispatch()
 
 	// Worker always tries to produce a cover (extracted from the EPUB, or
 	// title-generated as a fallback — see worker/src/util/cover_generator.py)
@@ -197,6 +203,9 @@ func (s *CoreAPIServer) ReportFail(ctx context.Context, req *mynexuspb.FailReque
 		if err := s.books.SetStatus(task.BookID, models.BookStatusFailed); err != nil {
 			return nil, status.Errorf(codes.Internal, "%v", err)
 		}
+		// Same reasoning as ReportComplete: a failed ingest task also frees
+		// a worker.max_concurrent_tasks slot.
+		s.dispatcher.TryDispatch()
 	}
 	return &mynexuspb.Ack{Ok: true}, nil
 }

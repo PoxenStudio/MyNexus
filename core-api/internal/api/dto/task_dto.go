@@ -7,15 +7,23 @@ import (
 )
 
 type TaskResponse struct {
-	ID        string                 `json:"id"`
-	BookID    string                 `json:"book_id"`
-	Type      string                 `json:"type"`
-	Status    string                 `json:"status"`
-	Progress  int                    `json:"progress"`
-	ErrorMsg  string                 `json:"error_msg"`
-	StagesLog []models.StageLogEntry `json:"stages_log"`
-	CreatedAt string                 `json:"created_at"`
-	UpdatedAt string                 `json:"updated_at"`
+	ID       string `json:"id"`
+	BookID   string `json:"book_id"`
+	Type     string `json:"type"`
+	Status   string `json:"status"`
+	Progress int    `json:"progress"`
+	ErrorMsg string `json:"error_msg"`
+	// Dispatched is false while an ingest task is queued, waiting for a
+	// free worker.max_concurrent_tasks slot (see internal/dispatch.Dispatcher) —
+	// true once it's actually been handed to Worker. Always true for a
+	// summarize task (not dispatcher-managed — see that package's doc
+	// comment) the instant it exists, since those still go straight to
+	// Worker. A "pending" task with Dispatched=false is what the frontend
+	// should label "queued" rather than a generic "pending".
+	Dispatched bool                   `json:"dispatched"`
+	StagesLog  []models.StageLogEntry `json:"stages_log"`
+	CreatedAt  string                 `json:"created_at"`
+	UpdatedAt  string                 `json:"updated_at"`
 }
 
 func NewTaskResponse(t models.Task) TaskResponse {
@@ -23,7 +31,8 @@ func NewTaskResponse(t models.Task) TaskResponse {
 	_ = json.Unmarshal([]byte(t.StagesLog), &stagesLog)
 	return TaskResponse{
 		ID: t.ID, BookID: t.BookID, Type: t.Type, Status: t.Status, Progress: t.Progress,
-		ErrorMsg: t.ErrorMsg, StagesLog: stagesLog, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		ErrorMsg: t.ErrorMsg, Dispatched: t.Type != models.TaskTypeIngest || t.DispatchedAt != "",
+		StagesLog: stagesLog, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }
 

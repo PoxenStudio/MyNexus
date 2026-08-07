@@ -47,11 +47,18 @@ async function onFileSelected(e: Event) {
 }
 
 // Uploads each file as its own POST /books/import (the backend has no
-// multi-file endpoint — one book == one request, one task) sequentially
-// rather than in parallel: Worker processes one ingest task at a time by
-// default (worker.max_concurrent_tasks), so firing them all at once would
-// just queue up on the server side anyway, with no feedback for which file
-// is currently being handled. One failed file doesn't stop the rest —
+// multi-file endpoint — one book == one request, one task), one HTTP
+// request at a time rather than firing them all in parallel — mainly so the
+// UI can show which file is currently being sent, and so N large multipart
+// uploads aren't all competing for upload bandwidth at once. This only
+// serializes the *upload* though: each request returns as soon as the file
+// is saved and TriggerIngest is fired (fire-and-forget — see
+// worker/src/server.py), so the actual parse/split/embed work for book 1
+// is very likely still running in its own background thread on Worker by
+// the time book 2's upload starts — Worker has no cap on concurrent ingest
+// pipelines (worker.max_concurrent_tasks only sizes its gRPC request
+// thread pool, not pipeline concurrency), so multiple books do end up
+// building at the same time. One failed upload doesn't stop the rest —
 // errors are collected and shown together at the end, same pattern as
 // onBulkDelete/onBulkRebuild's per-item results.
 async function doUploadMany(files: File[]) {
