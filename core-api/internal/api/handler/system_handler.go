@@ -76,7 +76,7 @@ func (h *SystemHandler) Settings(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.SystemSettings{
 		Storage: cfg.Storage, Worker: cfg.Worker, Embedding: cfg.Embedding,
 		LLM: cfg.LLM, Splitter: cfg.Splitter, I18n: cfg.I18n, Chat: cfg.Chat,
-		Keyword: cfg.Keyword, Debug: cfg.Debug,
+		Keyword: cfg.Keyword, Debug: cfg.Debug, Summary: cfg.Summary,
 	})
 }
 
@@ -110,6 +110,7 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	onDisk.Chat = body.Chat
 	onDisk.Keyword = body.Keyword
 	onDisk.Debug = body.Debug
+	onDisk.Summary = body.Summary
 
 	if err := config.SaveToFile(onDisk); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "write config: " + err.Error()})

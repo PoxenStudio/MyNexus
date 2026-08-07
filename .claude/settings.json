@@ -44,7 +44,9 @@
       "Bash(curl -s -o /dev/null -w \"worker-ai: %{http_code}\\\\n\" http://localhost:8001/health)",
       "Bash(git mv *)",
       "Bash(make dev-down *)",
-      "Bash(make dev-up *)"
+      "Bash(make dev-up *)",
+      "Bash(python3 -c ' *)",
+      "Bash(go vet *)"
     ]
   }
 }

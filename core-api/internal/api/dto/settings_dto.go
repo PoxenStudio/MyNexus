@@ -16,4 +16,5 @@ type SystemSettings struct {
 	Chat      config.ChatConfig      `json:"chat"`
 	Keyword   config.KeywordConfig   `json:"keyword"`
 	Debug     config.DebugConfig     `json:"debug"`
+	Summary   config.SummaryConfig   `json:"summary"`
 }

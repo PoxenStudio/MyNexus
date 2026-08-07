@@ -3,6 +3,7 @@ from pathlib import Path
 
 from nodes.parsers.base_parser import BaseParser
 from schemas.document import ParsedChapter, ParsedDocument
+from util.chapter_title import clean_chapter_title, is_skippable_chapter_title
 
 # Matches common chapter headings in Chinese and English plain-text books,
 # e.g. "第一章 ...", "第12回 ...", "Chapter 3 ...".
@@ -13,6 +14,10 @@ CHAPTER_PATTERN = re.compile(
 
 
 class TxtParser(BaseParser):
+    def __init__(self, skip_backmatter_chapters: bool = True) -> None:
+        # See EpubParser.__init__ / config.WorkerConfig.skip_backmatter_chapters.
+        self.skip_backmatter_chapters = skip_backmatter_chapters
+
     @property
     def node_name(self) -> str:
         return "txt_parser"
@@ -25,11 +30,11 @@ class TxtParser(BaseParser):
         text = Path(file_path).read_text(encoding="utf-8", errors="ignore")
         title = Path(display_name).stem if display_name else Path(file_path).stem
 
-        chapters = self._split_chapters(text, fallback_title=title)
+        chapters = self._split_chapters(text, fallback_title=title, skip_backmatter_chapters=self.skip_backmatter_chapters)
         return ParsedDocument(title=title, author="", language="", chapters=chapters)
 
     @staticmethod
-    def _split_chapters(text: str, fallback_title: str) -> list[ParsedChapter]:
+    def _split_chapters(text: str, fallback_title: str, skip_backmatter_chapters: bool = True) -> list[ParsedChapter]:
         lines = text.splitlines()
         chapters: list[ParsedChapter] = []
         current_title = fallback_title
@@ -39,8 +44,9 @@ class TxtParser(BaseParser):
         def flush():
             nonlocal current_lines, order
             content = "\n".join(current_lines).strip()
-            if content:
-                chapters.append(ParsedChapter(title=current_title, level=1, order=order, content=content))
+            cleaned_title = clean_chapter_title(current_title)
+            if content and not (skip_backmatter_chapters and is_skippable_chapter_title(cleaned_title)):
+                chapters.append(ParsedChapter(title=cleaned_title, level=1, order=order, content=content))
                 order += 1
             current_lines = []
 
@@ -53,7 +59,7 @@ class TxtParser(BaseParser):
         flush()
 
         if not chapters:
-            chapters.append(ParsedChapter(title=fallback_title, level=1, order=0, content=text.strip()))
+            chapters.append(ParsedChapter(title=clean_chapter_title(fallback_title), level=1, order=0, content=text.strip()))
         return chapters
 
 

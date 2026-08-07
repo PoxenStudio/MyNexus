@@ -31,8 +31,8 @@ class IngestionPipeline:
     def __init__(self, config: WorkerConfig | None = None) -> None:
         self.config = config or load_config()
         self.parser_registry = ParserRegistry()
-        self.parser_registry.register(EpubParser())
-        self.parser_registry.register(TxtParser())
+        self.parser_registry.register(EpubParser(skip_backmatter_chapters=self.config.skip_backmatter_chapters))
+        self.parser_registry.register(TxtParser(skip_backmatter_chapters=self.config.skip_backmatter_chapters))
         self.cleaner = WhitespaceCleaner()
         self.splitter = TokenSplitter(self.config.splitter.chunk_size, self.config.splitter.chunk_overlap)
         self.embedder = get_embedder(self.config)

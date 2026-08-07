@@ -9,6 +9,7 @@ import AppIcon from "../../components/AppIcon.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
 import KeywordCloud from "../../components/KeywordCloud.vue";
 import MarkdownContent from "../../components/MarkdownContent.vue";
+import { setPageTitleSuffix } from "../../composables/pageTitle";
 import { languageName, languageOptions } from "../../utils/languageCodes";
 
 const { t } = useI18n();
@@ -35,6 +36,14 @@ const coverUrl = computed(() => {
   return apiClient.defaults.baseURL + book.value.cover_url;
 });
 const coverInitial = computed(() => (book.value?.title || book.value?.id || "?").charAt(0).toUpperCase());
+
+// Tab title shows "详情 - <书名>" while this view is open (see App.vue),
+// falling back to the book id if a title hasn't loaded/generated yet.
+watch(
+  () => book.value?.title || book.value?.id,
+  (name) => setPageTitleSuffix(name || null),
+  { immediate: true },
+);
 
 const editingLanguage = ref(false);
 const languageDraft = ref("");
@@ -250,7 +259,10 @@ function stopPolling() {
 }
 
 onMounted(load);
-onUnmounted(stopPolling);
+onUnmounted(() => {
+  stopPolling();
+  setPageTitleSuffix(null);
+});
 </script>
 
 <template>
@@ -317,7 +329,17 @@ onUnmounted(stopPolling);
 
       <div class="summary-section">
         <div class="summary-header">
-          <h2><span class="summary-dot" aria-hidden="true"></span>{{ t("books.bookSummary") }}</h2>
+          <h2>
+            <span class="summary-dot" aria-hidden="true"></span>{{ t("books.bookSummary") }}
+            <button
+              v-if="summarizeState === 'done' && !summarizing && !rebuilding"
+              class="icon-btn"
+              :title="t('books.regenerateBookSummary')"
+              @click="onSummarize('continue')"
+            >
+              <AppIcon name="refresh" :size="16" />
+            </button>
+          </h2>
           <div class="summary-actions">
             <template v-if="summarizing">
               <button class="primary" disabled>{{ t("books.summarizing") }}</button>

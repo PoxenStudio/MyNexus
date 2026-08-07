@@ -90,6 +90,12 @@ export interface SystemSettings {
   debug: {
     llm_logging: boolean;
   };
+  summary: {
+    // When true (the default), the EPUB/TXT parsers drop chapters whose
+    // cleaned title is an index/bibliography heading instead of
+    // ingesting/summarizing them (see worker/src/util/chapter_title.py).
+    skip_backmatter_chapters: boolean;
+  };
 }
 
 export async function fetchSettings(): Promise<SystemSettings> {

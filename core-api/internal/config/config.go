@@ -137,6 +137,17 @@ type KeywordConfig struct {
 	MaxKeywords int `yaml:"max_keywords" json:"max_keywords"`
 }
 
+// SummaryConfig is Worker-side only (worker/src/config.py's
+// skip_backmatter_chapters), same round-trip-fidelity reasoning as
+// DebugConfig above. SkipBackmatterChapters, when true (the default), makes
+// the EPUB/TXT parsers (worker/src/nodes/parsers/*.py) drop chapters whose
+// cleaned title is an index/bibliography heading (see
+// worker/src/util/chapter_title.py) instead of ingesting/summarizing them —
+// system settings page, "生成章节总结时跳过书后参考书目及索引章节".
+type SummaryConfig struct {
+	SkipBackmatterChapters bool `yaml:"skip_backmatter_chapters" json:"skip_backmatter_chapters"`
+}
+
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -149,6 +160,7 @@ type Config struct {
 	Chat      ChatConfig      `yaml:"chat"`
 	Keyword   KeywordConfig   `yaml:"keyword"`
 	Debug     DebugConfig     `yaml:"debug"`
+	Summary   SummaryConfig   `yaml:"summary"`
 
 	// Port kept for backward-compatible direct access; mirrors Server.Port.
 	// yaml:"-" so SaveToFile doesn't emit a spurious top-level "port" key.
@@ -184,6 +196,7 @@ func defaults() Config {
 		Chat:     ChatConfig{Enabled: true, MaxSessions: 100},
 		Keyword:  KeywordConfig{MaxKeywords: 50},
 		Debug:    DebugConfig{LLMLogging: false},
+		Summary:  SummaryConfig{SkipBackmatterChapters: true},
 	}
 }
 

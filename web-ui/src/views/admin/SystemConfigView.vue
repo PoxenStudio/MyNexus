@@ -218,6 +218,10 @@ onMounted(load);
         </label>
         <p class="hint">{{ t("settings.maxKeywordsHint") }}</p>
         <label class="checkbox-row">
+          <input v-model="settings.summary.skip_backmatter_chapters" type="checkbox" />
+          {{ t("settings.skipBackmatterChapters") }}
+        </label>
+        <label class="checkbox-row">
           <input v-model="settings.debug.llm_logging" type="checkbox" />
           {{ t("settings.debugLogging") }}
         </label>

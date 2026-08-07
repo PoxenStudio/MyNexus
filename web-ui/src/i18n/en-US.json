@@ -92,6 +92,7 @@
     "summarize": "Summarize Book",
     "continueSummarize": "Continue Summarizing",
     "resummarize": "Resummarize Book",
+    "regenerateBookSummary": "Regenerate book summary from chapter summaries",
     "summarizing": "Generating…",
     "summarizeProgress": "Generating… {progress}%",
     "summarizeError": "Failed to generate summary",
@@ -231,6 +232,7 @@
     "maxSessionsHint": "Maximum chat sessions kept per user; once exceeded, the oldest session (by last update time) is automatically deleted.",
     "maxKeywords": "Max content keywords",
     "maxKeywordsHint": "Upper bound on the content-keyword cloud shown on a book's detail page. Changing this applies immediately to already-summarized books — no re-summarizing needed.",
+    "skipBackmatterChapters": "Skip bibliography/index chapters when generating chapter summaries",
     "debugLogging": "Enable debug logging",
     "debugLoggingHint": "When on, every LLM call's request and response are each saved as a file under the mynexus-llm-debug subdirectory of the OS temp dir — replay one with worker/tests/replay_llm_debug.py."
   },

@@ -13,6 +13,7 @@ from lxml import etree
 
 from nodes.parsers.base_parser import BaseParser
 from schemas.document import ParsedChapter, ParsedDocument
+from util.chapter_title import clean_chapter_title, is_skippable_chapter_title
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,12 @@ _CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
 
 
 class EpubParser(BaseParser):
+    def __init__(self, skip_backmatter_chapters: bool = True) -> None:
+        # See config.WorkerConfig.skip_backmatter_chapters / system settings
+        # "生成章节总结时跳过书后参考书目及索引章节" — IngestionPipeline wires
+        # this from config at registration time (nodes/parsers/registry.py).
+        self.skip_backmatter_chapters = skip_backmatter_chapters
+
     @property
     def node_name(self) -> str:
         return "epub_parser"
@@ -72,12 +79,14 @@ class EpubParser(BaseParser):
             # publisher-authored title (e.g. "第一章 “机会平等”谬误")
             # vs. whatever heading tag (if any) happens to be first in the
             # document (often just "第一章").
-            chapter_title = (
+            chapter_title = clean_chapter_title(
                 toc_titles.get(href_key)
                 or (heading.get_text().strip() if heading else None)
                 or title
                 or f"Chapter {order + 1}"
             )
+            if self.skip_backmatter_chapters and is_skippable_chapter_title(chapter_title):
+                continue
             chapters.append(ParsedChapter(title=chapter_title, level=1, order=order, content=text))
             order += 1
 

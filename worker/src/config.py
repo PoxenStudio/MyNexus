@@ -80,6 +80,13 @@ class WorkerConfig:
     # leave on disk in a default deployment.
     debug_llm_logging: bool = False
 
+    # skip_backmatter_chapters mirrors Core API's summary.skip_backmatter_chapters
+    # (system settings page, "生成章节总结时跳过书后参考书目及索引章节"). When
+    # true (the default), parsers (nodes/parsers/*.py) drop chapters whose
+    # cleaned title is an index/bibliography heading (see
+    # util/chapter_title.py) instead of ingesting/summarizing them.
+    skip_backmatter_chapters: bool = True
+
     raw: dict = field(default_factory=dict)
 
     @property
@@ -131,6 +138,9 @@ def load_config() -> WorkerConfig:
     cfg.storage_database = raw.get("storage", {}).get("database", cfg.storage_database)
     cfg.core_api_base_url = raw.get("server", {}).get("internal_url", cfg.core_api_base_url)
     cfg.debug_llm_logging = raw.get("debug", {}).get("llm_logging", cfg.debug_llm_logging)
+    cfg.skip_backmatter_chapters = raw.get("summary", {}).get(
+        "skip_backmatter_chapters", cfg.skip_backmatter_chapters
+    )
     cfg.cover_font_path = raw.get("cover", {}).get("font_path", cfg.cover_font_path)
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):

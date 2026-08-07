@@ -92,6 +92,7 @@
     "summarize": "總結全書",
     "continueSummarize": "繼續總結全書",
     "resummarize": "重新總結全書",
+    "regenerateBookSummary": "使用章節摘要重新生成全書總結",
     "summarizing": "生成中…",
     "summarizeProgress": "生成中… {progress}%",
     "summarizeError": "生成總結失敗",
@@ -231,6 +232,7 @@
     "maxSessionsHint": "每個使用者最多保留的會話數量，超出後會自動刪除最早的會話（按最後更新時間）。",
     "maxKeywords": "內容關鍵詞數量上限",
     "maxKeywordsHint": "書籍詳情頁詞雲展示的內容關鍵詞數量上限，修改後已總結過的書籍立即按新上限展示，無需重新總結。",
+    "skipBackmatterChapters": "生成章節總結時跳過書後參考書目及索引章節",
     "debugLogging": "打開調試日誌",
     "debugLoggingHint": "開啟後，每次調用 LLM 的請求與回應都會分別保存為檔案，寫入系統暫存目錄下的 mynexus-llm-debug 子目錄，可用 worker/tests/replay_llm_debug.py 重放調試。"
   },
