@@ -131,7 +131,7 @@ func main() {
 	defer cancelHealth()
 	go watchWorkerHealth(healthCtx, workerClient, taskSvc, bookSvc)
 
-	grpcSrv := grpcserver.New(cfg, service.NewBookService(db, cfg.Storage.UploadDir), taskSvc)
+	grpcSrv := grpcserver.New(cfg, service.NewBookService(db, cfg.Storage.UploadDir), taskSvc, workerClient)
 	go func() {
 		log.Printf("core-api grpc listening on :%s", cfg.Server.GRPCPort)
 		if err := grpcSrv.Serve(); err != nil {

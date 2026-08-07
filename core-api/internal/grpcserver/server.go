@@ -17,6 +17,7 @@ import (
 
 	"mynexus/core-api/internal/api/dto"
 	"mynexus/core-api/internal/config"
+	"mynexus/core-api/internal/coordinator"
 	"mynexus/core-api/internal/grpcapi/mynexuspb"
 	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
@@ -25,13 +26,14 @@ import (
 type CoreAPIServer struct {
 	mynexuspb.UnimplementedCoreApiServiceServer
 
-	books *service.BookService
-	tasks *service.TaskService
-	cfg   config.Config
+	books  *service.BookService
+	tasks  *service.TaskService
+	worker *coordinator.WorkerClient
+	cfg    config.Config
 }
 
-func New(cfg config.Config, books *service.BookService, tasks *service.TaskService) *CoreAPIServer {
-	return &CoreAPIServer{cfg: cfg, books: books, tasks: tasks}
+func New(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient) *CoreAPIServer {
+	return &CoreAPIServer{cfg: cfg, books: books, tasks: tasks, worker: worker}
 }
 
 // Serve blocks, listening on cfg.Server.GRPCPort — run it in a goroutine from main.go.
@@ -122,7 +124,47 @@ func (s *CoreAPIServer) ReportComplete(ctx context.Context, req *mynexuspb.Compl
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 
+	// Auto-chain a summarize run onto every completed ingest (fresh import
+	// or Rebuild — both go through TriggerIngest/ReportComplete) so chapter
+	// + book summaries show up without the user having to separately click
+	// "总结全书" in BookDetailView.vue afterwards. Best-effort: a chapterless
+	// book (parser found nothing usable) or an unreachable Worker just skips
+	// this silently rather than failing the ingest itself, which already
+	// succeeded and shouldn't be reported as broken over this.
+	if len(chapters) > 0 {
+		s.autoSummarize(task.BookID, chapters)
+	}
+
 	return &mynexuspb.Ack{Ok: true}, nil
+}
+
+// autoSummarize fires the map-reduce summarization pipeline (see
+// worker/src/pipelines/summary.py) for a book that just finished ingesting —
+// mirrors book_handler.go's summarizeOne (mode=restart), duplicated here
+// rather than shared since that one drives the HTTP-facing manual
+// "总结全书"/"重新总结全书" button and has its own request/response shape.
+func (s *CoreAPIServer) autoSummarize(bookID string, chapters []service.ParsedChapter) {
+	book, err := s.books.GetBook(bookID)
+	if err != nil {
+		return
+	}
+
+	task, err := s.tasks.CreateTask(bookID, book.UserID, models.TaskTypeSummarize)
+	if err != nil {
+		return
+	}
+
+	reqChapters := make([]coordinator.SummarizeChapter, 0, len(chapters))
+	for _, ch := range chapters {
+		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
+			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content,
+		})
+	}
+	if err := s.worker.TriggerSummarize(coordinator.SummarizeRequest{
+		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: true, Language: book.Language,
+	}); err != nil {
+		_ = s.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
+	}
 }
 
 func (s *CoreAPIServer) ReportFail(ctx context.Context, req *mynexuspb.FailRequest) (*mynexuspb.Ack, error) {
