@@ -1904,6 +1904,250 @@ func (x *LibraryStatsResponse) GetByStatus() []*BookStatusCount {
 	return nil
 }
 
+type BookInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BookInfoRequest) Reset() {
+	*x = BookInfoRequest{}
+	mi := &file_mynexus_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BookInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BookInfoRequest) ProtoMessage() {}
+
+func (x *BookInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BookInfoRequest.ProtoReflect.Descriptor instead.
+func (*BookInfoRequest) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *BookInfoRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+type ChapterInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	Summary       string                 `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChapterInfo) Reset() {
+	*x = ChapterInfo{}
+	mi := &file_mynexus_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChapterInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChapterInfo) ProtoMessage() {}
+
+func (x *ChapterInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChapterInfo.ProtoReflect.Descriptor instead.
+func (*ChapterInfo) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ChapterInfo) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ChapterInfo) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+type BookInfo struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	BookId    string                 `protobuf:"bytes,1,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
+	Title     string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Author    string                 `protobuf:"bytes,3,opt,name=author,proto3" json:"author,omitempty"`
+	Publisher string                 `protobuf:"bytes,4,opt,name=publisher,proto3" json:"publisher,omitempty"`
+	Category  string                 `protobuf:"bytes,5,opt,name=category,proto3" json:"category,omitempty"`
+	Tags      []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	// Whole-book summary (see BookSummaryRequest) — empty if summarization
+	// hasn't run for this book yet.
+	Summary string `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Ordered same as ListChapters (by sort_order); a chapter's summary is
+	// empty if the map step hasn't produced one yet.
+	Chapters      []*ChapterInfo `protobuf:"bytes,8,rep,name=chapters,proto3" json:"chapters,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BookInfo) Reset() {
+	*x = BookInfo{}
+	mi := &file_mynexus_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BookInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BookInfo) ProtoMessage() {}
+
+func (x *BookInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BookInfo.ProtoReflect.Descriptor instead.
+func (*BookInfo) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *BookInfo) GetBookId() string {
+	if x != nil {
+		return x.BookId
+	}
+	return ""
+}
+
+func (x *BookInfo) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *BookInfo) GetAuthor() string {
+	if x != nil {
+		return x.Author
+	}
+	return ""
+}
+
+func (x *BookInfo) GetPublisher() string {
+	if x != nil {
+		return x.Publisher
+	}
+	return ""
+}
+
+func (x *BookInfo) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *BookInfo) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *BookInfo) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *BookInfo) GetChapters() []*ChapterInfo {
+	if x != nil {
+		return x.Chapters
+	}
+	return nil
+}
+
+type BookInfoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Books         []*BookInfo            `protobuf:"bytes,1,rep,name=books,proto3" json:"books,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BookInfoResponse) Reset() {
+	*x = BookInfoResponse{}
+	mi := &file_mynexus_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BookInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BookInfoResponse) ProtoMessage() {}
+
+func (x *BookInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BookInfoResponse.ProtoReflect.Descriptor instead.
+func (*BookInfoResponse) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *BookInfoResponse) GetBooks() []*BookInfo {
+	if x != nil {
+		return x.Books
+	}
+	return nil
+}
+
 var File_mynexus_proto protoreflect.FileDescriptor
 
 const file_mynexus_proto_rawDesc = "" +
@@ -2035,7 +2279,23 @@ const file_mynexus_proto_rawDesc = "" +
 	"\x14LibraryStatsResponse\x12\x1f\n" +
 	"\vtotal_books\x18\x01 \x01(\x05R\n" +
 	"totalBooks\x125\n" +
-	"\tby_status\x18\x02 \x03(\v2\x18.mynexus.BookStatusCountR\bbyStatus2\xed\x02\n" +
+	"\tby_status\x18\x02 \x03(\v2\x18.mynexus.BookStatusCountR\bbyStatus\"'\n" +
+	"\x0fBookInfoRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\"=\n" +
+	"\vChapterInfo\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12\x18\n" +
+	"\asummary\x18\x02 \x01(\tR\asummary\"\xeb\x01\n" +
+	"\bBookInfo\x12\x17\n" +
+	"\abook_id\x18\x01 \x01(\tR\x06bookId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12\x16\n" +
+	"\x06author\x18\x03 \x01(\tR\x06author\x12\x1c\n" +
+	"\tpublisher\x18\x04 \x01(\tR\tpublisher\x12\x1a\n" +
+	"\bcategory\x18\x05 \x01(\tR\bcategory\x12\x12\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12\x18\n" +
+	"\asummary\x18\a \x01(\tR\asummary\x120\n" +
+	"\bchapters\x18\b \x03(\v2\x14.mynexus.ChapterInfoR\bchapters\";\n" +
+	"\x10BookInfoResponse\x12'\n" +
+	"\x05books\x18\x01 \x03(\v2\x11.mynexus.BookInfoR\x05books2\xed\x02\n" +
 	"\rWorkerService\x12;\n" +
 	"\rTriggerIngest\x12\x16.mynexus.IngestRequest\x1a\x12.mynexus.IngestAck\x129\n" +
 	"\x06Search\x12\x16.mynexus.SearchRequest\x1a\x17.mynexus.SearchResponse\x122\n" +
@@ -2043,7 +2303,7 @@ const file_mynexus_proto_rawDesc = "" +
 	"\bShutdown\x12\x18.mynexus.ShutdownRequest\x1a\f.mynexus.Ack\x12D\n" +
 	"\x10TriggerSummarize\x12\x19.mynexus.SummarizeRequest\x1a\x15.mynexus.SummarizeAck\x126\n" +
 	"\n" +
-	"DeleteBook\x12\x1a.mynexus.DeleteBookRequest\x1a\f.mynexus.Ack2\x96\x04\n" +
+	"DeleteBook\x12\x1a.mynexus.DeleteBookRequest\x1a\f.mynexus.Ack2\xda\x04\n" +
 	"\x0eCoreApiService\x128\n" +
 	"\x0eReportProgress\x12\x18.mynexus.ProgressRequest\x1a\f.mynexus.Ack\x128\n" +
 	"\x0eReportMetadata\x12\x18.mynexus.MetadataRequest\x1a\f.mynexus.Ack\x128\n" +
@@ -2053,7 +2313,8 @@ const file_mynexus_proto_rawDesc = "" +
 	"\x14ReportChapterSummary\x12\x1e.mynexus.ChapterSummaryRequest\x1a\f.mynexus.Ack\x12>\n" +
 	"\x11ReportBookSummary\x12\x1b.mynexus.BookSummaryRequest\x1a\f.mynexus.Ack\x12N\n" +
 	"\rKeywordSearch\x12\x1d.mynexus.KeywordSearchRequest\x1a\x1e.mynexus.KeywordSearchResponse\x12N\n" +
-	"\x0fGetLibraryStats\x12\x1c.mynexus.LibraryStatsRequest\x1a\x1d.mynexus.LibraryStatsResponseB-Z+mynexus/core-api/internal/grpcapi/mynexuspbb\x06proto3"
+	"\x0fGetLibraryStats\x12\x1c.mynexus.LibraryStatsRequest\x1a\x1d.mynexus.LibraryStatsResponse\x12B\n" +
+	"\vGetBookInfo\x12\x18.mynexus.BookInfoRequest\x1a\x19.mynexus.BookInfoResponseB-Z+mynexus/core-api/internal/grpcapi/mynexuspbb\x06proto3"
 
 var (
 	file_mynexus_proto_rawDescOnce sync.Once
@@ -2067,7 +2328,7 @@ func file_mynexus_proto_rawDescGZIP() []byte {
 	return file_mynexus_proto_rawDescData
 }
 
-var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_mynexus_proto_goTypes = []any{
 	(*DeleteBookRequest)(nil),     // 0: mynexus.DeleteBookRequest
 	(*ShutdownRequest)(nil),       // 1: mynexus.ShutdownRequest
@@ -2100,6 +2361,10 @@ var file_mynexus_proto_goTypes = []any{
 	(*LibraryStatsRequest)(nil),   // 28: mynexus.LibraryStatsRequest
 	(*BookStatusCount)(nil),       // 29: mynexus.BookStatusCount
 	(*LibraryStatsResponse)(nil),  // 30: mynexus.LibraryStatsResponse
+	(*BookInfoRequest)(nil),       // 31: mynexus.BookInfoRequest
+	(*ChapterInfo)(nil),           // 32: mynexus.ChapterInfo
+	(*BookInfo)(nil),              // 33: mynexus.BookInfo
+	(*BookInfoResponse)(nil),      // 34: mynexus.BookInfoResponse
 }
 var file_mynexus_proto_depIdxs = []int32{
 	17, // 0: mynexus.SummarizeRequest.chapters:type_name -> mynexus.Chapter
@@ -2114,39 +2379,43 @@ var file_mynexus_proto_depIdxs = []int32{
 	24, // 9: mynexus.BookSummaryRequest.keywords:type_name -> mynexus.Keyword
 	26, // 10: mynexus.KeywordSearchResponse.results:type_name -> mynexus.KeywordSearchResult
 	29, // 11: mynexus.LibraryStatsResponse.by_status:type_name -> mynexus.BookStatusCount
-	4,  // 12: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
-	6,  // 13: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
-	10, // 14: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
-	1,  // 15: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
-	2,  // 16: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
-	0,  // 17: mynexus.WorkerService.DeleteBook:input_type -> mynexus.DeleteBookRequest
-	14, // 18: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
-	19, // 19: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
-	20, // 20: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
-	21, // 21: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
-	22, // 22: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
-	23, // 23: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
-	25, // 24: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
-	28, // 25: mynexus.CoreApiService.GetLibraryStats:input_type -> mynexus.LibraryStatsRequest
-	5,  // 26: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
-	8,  // 27: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
-	13, // 28: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
-	15, // 29: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
-	3,  // 30: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
-	15, // 31: mynexus.WorkerService.DeleteBook:output_type -> mynexus.Ack
-	15, // 32: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
-	15, // 33: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
-	15, // 34: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
-	15, // 35: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
-	15, // 36: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
-	15, // 37: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
-	27, // 38: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
-	30, // 39: mynexus.CoreApiService.GetLibraryStats:output_type -> mynexus.LibraryStatsResponse
-	26, // [26:40] is the sub-list for method output_type
-	12, // [12:26] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	32, // 12: mynexus.BookInfo.chapters:type_name -> mynexus.ChapterInfo
+	33, // 13: mynexus.BookInfoResponse.books:type_name -> mynexus.BookInfo
+	4,  // 14: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
+	6,  // 15: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
+	10, // 16: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
+	1,  // 17: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
+	2,  // 18: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
+	0,  // 19: mynexus.WorkerService.DeleteBook:input_type -> mynexus.DeleteBookRequest
+	14, // 20: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
+	19, // 21: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
+	20, // 22: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
+	21, // 23: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
+	22, // 24: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
+	23, // 25: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
+	25, // 26: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
+	28, // 27: mynexus.CoreApiService.GetLibraryStats:input_type -> mynexus.LibraryStatsRequest
+	31, // 28: mynexus.CoreApiService.GetBookInfo:input_type -> mynexus.BookInfoRequest
+	5,  // 29: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
+	8,  // 30: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
+	13, // 31: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
+	15, // 32: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
+	3,  // 33: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
+	15, // 34: mynexus.WorkerService.DeleteBook:output_type -> mynexus.Ack
+	15, // 35: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
+	15, // 36: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
+	15, // 37: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
+	15, // 38: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
+	15, // 39: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
+	15, // 40: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
+	27, // 41: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
+	30, // 42: mynexus.CoreApiService.GetLibraryStats:output_type -> mynexus.LibraryStatsResponse
+	34, // 43: mynexus.CoreApiService.GetBookInfo:output_type -> mynexus.BookInfoResponse
+	29, // [29:44] is the sub-list for method output_type
+	14, // [14:29] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_mynexus_proto_init() }
@@ -2164,7 +2433,7 @@ func file_mynexus_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mynexus_proto_rawDesc), len(file_mynexus_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

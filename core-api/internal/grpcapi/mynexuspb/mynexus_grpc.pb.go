@@ -392,6 +392,7 @@ const (
 	CoreApiService_ReportBookSummary_FullMethodName    = "/mynexus.CoreApiService/ReportBookSummary"
 	CoreApiService_KeywordSearch_FullMethodName        = "/mynexus.CoreApiService/KeywordSearch"
 	CoreApiService_GetLibraryStats_FullMethodName      = "/mynexus.CoreApiService/GetLibraryStats"
+	CoreApiService_GetBookInfo_FullMethodName          = "/mynexus.CoreApiService/GetBookInfo"
 )
 
 // CoreApiServiceClient is the client API for CoreApiService service.
@@ -430,6 +431,18 @@ type CoreApiServiceClient interface {
 	// one-off: keep new ones in this same shape (empty or narrow request,
 	// structured response) rather than a single do-everything RPC.
 	GetLibraryStats(ctx context.Context, in *LibraryStatsRequest, opts ...grpc.CallOption) (*LibraryStatsResponse, error)
+	// Read-only book-metadata/summary lookup, called by Worker's QA pipeline
+	// when the LLM invokes the "get_book_info" chat tool — returns every
+	// field a book record carries (title/author/publisher/category/tags,
+	// the whole-book summary, and each chapter's title+summary) so the
+	// assistant can answer "这本书讲了什么"/"作者是谁"/"第三章讲了什么"
+	// directly from already-generated text, instead of relying on noisy
+	// chunk-level RAG retrieval for what's structurally a lookup, not a
+	// search. query matches case-insensitively against title/author
+	// (substring, same as BookHandler.List's ?q=); results are capped
+	// server-side (see the Go handler) so a vague query can't dump the
+	// whole library into one tool response.
+	GetBookInfo(ctx context.Context, in *BookInfoRequest, opts ...grpc.CallOption) (*BookInfoResponse, error)
 }
 
 type coreApiServiceClient struct {
@@ -520,6 +533,16 @@ func (c *coreApiServiceClient) GetLibraryStats(ctx context.Context, in *LibraryS
 	return out, nil
 }
 
+func (c *coreApiServiceClient) GetBookInfo(ctx context.Context, in *BookInfoRequest, opts ...grpc.CallOption) (*BookInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BookInfoResponse)
+	err := c.cc.Invoke(ctx, CoreApiService_GetBookInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CoreApiServiceServer is the server API for CoreApiService service.
 // All implementations must embed UnimplementedCoreApiServiceServer
 // for forward compatibility.
@@ -556,6 +579,18 @@ type CoreApiServiceServer interface {
 	// one-off: keep new ones in this same shape (empty or narrow request,
 	// structured response) rather than a single do-everything RPC.
 	GetLibraryStats(context.Context, *LibraryStatsRequest) (*LibraryStatsResponse, error)
+	// Read-only book-metadata/summary lookup, called by Worker's QA pipeline
+	// when the LLM invokes the "get_book_info" chat tool — returns every
+	// field a book record carries (title/author/publisher/category/tags,
+	// the whole-book summary, and each chapter's title+summary) so the
+	// assistant can answer "这本书讲了什么"/"作者是谁"/"第三章讲了什么"
+	// directly from already-generated text, instead of relying on noisy
+	// chunk-level RAG retrieval for what's structurally a lookup, not a
+	// search. query matches case-insensitively against title/author
+	// (substring, same as BookHandler.List's ?q=); results are capped
+	// server-side (see the Go handler) so a vague query can't dump the
+	// whole library into one tool response.
+	GetBookInfo(context.Context, *BookInfoRequest) (*BookInfoResponse, error)
 	mustEmbedUnimplementedCoreApiServiceServer()
 }
 
@@ -589,6 +624,9 @@ func (UnimplementedCoreApiServiceServer) KeywordSearch(context.Context, *Keyword
 }
 func (UnimplementedCoreApiServiceServer) GetLibraryStats(context.Context, *LibraryStatsRequest) (*LibraryStatsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLibraryStats not implemented")
+}
+func (UnimplementedCoreApiServiceServer) GetBookInfo(context.Context, *BookInfoRequest) (*BookInfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetBookInfo not implemented")
 }
 func (UnimplementedCoreApiServiceServer) mustEmbedUnimplementedCoreApiServiceServer() {}
 func (UnimplementedCoreApiServiceServer) testEmbeddedByValue()                        {}
@@ -755,6 +793,24 @@ func _CoreApiService_GetLibraryStats_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CoreApiService_GetBookInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BookInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoreApiServiceServer).GetBookInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoreApiService_GetBookInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoreApiServiceServer).GetBookInfo(ctx, req.(*BookInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CoreApiService_ServiceDesc is the grpc.ServiceDesc for CoreApiService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -793,6 +849,10 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLibraryStats",
 			Handler:    _CoreApiService_GetLibraryStats_Handler,
+		},
+		{
+			MethodName: "GetBookInfo",
+			Handler:    _CoreApiService_GetBookInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

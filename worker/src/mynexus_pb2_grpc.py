@@ -397,6 +397,11 @@ class CoreApiServiceStub(object):
                 request_serializer=mynexus__pb2.LibraryStatsRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.LibraryStatsResponse.FromString,
                 _registered_method=True)
+        self.GetBookInfo = channel.unary_unary(
+                '/mynexus.CoreApiService/GetBookInfo',
+                request_serializer=mynexus__pb2.BookInfoRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.BookInfoResponse.FromString,
+                _registered_method=True)
 
 
 class CoreApiServiceServicer(object):
@@ -476,6 +481,23 @@ class CoreApiServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetBookInfo(self, request, context):
+        """Read-only book-metadata/summary lookup, called by Worker's QA pipeline
+        when the LLM invokes the "get_book_info" chat tool — returns every
+        field a book record carries (title/author/publisher/category/tags,
+        the whole-book summary, and each chapter's title+summary) so the
+        assistant can answer "这本书讲了什么"/"作者是谁"/"第三章讲了什么"
+        directly from already-generated text, instead of relying on noisy
+        chunk-level RAG retrieval for what's structurally a lookup, not a
+        search. query matches case-insensitively against title/author
+        (substring, same as BookHandler.List's ?q=); results are capped
+        server-side (see the Go handler) so a vague query can't dump the
+        whole library into one tool response.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CoreApiServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -518,6 +540,11 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
                     servicer.GetLibraryStats,
                     request_deserializer=mynexus__pb2.LibraryStatsRequest.FromString,
                     response_serializer=mynexus__pb2.LibraryStatsResponse.SerializeToString,
+            ),
+            'GetBookInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetBookInfo,
+                    request_deserializer=mynexus__pb2.BookInfoRequest.FromString,
+                    response_serializer=mynexus__pb2.BookInfoResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -738,6 +765,33 @@ class CoreApiService(object):
             '/mynexus.CoreApiService/GetLibraryStats',
             mynexus__pb2.LibraryStatsRequest.SerializeToString,
             mynexus__pb2.LibraryStatsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetBookInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/GetBookInfo',
+            mynexus__pb2.BookInfoRequest.SerializeToString,
+            mynexus__pb2.BookInfoResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -46,7 +46,9 @@
       "Bash(make dev-down *)",
       "Bash(make dev-up *)",
       "Bash(python3 -c ' *)",
-      "Bash(go vet *)"
+      "Bash(go vet *)",
+      "Bash(python3 -c \"import grpc_tools\")",
+      "Bash(pip show *)"
     ]
   }
 }

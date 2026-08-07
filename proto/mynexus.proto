@@ -191,6 +191,19 @@ service CoreApiService {
   // one-off: keep new ones in this same shape (empty or narrow request,
   // structured response) rather than a single do-everything RPC.
   rpc GetLibraryStats(LibraryStatsRequest) returns (LibraryStatsResponse);
+
+  // Read-only book-metadata/summary lookup, called by Worker's QA pipeline
+  // when the LLM invokes the "get_book_info" chat tool — returns every
+  // field a book record carries (title/author/publisher/category/tags,
+  // the whole-book summary, and each chapter's title+summary) so the
+  // assistant can answer "这本书讲了什么"/"作者是谁"/"第三章讲了什么"
+  // directly from already-generated text, instead of relying on noisy
+  // chunk-level RAG retrieval for what's structurally a lookup, not a
+  // search. query matches case-insensitively against title/author
+  // (substring, same as BookHandler.List's ?q=); results are capped
+  // server-side (see the Go handler) so a vague query can't dump the
+  // whole library into one tool response.
+  rpc GetBookInfo(BookInfoRequest) returns (BookInfoResponse);
 }
 
 message ProgressRequest {
@@ -306,4 +319,32 @@ message BookStatusCount {
 message LibraryStatsResponse {
   int32 total_books = 1;
   repeated BookStatusCount by_status = 2;
+}
+
+message BookInfoRequest {
+  string query = 1;
+}
+
+message ChapterInfo {
+  string title = 1;
+  string summary = 2;
+}
+
+message BookInfo {
+  string book_id = 1;
+  string title = 2;
+  string author = 3;
+  string publisher = 4;
+  string category = 5;
+  repeated string tags = 6;
+  // Whole-book summary (see BookSummaryRequest) — empty if summarization
+  // hasn't run for this book yet.
+  string summary = 7;
+  // Ordered same as ListChapters (by sort_order); a chapter's summary is
+  // empty if the map step hasn't produced one yet.
+  repeated ChapterInfo chapters = 8;
+}
+
+message BookInfoResponse {
+  repeated BookInfo books = 1;
 }

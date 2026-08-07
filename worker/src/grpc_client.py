@@ -102,3 +102,26 @@ class CoreApiClient:
             "total_books": resp.total_books,
             "by_status": {c.status: c.count for c in resp.by_status},
         }
+
+    def get_book_info(self, query: str) -> list[dict] | None:
+        """Backs the chat "get_book_info" tool (see tools/book_info.py).
+        Returns None on any RPC error — the tool then reports it couldn't
+        fetch the info rather than raising and aborting the whole chat
+        turn."""
+        try:
+            resp = self._stub.GetBookInfo(mynexus_pb2.BookInfoRequest(query=query), timeout=10)
+        except grpc.RpcError:
+            return None
+        return [
+            {
+                "book_id": b.book_id,
+                "title": b.title,
+                "author": b.author,
+                "publisher": b.publisher,
+                "category": b.category,
+                "tags": list(b.tags),
+                "summary": b.summary,
+                "chapters": [{"title": c.title, "summary": c.summary} for c in b.chapters],
+            }
+            for b in resp.books
+        ]

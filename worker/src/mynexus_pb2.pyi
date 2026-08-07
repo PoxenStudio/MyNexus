@@ -302,3 +302,43 @@ class LibraryStatsResponse(_message.Message):
     total_books: int
     by_status: _containers.RepeatedCompositeFieldContainer[BookStatusCount]
     def __init__(self, total_books: _Optional[int] = ..., by_status: _Optional[_Iterable[_Union[BookStatusCount, _Mapping]]] = ...) -> None: ...
+
+class BookInfoRequest(_message.Message):
+    __slots__ = ("query",)
+    QUERY_FIELD_NUMBER: _ClassVar[int]
+    query: str
+    def __init__(self, query: _Optional[str] = ...) -> None: ...
+
+class ChapterInfo(_message.Message):
+    __slots__ = ("title", "summary")
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    title: str
+    summary: str
+    def __init__(self, title: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
+
+class BookInfo(_message.Message):
+    __slots__ = ("book_id", "title", "author", "publisher", "category", "tags", "summary", "chapters")
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    AUTHOR_FIELD_NUMBER: _ClassVar[int]
+    PUBLISHER_FIELD_NUMBER: _ClassVar[int]
+    CATEGORY_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    CHAPTERS_FIELD_NUMBER: _ClassVar[int]
+    book_id: str
+    title: str
+    author: str
+    publisher: str
+    category: str
+    tags: _containers.RepeatedScalarFieldContainer[str]
+    summary: str
+    chapters: _containers.RepeatedCompositeFieldContainer[ChapterInfo]
+    def __init__(self, book_id: _Optional[str] = ..., title: _Optional[str] = ..., author: _Optional[str] = ..., publisher: _Optional[str] = ..., category: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., summary: _Optional[str] = ..., chapters: _Optional[_Iterable[_Union[ChapterInfo, _Mapping]]] = ...) -> None: ...
+
+class BookInfoResponse(_message.Message):
+    __slots__ = ("books",)
+    BOOKS_FIELD_NUMBER: _ClassVar[int]
+    books: _containers.RepeatedCompositeFieldContainer[BookInfo]
+    def __init__(self, books: _Optional[_Iterable[_Union[BookInfo, _Mapping]]] = ...) -> None: ...
