@@ -39,12 +39,30 @@ func New(cfg config.Config, books *service.BookService, tasks *service.TaskServi
 }
 
 // Serve blocks, listening on cfg.Server.GRPCPort — run it in a goroutine from main.go.
-func (s *CoreAPIServer) Serve() error {
+// Listen binds the gRPC port synchronously — call this from main() *before*
+// anything that might call back into Worker (e.g. internal/dispatch.Dispatcher's
+// startup recovery pass), which in turn calls back into this port to report
+// progress. Split from Serve (below) specifically so main() can guarantee
+// the port is actually bound before triggering any such call, rather than
+// racing a background goroutine's net.Listen against it — that race was
+// real and cost a requeued task its first dispatch attempt (Worker's
+// TriggerIngest handler spawns its background thread and calls
+// ReportProgress almost immediately; if this port isn't listening yet that
+// call fails with UNAVAILABLE, and the task then sits dispatched-but-idle
+// since Worker doesn't retry ReportProgress on its own — see
+// worker/src/pipelines/ingestion.py's run(), which reports failure and
+// stops rather than retrying the callback).
+func (s *CoreAPIServer) Listen() (net.Listener, error) {
 	lis, err := net.Listen("tcp", ":"+s.cfg.Server.GRPCPort)
 	if err != nil {
-		return fmt.Errorf("listen on grpc port %s: %w", s.cfg.Server.GRPCPort, err)
+		return nil, fmt.Errorf("listen on grpc port %s: %w", s.cfg.Server.GRPCPort, err)
 	}
+	return lis, nil
+}
 
+// Serve runs the accept loop against a listener obtained from Listen —
+// blocking, meant to be run in its own goroutine from main().
+func (s *CoreAPIServer) Serve(lis net.Listener) error {
 	grpcServer := grpc.NewServer()
 	mynexuspb.RegisterCoreApiServiceServer(grpcServer, s)
 	return grpcServer.Serve(lis)

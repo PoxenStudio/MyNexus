@@ -156,6 +156,22 @@ func main() {
 
 	dispatcher := dispatch.New(taskSvc, bookSvc, workerClient, cfg.Worker.MaxConcurrentTasks)
 
+	// Bind the gRPC port *before* anything that might dispatch to Worker —
+	// TriggerIngest's handler calls back into this port to report progress
+	// almost immediately (see worker/src/server.py), so if recovery below
+	// re-dispatches a requeued task while this port is still unbound,
+	// Worker's very first callback fails with UNAVAILABLE and the task is
+	// left dispatched but silently stuck (Worker doesn't retry that
+	// callback on its own). Actually starting the accept loop (Serve) can
+	// still happen in the background afterwards — a listener that's bound
+	// but not yet Accept()-ing still queues incoming connections at the OS
+	// level, so this alone is enough to close the race.
+	grpcSrv := grpcserver.New(cfg, service.NewBookService(db, cfg.Storage.UploadDir), taskSvc, workerClient, dispatcher)
+	grpcLis, err := grpcSrv.Listen()
+	if err != nil {
+		log.Fatalf("grpc server failed: %v", err)
+	}
+
 	// Any task still pending/processing predates this process — whatever was
 	// tracking it (this process's or, for a task Worker was mid-run on,
 	// Worker's own in-memory state) is gone. Requeue-and-redispatch (ingest)
@@ -168,10 +184,9 @@ func main() {
 	defer cancelHealth()
 	go watchWorkerHealth(healthCtx, workerClient, taskSvc, bookSvc, dispatcher)
 
-	grpcSrv := grpcserver.New(cfg, service.NewBookService(db, cfg.Storage.UploadDir), taskSvc, workerClient, dispatcher)
 	go func() {
 		log.Printf("core-api grpc listening on :%s", cfg.Server.GRPCPort)
-		if err := grpcSrv.Serve(); err != nil {
+		if err := grpcSrv.Serve(grpcLis); err != nil {
 			log.Fatalf("grpc server failed: %v", err)
 		}
 	}()

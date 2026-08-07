@@ -1,16 +1,27 @@
+import logging
 import os
+import posixpath
 import re
+import tempfile
+import zipfile
+from urllib.parse import unquote
 
 import ebooklib
 from bs4 import BeautifulSoup
 from ebooklib import epub
+from lxml import etree
 
 from nodes.parsers.base_parser import BaseParser
 from schemas.document import ParsedChapter, ParsedDocument
 
+logger = logging.getLogger(__name__)
+
 # Elements whose text extraction/newline-joining rules changed here — see
 # _extract_text's doc comment.
 _BLOCK_TAGS = ["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "pre", "td", "th"]
+
+_OPF_NS = "http://www.idpf.org/2007/opf"
+_CONTAINER_NS = "urn:oasis:names:tc:opendocument:xmlns:container"
 
 
 class EpubParser(BaseParser):
@@ -23,7 +34,7 @@ class EpubParser(BaseParser):
         return [".epub"]
 
     def process(self, file_path: str, display_name: str = "") -> ParsedDocument:
-        book = epub.read_epub(file_path)
+        book = self._read_epub(file_path)
 
         title = self._meta(book, "title")
         author = self._meta(book, "creator")
@@ -78,6 +89,88 @@ class EpubParser(BaseParser):
             title=title, author=author, language=language, chapters=chapters,
             cover=cover, cover_content_type=cover_content_type,
         )
+
+    @staticmethod
+    def _read_epub(file_path: str) -> "epub.EpubBook":
+        """epub.read_epub aborts the *entire* parse the moment any manifest
+        item's href points at a file that isn't actually a member of the zip
+        archive — ebooklib does a bare self.zf.read(name) with no
+        try/except in EpubReader._load_manifest, so one dangling reference
+        (e.g. a cover thumbnail declared in content.opf but never actually
+        packaged) takes down an otherwise-readable book with a raw
+        KeyError. Real-world/non-standard EPUBs hit this occasionally, so
+        rather than failing the whole book, repair the manifest by
+        dropping entries that don't resolve to a real zip member and retry
+        once before giving up."""
+        try:
+            return epub.read_epub(file_path)
+        except KeyError:
+            repaired_path = EpubParser._repair_missing_manifest_items(file_path)
+            if repaired_path is None:
+                raise
+            try:
+                return epub.read_epub(repaired_path)
+            finally:
+                os.unlink(repaired_path)
+
+    @staticmethod
+    def _repair_missing_manifest_items(file_path: str) -> str | None:
+        """Rewrites the OPF's <manifest> (and any matching <spine>
+        itemrefs) to drop items whose href isn't an actual member of the
+        zip archive, writing the result to a new temp .epub whose path is
+        returned. Returns None — "give up, nothing to repair" — if the
+        zip/OPF can't even be parsed, or if every manifest item did
+        resolve (the KeyError that triggered this must have come from
+        something else, e.g. a genuinely corrupt zip)."""
+        try:
+            with zipfile.ZipFile(file_path) as zf:
+                names = set(zf.namelist())
+                container = etree.fromstring(zf.read("META-INF/container.xml"))
+                rootfile = container.find(f".//{{{_CONTAINER_NS}}}rootfile")
+                opf_path = rootfile.get("full-path")
+                opf_dir = posixpath.dirname(opf_path)
+                opf_root = etree.fromstring(zf.read(opf_path))
+
+                manifest = opf_root.find(f"{{{_OPF_NS}}}manifest")
+                if manifest is None:
+                    return None
+
+                missing_ids = set()
+                for item in list(manifest):
+                    href = item.get("href")
+                    if href is None:
+                        continue
+                    item_path = posixpath.join(opf_dir, unquote(href))
+                    if item_path not in names:
+                        missing_ids.add(item.get("id"))
+                        manifest.remove(item)
+
+                if not missing_ids:
+                    return None
+
+                spine = opf_root.find(f"{{{_OPF_NS}}}spine")
+                if spine is not None:
+                    for itemref in list(spine):
+                        if itemref.get("idref") in missing_ids:
+                            spine.remove(itemref)
+
+                logger.warning(
+                    "epub %s: dropping %d manifest item(s) missing from the archive: %s",
+                    file_path, len(missing_ids), ", ".join(sorted(i for i in missing_ids if i)),
+                )
+
+                opf_bytes = etree.tostring(opf_root, xml_declaration=True, encoding="utf-8")
+
+                fd, tmp_path = tempfile.mkstemp(suffix=".epub")
+                os.close(fd)
+                with zipfile.ZipFile(file_path) as src, zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as dst:
+                    for zinfo in src.infolist():
+                        data = opf_bytes if zinfo.filename == opf_path else src.read(zinfo.filename)
+                        dst.writestr(zinfo, data)
+                return tmp_path
+        except Exception:
+            logger.warning("epub %s: manifest repair failed, giving up", file_path, exc_info=True)
+            return None
 
     @staticmethod
     def _extract_text(soup: BeautifulSoup) -> str:

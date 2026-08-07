@@ -233,8 +233,10 @@ func (s *TaskService) requeue(id string) error {
 	if err != nil {
 		return err
 	}
+	// progress resets to 0 too — the old percentage was Worker's, and
+	// nothing is actually running right now to have made any progress.
 	_, err = s.db.Exec(
-		`UPDATE tasks SET status = ?, dispatched_at = NULL, stages_log = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE tasks SET status = ?, progress = 0, dispatched_at = NULL, stages_log = ?, updated_at = ? WHERE id = ?`,
 		models.TaskStatusPending, stagesLog, time.Now().UTC().Format(time.RFC3339), id,
 	)
 	return err
