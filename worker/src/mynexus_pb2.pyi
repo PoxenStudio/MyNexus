@@ -5,6 +5,14 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
+class ReembedBookSummaryRequest(_message.Message):
+    __slots__ = ("book_id", "summary")
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    book_id: str
+    summary: str
+    def __init__(self, book_id: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
+
 class DeleteBookRequest(_message.Message):
     __slots__ = ("book_id",)
     BOOK_ID_FIELD_NUMBER: _ClassVar[int]

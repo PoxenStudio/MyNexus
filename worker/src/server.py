@@ -97,6 +97,13 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
                 ]
                 yield mynexus_pb2.ChatChunk(citations=mynexus_pb2.CitationList(items=citations))
 
+    def ReembedBookSummary(self, request, context):
+        # Synchronous — one embedding call, unlike TriggerIngest/
+        # TriggerSummarize's fire-and-forget background jobs. See the rpc
+        # comment in mynexus.proto and SummaryPipeline.reembed_book_summary.
+        self.summary.reembed_book_summary(request.book_id, request.summary)
+        return mynexus_pb2.Ack(ok=True)
+
     def DeleteBook(self, request, context):
         # Purges every vector-store record for this book_id — called by Core
         # API on book delete and before re-ingesting on rebuild, so ChromaDB/

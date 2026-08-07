@@ -213,6 +213,16 @@ func (h *BookHandler) UpdateSummary(c *gin.Context) {
 		return
 	}
 
+	// Best-effort: keep the summary's vector-store chunk in sync with this
+	// edit (see worker/src/pipelines/summary.py's _index_summary — a
+	// stable-id upsert, so this only re-embeds the one changed chunk, not
+	// the whole book). The edit itself already succeeded above; a Worker
+	// hiccup here just means retrieval keeps serving the previous summary
+	// text until the next successful (re-)embed, not a failed request.
+	if err := h.worker.ReembedBookSummary(id, req.Summary); err != nil {
+		log.Printf("book %s: failed to reembed summary: %v", id, err)
+	}
+
 	book, _ := h.books.GetBook(id)
 	c.JSON(http.StatusOK, dto.NewBookResponse(*book, h.cfg.Keyword.MaxKeywords))
 }

@@ -56,6 +56,11 @@ class WorkerServiceStub(object):
                 request_serializer=mynexus__pb2.ShutdownRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.Ack.FromString,
                 _registered_method=True)
+        self.ReembedBookSummary = channel.unary_unary(
+                '/mynexus.WorkerService/ReembedBookSummary',
+                request_serializer=mynexus__pb2.ReembedBookSummaryRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
         self.TriggerSummarize = channel.unary_unary(
                 '/mynexus.WorkerService/TriggerSummarize',
                 request_serializer=mynexus__pb2.SummarizeRequest.SerializeToString,
@@ -104,6 +109,21 @@ class WorkerServiceServicer(object):
         bring the process back up; in a bare `python3 server.py` dev run nothing
         restarts it automatically. Best-effort: Core API ignores failures here
         (Worker being unreachable already means it isn't running to restart).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReembedBookSummary(self, request, context):
+        """Re-embeds just the whole-book summary as a single retrievable chunk
+        (stable id "{book_id}:summary" — see pipelines/summary.py's
+        _index_summary), after a manual edit via BookHandler.UpdateSummary.
+        Synchronous (one embedding call) unlike TriggerIngest/TriggerSummarize's
+        fire-and-forget background jobs — there's no multi-stage progress to
+        report. Best-effort from Core API's point of view: the summary text
+        itself is already persisted by the time this is called, so a failure
+        here just means retrieval keeps serving the previous (now stale)
+        summary vector until the next successful call.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -158,6 +178,11 @@ def add_WorkerServiceServicer_to_server(servicer, server):
             'Shutdown': grpc.unary_unary_rpc_method_handler(
                     servicer.Shutdown,
                     request_deserializer=mynexus__pb2.ShutdownRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'ReembedBookSummary': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReembedBookSummary,
+                    request_deserializer=mynexus__pb2.ReembedBookSummaryRequest.FromString,
                     response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
             'TriggerSummarize': grpc.unary_unary_rpc_method_handler(
@@ -280,6 +305,33 @@ class WorkerService(object):
             target,
             '/mynexus.WorkerService/Shutdown',
             mynexus__pb2.ShutdownRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReembedBookSummary(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/ReembedBookSummary',
+            mynexus__pb2.ReembedBookSummaryRequest.SerializeToString,
             mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,

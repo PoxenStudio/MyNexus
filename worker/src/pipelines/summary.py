@@ -4,7 +4,8 @@ from typing import Callable
 
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
-from nodes.factory import get_llm
+from nodes.factory import get_embedder, get_llm, get_vector_store
+from schemas.document import Chunk
 from util.keywords import extract_keywords, merge_topk
 from util.text_split import split_into_segments
 
@@ -191,6 +192,12 @@ class SummaryPipeline:
         self.config = config or load_config()
         self.llm = get_llm(self.config)
         self.core_api = CoreApiClient(self.config)
+        # For _index_summary — same embedder/vector_store IngestionPipeline
+        # uses for real content chunks (see nodes/factory.py), reused here so
+        # a summary lands in the exact same collection/backend and is
+        # retrievable alongside its book's other chunks.
+        self.embedder = get_embedder(self.config)
+        self.vector_store = get_vector_store(self.config)
 
     def _complete(self, prompt: str, on_chars: Callable[[int], None] | None = None) -> str:
         # llm.process() streams deltas (it's built for the interactive chat
@@ -260,6 +267,43 @@ class SummaryPipeline:
         )
         return self._complete(reduce_prompt)
 
+    def _index_summary(self, chunk_id: str, book_id: str, chapter_id: str, text: str) -> None:
+        """Embeds one summary (chapter- or book-level) and upserts it as a
+        single retrievable pseudo-chunk, so "这本书讲了什么"-style questions
+        can be answered from RetrievalPipeline like any other chunk, not
+        just via the get_book_info chat tool.
+
+        chunk_id is a *stable*, deterministic id ("{chapter_id}:summary" /
+        "{book_id}:summary" — see call sites) rather than a fresh uuid, so a
+        later re-summarize or manual book-summary edit re-embeds only this
+        one chunk: ChromaStore.upsert (and SimpleVectorStore's) upsert by
+        id, so calling this again with the same id overwrites the old
+        vector in place instead of leaving a stale duplicate behind — no
+        need to touch, let alone re-embed, the rest of the book.
+
+        Best-effort: an embedding-provider hiccup here shouldn't fail the
+        whole summarize run — the summary text itself is already safely
+        persisted via report_chapter_summary/report_book_summary by the
+        time this runs, only its retrievability is at stake.
+        """
+        text = text.strip()
+        if not text:
+            return
+        try:
+            vector = self.embedder.process([text])[0]
+        except Exception:  # noqa: BLE001 - see docstring
+            logger.exception("failed to embed summary chunk %s", chunk_id)
+            return
+        chunk = Chunk(id=chunk_id, book_id=book_id, chapter_id=chapter_id, content=text, position=-1, token_count=0)
+        self.vector_store.upsert([chunk], [vector])
+
+    def reembed_book_summary(self, book_id: str, summary: str) -> None:
+        """Re-embeds just the whole-book summary chunk — called from
+        server.py's ReembedBookSummary RPC handler after a manual edit via
+        BookHandler.UpdateSummary (see .claude/memory/mynexus_chat_tool_calling.md).
+        chapter_id="" mirrors the book-level chunk run() indexes below."""
+        self._index_summary(f"{book_id}:summary", book_id, "", summary)
+
     def summarize_book(self, chapter_summaries: list[tuple[str, str]], lang: str = "zh") -> str:
         joined = "\n\n".join(
             f"[{i + 1}] {title or '（未命名章节）'}\n{summary}" for i, (title, summary) in enumerate(chapter_summaries)
@@ -323,6 +367,7 @@ class SummaryPipeline:
 
                 summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress)
                 self.core_api.report_chapter_summary(task_id, ch.id, summary)
+                self._index_summary(f"{ch.id}:summary", book_id, ch.id, summary)
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
                 progress = 5 + int(80 * (i + 1) / max(total, 1))
@@ -350,6 +395,7 @@ class SummaryPipeline:
 
             self.core_api.report_progress(task_id, 95, "reducing_done")
             self.core_api.report_book_summary(task_id, book_id, book_summary, keywords)
+            self._index_summary(f"{book_id}:summary", book_id, "", book_summary)
         except Exception as exc:  # noqa: BLE001
             logger.exception("summarization failed (task_id=%s book_id=%s)", task_id, book_id)
             self.core_api.report_fail(task_id, str(exc))

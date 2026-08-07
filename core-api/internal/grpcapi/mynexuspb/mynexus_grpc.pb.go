@@ -32,12 +32,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkerService_TriggerIngest_FullMethodName    = "/mynexus.WorkerService/TriggerIngest"
-	WorkerService_Search_FullMethodName           = "/mynexus.WorkerService/Search"
-	WorkerService_Chat_FullMethodName             = "/mynexus.WorkerService/Chat"
-	WorkerService_Shutdown_FullMethodName         = "/mynexus.WorkerService/Shutdown"
-	WorkerService_TriggerSummarize_FullMethodName = "/mynexus.WorkerService/TriggerSummarize"
-	WorkerService_DeleteBook_FullMethodName       = "/mynexus.WorkerService/DeleteBook"
+	WorkerService_TriggerIngest_FullMethodName      = "/mynexus.WorkerService/TriggerIngest"
+	WorkerService_Search_FullMethodName             = "/mynexus.WorkerService/Search"
+	WorkerService_Chat_FullMethodName               = "/mynexus.WorkerService/Chat"
+	WorkerService_Shutdown_FullMethodName           = "/mynexus.WorkerService/Shutdown"
+	WorkerService_ReembedBookSummary_FullMethodName = "/mynexus.WorkerService/ReembedBookSummary"
+	WorkerService_TriggerSummarize_FullMethodName   = "/mynexus.WorkerService/TriggerSummarize"
+	WorkerService_DeleteBook_FullMethodName         = "/mynexus.WorkerService/DeleteBook"
 )
 
 // WorkerServiceClient is the client API for WorkerService service.
@@ -60,6 +61,16 @@ type WorkerServiceClient interface {
 	// restarts it automatically. Best-effort: Core API ignores failures here
 	// (Worker being unreachable already means it isn't running to restart).
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*Ack, error)
+	// Re-embeds just the whole-book summary as a single retrievable chunk
+	// (stable id "{book_id}:summary" — see pipelines/summary.py's
+	// _index_summary), after a manual edit via BookHandler.UpdateSummary.
+	// Synchronous (one embedding call) unlike TriggerIngest/TriggerSummarize's
+	// fire-and-forget background jobs — there's no multi-stage progress to
+	// report. Best-effort from Core API's point of view: the summary text
+	// itself is already persisted by the time this is called, so a failure
+	// here just means retrieval keeps serving the previous (now stale)
+	// summary vector until the next successful call.
+	ReembedBookSummary(ctx context.Context, in *ReembedBookSummaryRequest, opts ...grpc.CallOption) (*Ack, error)
 	// Starts a map-reduce summarization run in the background and returns
 	// immediately, mirroring TriggerIngest: Worker never touches Core API's
 	// database directly (see .claude/memory/mynexus_m2_decisions.md), so the
@@ -137,6 +148,16 @@ func (c *workerServiceClient) Shutdown(ctx context.Context, in *ShutdownRequest,
 	return out, nil
 }
 
+func (c *workerServiceClient) ReembedBookSummary(ctx context.Context, in *ReembedBookSummaryRequest, opts ...grpc.CallOption) (*Ack, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ack)
+	err := c.cc.Invoke(ctx, WorkerService_ReembedBookSummary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *workerServiceClient) TriggerSummarize(ctx context.Context, in *SummarizeRequest, opts ...grpc.CallOption) (*SummarizeAck, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SummarizeAck)
@@ -177,6 +198,16 @@ type WorkerServiceServer interface {
 	// restarts it automatically. Best-effort: Core API ignores failures here
 	// (Worker being unreachable already means it isn't running to restart).
 	Shutdown(context.Context, *ShutdownRequest) (*Ack, error)
+	// Re-embeds just the whole-book summary as a single retrievable chunk
+	// (stable id "{book_id}:summary" — see pipelines/summary.py's
+	// _index_summary), after a manual edit via BookHandler.UpdateSummary.
+	// Synchronous (one embedding call) unlike TriggerIngest/TriggerSummarize's
+	// fire-and-forget background jobs — there's no multi-stage progress to
+	// report. Best-effort from Core API's point of view: the summary text
+	// itself is already persisted by the time this is called, so a failure
+	// here just means retrieval keeps serving the previous (now stale)
+	// summary vector until the next successful call.
+	ReembedBookSummary(context.Context, *ReembedBookSummaryRequest) (*Ack, error)
 	// Starts a map-reduce summarization run in the background and returns
 	// immediately, mirroring TriggerIngest: Worker never touches Core API's
 	// database directly (see .claude/memory/mynexus_m2_decisions.md), so the
@@ -216,6 +247,9 @@ func (UnimplementedWorkerServiceServer) Chat(*ChatRequest, grpc.ServerStreamingS
 }
 func (UnimplementedWorkerServiceServer) Shutdown(context.Context, *ShutdownRequest) (*Ack, error) {
 	return nil, status.Error(codes.Unimplemented, "method Shutdown not implemented")
+}
+func (UnimplementedWorkerServiceServer) ReembedBookSummary(context.Context, *ReembedBookSummaryRequest) (*Ack, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReembedBookSummary not implemented")
 }
 func (UnimplementedWorkerServiceServer) TriggerSummarize(context.Context, *SummarizeRequest) (*SummarizeAck, error) {
 	return nil, status.Error(codes.Unimplemented, "method TriggerSummarize not implemented")
@@ -309,6 +343,24 @@ func _WorkerService_Shutdown_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkerService_ReembedBookSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReembedBookSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServiceServer).ReembedBookSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerService_ReembedBookSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServiceServer).ReembedBookSummary(ctx, req.(*ReembedBookSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WorkerService_TriggerSummarize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SummarizeRequest)
 	if err := dec(in); err != nil {
@@ -363,6 +415,10 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Shutdown",
 			Handler:    _WorkerService_Shutdown_Handler,
+		},
+		{
+			MethodName: "ReembedBookSummary",
+			Handler:    _WorkerService_ReembedBookSummary_Handler,
 		},
 		{
 			MethodName: "TriggerSummarize",

@@ -269,6 +269,23 @@ func (c *WorkerClient) Chat(req ChatRequest) (*ChatStream, error) {
 // accumulates orphaned embeddings for a book_id no longer in Core API's own
 // books/chunks tables (see .claude/memory/mynexus_orphaned_vectors.md) —
 // those otherwise still surface as unresolvable citations in chat.
+// ReembedBookSummary asks Worker to re-embed just the whole-book summary
+// chunk (stable id "{book_id}:summary" — see
+// worker/src/pipelines/summary.py's _index_summary) after a manual edit via
+// BookHandler.UpdateSummary. Synchronous but cheap (one embedding call);
+// best-effort — callers should log-and-continue on error rather than fail
+// the edit itself, since the summary text is already persisted by then.
+func (c *WorkerClient) ReembedBookSummary(bookID, summary string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := c.client.ReembedBookSummary(ctx, &mynexuspb.ReembedBookSummaryRequest{BookId: bookID, Summary: summary})
+	if err != nil {
+		return fmt.Errorf("call worker ReembedBookSummary: %w", err)
+	}
+	return nil
+}
+
 func (c *WorkerClient) DeleteBook(bookID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
