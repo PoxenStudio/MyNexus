@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "axios": "^1.19.0",
+    "dompurify": "^3.4.13",
+    "marked": "^18.0.9",
     "pinia": "^4.0.2",
     "vue": "^3.5.40",
     "vue-i18n": "^11.4.8",

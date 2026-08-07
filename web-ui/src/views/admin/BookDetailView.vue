@@ -7,6 +7,7 @@ import { getTask, listTasks, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
 import KeywordCloud from "../../components/KeywordCloud.vue";
+import MarkdownContent from "../../components/MarkdownContent.vue";
 import { languageName, languageOptions } from "../../utils/languageCodes";
 
 const { t } = useI18n();
@@ -66,30 +67,6 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 // previous visit) via findActiveTask(). Drives the generic "task running"
 // banner; summarize-specific UI (buttons, progress line) still keys off
 // summarizeTask/summarizing so it only lights up for that task type.
-const CHAPTER_SUMMARY_TRUNCATE_LENGTH = 600;
-// Chapter ids whose summary is currently shown in full — everything else
-// renders truncated (see chapterSummaryText()) with a "展开" toggle.
-const expandedChapters = ref(new Set<string>());
-
-function isChapterSummaryLong(summary: string): boolean {
-  return summary.length > CHAPTER_SUMMARY_TRUNCATE_LENGTH;
-}
-
-function chapterSummaryText(ch: { id: string; summary: string }): string {
-  if (expandedChapters.value.has(ch.id) || !isChapterSummaryLong(ch.summary)) return ch.summary;
-  return ch.summary.slice(0, CHAPTER_SUMMARY_TRUNCATE_LENGTH - 100) + "…";
-}
-
-function toggleChapterSummary(id: string) {
-  if (expandedChapters.value.has(id)) {
-    expandedChapters.value.delete(id);
-  } else {
-    expandedChapters.value.add(id);
-  }
-  // Set mutation alone doesn't trigger reactivity on a ref<Set> — replace it.
-  expandedChapters.value = new Set(expandedChapters.value);
-}
-
 // Latest stage message for the summarize task — e.g. summary.py's per-chapter
 // "N/total 《title》 生成中…已输出 X 字" ticks for a chapter that's taking a
 // while, so a long chapter doesn't just sit at the same percentage with no
@@ -297,22 +274,22 @@ onUnmounted(stopPolling);
 
       <div class="summary-section">
         <div class="summary-header">
-          <h2>{{ t("books.bookSummary") }}</h2>
+          <h2><span class="summary-dot" aria-hidden="true"></span>{{ t("books.bookSummary") }}</h2>
           <div class="summary-actions">
             <template v-if="summarizing">
-              <button class="ghost" disabled>{{ t("books.summarizing") }}</button>
+              <button class="primary" disabled>{{ t("books.summarizing") }}</button>
             </template>
             <template v-else>
               <button
                 v-if="summarizeState === 'partial'"
-                class="ghost"
+                class="primary"
                 :disabled="!book.chapters.length || rebuilding"
                 @click="onSummarize('continue')"
               >
                 {{ t("books.continueSummarize") }}
               </button>
               <button
-                class="ghost"
+                class="primary"
                 :disabled="!book.chapters.length || rebuilding"
                 :title="!book.chapters.length ? t('books.noChaptersToSummarize') : undefined"
                 @click="onSummarize('restart')"
@@ -320,7 +297,7 @@ onUnmounted(stopPolling);
                 {{ summarizeState === "none" ? t("books.summarize") : t("books.resummarize") }}
               </button>
             </template>
-            <button class="ghost" :disabled="summarizing || rebuilding" @click="onRebuild">
+            <button class="primary" :disabled="summarizing || rebuilding" @click="onRebuild">
               {{ rebuilding ? t("books.rebuilding") : t("books.rebuild") }}
             </button>
           </div>
@@ -331,20 +308,27 @@ onUnmounted(stopPolling);
         </p>
         <p v-if="summarizeError" class="error">{{ summarizeError }}</p>
         <p v-if="rebuildError" class="error">{{ rebuildError }}</p>
-        <p v-if="book.summary" class="summary-text">{{ book.summary }}</p>
+        <div v-if="book.summary" class="summary-body">
+          <MarkdownContent :content="book.summary" class="summary-text" />
+        </div>
         <p v-else-if="!summarizing" class="empty">{{ t("books.noSummaryYet") }}</p>
       </div>
 
       <h2>{{ t("books.chapters") }}</h2>
       <ol v-if="book.chapters.length" class="chapters">
         <li v-for="ch in book.chapters" :key="ch.id">
-          <div class="chapter-title">{{ ch.title }}</div>
-          <p v-if="ch.summary" class="chapter-summary">
-            {{ chapterSummaryText(ch) }}
-            <button v-if="isChapterSummaryLong(ch.summary)" class="link-btn" @click="toggleChapterSummary(ch.id)">
-              {{ expandedChapters.has(ch.id) ? t("books.collapseSummary") : t("books.expandSummary") }}
-            </button>
-          </p>
+          <details v-if="ch.summary" class="chapter-card" open>
+            <summary class="chapter-title">
+              <span class="chapter-dot" aria-hidden="true"></span>
+              <span class="chapter-title-text">{{ ch.title }}</span>
+              <AppIcon name="chevronDown" :size="18" class="chapter-toggle-icon" />
+            </summary>
+            <MarkdownContent :content="ch.summary" class="chapter-summary" />
+          </details>
+          <div v-else class="chapter-title chapter-title-plain">
+            <span class="chapter-dot" aria-hidden="true"></span>
+            <span class="chapter-title-text">{{ ch.title }}</span>
+          </div>
         </li>
       </ol>
       <p v-else>{{ t("books.noChapters") }}</p>
@@ -437,8 +421,19 @@ onUnmounted(stopPolling);
   gap: 1rem;
 }
 .summary-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0;
   font-size: 1rem;
+}
+.summary-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neon-blue, #1e90ff);
+  box-shadow: 0 0 4px var(--neon-blue, #1e90ff);
 }
 .summary-actions {
   display: flex;
@@ -449,10 +444,11 @@ onUnmounted(stopPolling);
   opacity: 0.75;
   margin: 0.5rem 0 0;
 }
-.summary-text {
+.summary-body {
   margin: 0.75rem 0 0;
-  line-height: 1.6;
-  white-space: pre-wrap;
+}
+.summary-text {
+  font-size: 17.6px;
 }
 .empty {
   margin: 0.75rem 0 0;
@@ -460,30 +456,66 @@ onUnmounted(stopPolling);
   font-size: 0.9rem;
 }
 .chapters {
-  padding-left: 1.25rem;
-}
-.chapters li {
-  padding: 0.4rem 0;
+  list-style: none;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 .chapter-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 500;
 }
-.chapter-summary {
-  margin: 0.25rem 0 0;
-  font-size: 0.85rem;
-  opacity: 0.75;
-  line-height: 1.5;
+.chapter-title-text {
+  flex: 1;
+  min-width: 0;
 }
-.link-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  margin-left: 0.25rem;
-  color: var(--accent);
+.chapter-title-plain {
+  padding: 0.4rem 0.65rem;
+}
+.chapter-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neon-green, #39ff14);
+  box-shadow: 0 0 4px var(--neon-green, #39ff14);
+}
+.chapter-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  box-shadow: var(--elevation-1, 0 1px 2px rgba(0, 0, 0, 0.06));
+  overflow: hidden;
+}
+.chapter-card summary {
+  padding: 0.5rem 0.65rem;
   cursor: pointer;
-  font-size: inherit;
-  opacity: 1;
-  white-space: nowrap;
+  list-style: none;
+}
+.chapter-card summary::-webkit-details-marker {
+  display: none;
+}
+.chapter-card:hover summary {
+  background: var(--surface-hover);
+}
+.chapter-toggle-icon {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+.chapter-card[open] .chapter-toggle-icon {
+  transform: rotate(180deg);
+}
+.chapter-card .chapter-summary {
+  margin: 0;
+  padding: 0 0.65rem 0.65rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
 }
 .badge {
   padding: 0.15rem 0.5rem;
@@ -491,16 +523,24 @@ onUnmounted(stopPolling);
   font-size: 0.75rem;
   background: var(--code-bg);
 }
-button.ghost {
-  border: 1px solid var(--border);
-  background: transparent;
+/* Summarize/rebuild are the important actions on this page, not secondary
+   ones, so they get the app's solid .primary treatment (see e.g.
+   AdminAccountView.vue/UsersView.vue) rather than an outlined ghost button. */
+button.primary {
+  border: none;
+  background: var(--accent);
   padding: 0.35rem 0.8rem;
   border-radius: 6px;
   cursor: pointer;
-  color: inherit;
+  color: white;
   font-size: 0.85rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease;
 }
-button.ghost:disabled {
+button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+}
+button.primary:disabled {
   opacity: 0.5;
   cursor: default;
 }

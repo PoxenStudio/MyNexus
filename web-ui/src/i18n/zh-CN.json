@@ -93,8 +93,6 @@
     "summarizeError": "生成总结失败",
     "noSummaryYet": "暂无全书总结，点击「总结全书」生成",
     "noChaptersToSummarize": "书籍还没有章节数据，无法生成总结",
-    "expandSummary": "展开",
-    "collapseSummary": "收起",
     "activeTask": "任务执行中：{type} · {stage} · {progress}%",
     "rebuild": "重建",
     "rebuilding": "重建中…",

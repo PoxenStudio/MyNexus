@@ -93,8 +93,6 @@
     "summarizeError": "Failed to generate summary",
     "noSummaryYet": "No summary yet — click \"Summarize Book\" to generate one",
     "noChaptersToSummarize": "This book has no chapters yet, can't summarize",
-    "expandSummary": "Expand",
-    "collapseSummary": "Collapse",
     "activeTask": "Task running: {type} · {stage} · {progress}%",
     "rebuild": "Rebuild",
     "rebuilding": "Rebuilding…",
