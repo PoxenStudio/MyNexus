@@ -13,6 +13,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.VSCodeCounter
 .venv/
 venv/
 
