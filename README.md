@@ -4,6 +4,13 @@
 
 ![Main UI](docs/mainui.png)
 
+书籍的总结
+
+![Book](docs/book_header.jpg)
+
+章节的总结
+
+![Chapters](docs/book_detail.jpg)
 
 ## 项目简介
 
