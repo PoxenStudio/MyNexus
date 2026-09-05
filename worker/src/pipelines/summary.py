@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 import time
 from typing import Callable
 
@@ -36,6 +38,19 @@ _KEYWORDS_PER_SEGMENT_TOP_K = 50
 # surface; Core API truncates further at read time regardless of what's
 # stored here.
 _KEYWORDS_ROLLING_CAP = 150
+
+# How many of a chapter's own keywords (pre-book-level-aggregation, see
+# _extract_chapter_keywords) get persisted and shown alongside that chapter,
+# separate from the book-wide _KEYWORDS_ROLLING_CAP above — a single
+# chapter's keyword list is meant to be a quick-scan tag list, not a
+# near-complete vocabulary dump.
+_CHAPTER_KEYWORDS_DISPLAY_CAP = 30
+
+# Cap on how many {name, content} definitions get persisted per chapter —
+# guards against a chapter whose LLM output pathologically over-lists terms
+# (or, on parse trouble, a segment that got merged in without real
+# deduplication) from growing the chapter's stored definitions unbounded.
+_DEFINITIONS_CAP_PER_CHAPTER = 30
 
 # Chapter titles skipped when building the book's keyword set — boilerplate
 # like a copyright/imprint page contributes publisher/legal terms that have
@@ -102,6 +117,36 @@ _BOOK_PROMPT_TEMPLATE = (
     "{chapter_summaries}"
 )
 
+# Definition extraction: identify terms/concepts the chapter itself defines
+# or explains, and report each one's *own* explanation — not something the
+# model recalls from general knowledge — as a strict JSON array so
+# _parse_definitions_json can parse it without any prose wrapped around it.
+# Same split-into-segments treatment as the summary templates above, but the
+# per-segment results are merged by plain dict dedup (see
+# _extract_chapter_definitions) rather than an LLM reduce pass — a list of
+# {name, content} pairs doesn't need rewriting into one coherent narrative
+# the way segment summaries do.
+_DEFINITION_PROMPT_TEMPLATE = (
+    "请阅读下面的章节内容，找出其中作者明确给出定义或解释的重要术语、概念或专有名词，"
+    "只使用原文里实际给出的解释，不要用你自己的知识补充或改写定义。如果原文没有对某个"
+    "词给出解释性说明，就不要把它算作一个定义。将结果整理为一个 JSON 数组，每个元素"
+    "形如 {{\"name\": \"术语\", \"content\": \"原文给出的定义或解释\"}}；如果本章没有"
+    "任何符合条件的术语，输出空数组 []。只输出这个 JSON 数组本身，不要有任何其他文字，"
+    "也不要用 markdown 代码块包裹。\n\n"
+    "章节标题：{title}\n\n正文：\n{content}"
+)
+
+_DEFINITION_SEGMENT_PROMPT_TEMPLATE = (
+    "请阅读下面的内容，找出其中作者明确给出定义或解释的重要术语、概念或专有名词，只"
+    "使用原文里实际给出的解释，不要用你自己的知识补充或改写定义。如果原文没有对某个词"
+    "给出解释性说明，就不要把它算作一个定义。这段内容是《{title}》这一章节的第 "
+    "{index}/{total} 部分（只找这部分实际出现的术语，不要补充你认为章节其他部分可能"
+    "包含的内容）。将结果整理为一个 JSON 数组，每个元素形如 {{\"name\": \"术语\", "
+    "\"content\": \"原文给出的定义或解释\"}}；如果这部分没有任何符合条件的术语，输出"
+    "空数组 []。只输出这个 JSON 数组本身，不要有任何其他文字，也不要用 markdown 代码"
+    "块包裹。\n\n{content}"
+)
+
 # English counterparts of the four templates above, used when the book's
 # language (SummarizeRequest.language, from books.language — MyBooks-style
 # 3-letter codes, see util/lang_detect.py) buckets to "en" (see
@@ -153,6 +198,77 @@ _BOOK_PROMPT_TEMPLATE_EN = (
     "for providing the detailed information\" or \"You described...\"; start "
     "directly with the summary content itself.\n\n{chapter_summaries}"
 )
+
+_DEFINITION_PROMPT_TEMPLATE_EN = (
+    "Read the following chapter and identify important terms, concepts, or "
+    "proper nouns that the author explicitly defines or explains. Use only "
+    "the explanation actually given in the text — don't supplement or rewrite "
+    "it from your own knowledge. If the text doesn't explain a word, don't "
+    "count it as a definition. Format the result as a JSON array, each "
+    "element shaped like {{\"name\": \"term\", \"content\": \"the definition "
+    "or explanation given in the text\"}}; output an empty array [] if this "
+    "chapter has no qualifying terms. Output only that JSON array, nothing "
+    "else, and don't wrap it in a markdown code block.\n\n"
+    "Chapter title: {title}\n\nContent:\n{content}"
+)
+
+_DEFINITION_SEGMENT_PROMPT_TEMPLATE_EN = (
+    "Read the following text and identify important terms, concepts, or "
+    "proper nouns that the author explicitly defines or explains. Use only "
+    "the explanation actually given in the text — don't supplement or rewrite "
+    "it from your own knowledge. If the text doesn't explain a word, don't "
+    "count it as a definition. This is part {index}/{total} of the chapter "
+    "\"{title}\" (only find terms that actually appear in this part, don't "
+    "guess at what the rest of the chapter might contain). Format the result "
+    "as a JSON array, each element shaped like {{\"name\": \"term\", "
+    "\"content\": \"the definition or explanation given in the text\"}}; "
+    "output an empty array [] if this part has no qualifying terms. Output "
+    "only that JSON array, nothing else, and don't wrap it in a markdown code "
+    "block.\n\n{content}"
+)
+
+
+# Matches a ```json ... ``` or bare ``` ... ``` fence some models wrap their
+# JSON output in despite being told not to — used by _parse_definitions_json
+# as a fallback, not the primary path.
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+
+
+def _parse_definitions_json(text: str) -> list[tuple[str, str]]:
+    """Parses one LLM definition-extraction response (see
+    _DEFINITION_PROMPT_TEMPLATE*) into a list of (name, content) pairs.
+    Tolerant of the model wrapping its JSON array in a markdown code fence
+    despite being told not to; anything else that fails to parse as a JSON
+    array of {"name", "content"} objects logs a warning and yields no
+    definitions for that call rather than failing the whole summarize run —
+    an occasional malformed response shouldn't be worse than just getting
+    fewer definitions."""
+    candidates = [text.strip()]
+    fence_match = _JSON_FENCE_RE.search(text)
+    if fence_match:
+        candidates.append(fence_match.group(1).strip())
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(data, list):
+            continue
+        result = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            content = str(item.get("content", "")).strip()
+            if name and content:
+                result.append((name, content))
+        return result
+
+    logger.warning("failed to parse definitions JSON from LLM response: %r", text[:200])
+    return []
 
 
 def _lang_bucket(language: str) -> str:
@@ -322,6 +438,40 @@ class SummaryPipeline:
             totals = merge_topk(totals, candidates, _KEYWORDS_ROLLING_CAP)
         return totals
 
+    def _extract_chapter_definitions(self, title: str, content: str, lang: str) -> list[tuple[str, str]]:
+        """LLM-based extraction of {name, content} definitions from one
+        chapter's raw text (see _DEFINITION_PROMPT_TEMPLATE*). Same
+        split_into_segments treatment as summarize_chapter for a chapter too
+        long for one LLM call, but the per-segment results are merged with a
+        plain dict dedup (last write wins per lowercased name, keeping
+        whichever content is longer) instead of an LLM reduce pass — a list
+        of definitions doesn't need rewriting into prose the way segment
+        summaries do."""
+        segments = split_into_segments(content)
+        if not segments:
+            return []
+
+        def parse_segment(prompt: str) -> list[tuple[str, str]]:
+            return _parse_definitions_json(self._complete(prompt))
+
+        if len(segments) == 1:
+            tmpl = _DEFINITION_PROMPT_TEMPLATE_EN if lang == "en" else _DEFINITION_PROMPT_TEMPLATE
+            found = parse_segment(tmpl.format(title=title, content=segments[0]))
+        else:
+            tmpl = _DEFINITION_SEGMENT_PROMPT_TEMPLATE_EN if lang == "en" else _DEFINITION_SEGMENT_PROMPT_TEMPLATE
+            found = []
+            for i, segment in enumerate(segments):
+                prompt = tmpl.format(title=title, index=i + 1, total=len(segments), content=segment)
+                found.extend(parse_segment(prompt))
+
+        merged: dict[str, tuple[str, str]] = {}
+        for name, content_text in found:
+            key = name.strip().lower()
+            existing = merged.get(key)
+            if existing is None or len(content_text) > len(existing[1]):
+                merged[key] = (name, content_text)
+        return list(merged.values())[:_DEFINITIONS_CAP_PER_CHAPTER]
+
     def run(
         self, task_id: str, book_id: str, chapters: list, force_restart: bool = True, language: str = ""
     ) -> None:
@@ -366,7 +516,27 @@ class SummaryPipeline:
                     self.core_api.report_progress(task_id, progress, "summarizing_chapters", f"{label} {message}")
 
                 summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress)
-                self.core_api.report_chapter_summary(task_id, ch.id, summary)
+
+                # This chapter's own keyword/definition lists — persisted
+                # alongside its summary so the chapter can show them
+                # individually (see ChapterSummaryRequest.keywords/
+                # definitions), independent of the book-level keyword
+                # aggregation further below. Skipped for the same
+                # boilerplate chapters (copyright page etc.) the book-level
+                # aggregation skips.
+                if _is_keyword_skip_chapter(ch.title):
+                    chapter_keywords: list[tuple[str, float]] = []
+                    chapter_definitions: list[tuple[str, str]] = []
+                else:
+                    chapter_keyword_totals = self._extract_chapter_keywords(ch.content, lang)
+                    chapter_keywords = sorted(chapter_keyword_totals.items(), key=lambda item: item[1], reverse=True)[
+                        :_CHAPTER_KEYWORDS_DISPLAY_CAP
+                    ]
+                    chapter_definitions = self._extract_chapter_definitions(ch.title, ch.content, lang)
+
+                self.core_api.report_chapter_summary(
+                    task_id, ch.id, summary, keywords=chapter_keywords, definitions=chapter_definitions
+                )
                 self._index_summary(f"{ch.id}:summary", book_id, ch.id, summary)
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.

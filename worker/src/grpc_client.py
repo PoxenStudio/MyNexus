@@ -57,11 +57,30 @@ class CoreApiClient:
     def report_fail(self, task_id: str, error_msg: str) -> None:
         self._stub.ReportFail(mynexus_pb2.FailRequest(task_id=task_id, error_msg=error_msg))
 
-    def report_chapter_summary(self, task_id: str, chapter_id: str, summary: str) -> None:
+    def report_chapter_summary(
+        self,
+        task_id: str,
+        chapter_id: str,
+        summary: str,
+        keywords: list[tuple[str, float]] | None = None,
+        definitions: list[tuple[str, str]] | None = None,
+    ) -> None:
         """Map step of summarization (see pipelines/summary.py): persists one
-        chapter's summary immediately, so progress survives a mid-run crash."""
+        chapter's summary immediately, so progress survives a mid-run crash.
+
+        keywords: this chapter's own top-N content keywords (distinct from
+        report_book_summary's whole-book aggregate). definitions: {name,
+        content} pairs the chapter itself defines, LLM-extracted."""
+        keyword_msgs = [mynexus_pb2.Keyword(term=term, weight=weight) for term, weight in (keywords or [])]
+        definition_msgs = [mynexus_pb2.Definition(name=name, content=content) for name, content in (definitions or [])]
         self._stub.ReportChapterSummary(
-            mynexus_pb2.ChapterSummaryRequest(task_id=task_id, chapter_id=chapter_id, summary=summary)
+            mynexus_pb2.ChapterSummaryRequest(
+                task_id=task_id,
+                chapter_id=chapter_id,
+                summary=summary,
+                keywords=keyword_msgs,
+                definitions=definition_msgs,
+            )
         )
 
     def report_book_summary(

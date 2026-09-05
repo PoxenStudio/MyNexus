@@ -86,6 +86,8 @@
     "noChapters": "暂无章节数据",
     "keywords": "内容关键词",
     "noKeywords": "无",
+    "chapterKeywords": "本章关键词",
+    "chapterDefinitions": "本章定义",
     "language": "语言",
     "languageSaveError": "保存语言失败",
     "summarySaveError": "保存全书总结失败",

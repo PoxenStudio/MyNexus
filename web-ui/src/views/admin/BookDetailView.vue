@@ -7,6 +7,7 @@ import { apiClient } from "../../api/client";
 import { getTask, listTasks, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
+import DefinitionList from "../../components/DefinitionList.vue";
 import KeywordCloud from "../../components/KeywordCloud.vue";
 import MarkdownContent from "../../components/MarkdownContent.vue";
 import { setPageTitleSuffix } from "../../composables/pageTitle";
@@ -443,6 +444,14 @@ onUnmounted(() => {
               <AppIcon name="chevronDown" :size="18" class="chapter-toggle-icon" />
             </summary>
             <MarkdownContent :content="ch.summary" class="chapter-summary" />
+            <div v-if="ch.keywords.length" class="chapter-extra">
+              <h3>{{ t("books.chapterKeywords") }}</h3>
+              <KeywordCloud :keywords="ch.keywords" />
+            </div>
+            <div v-if="ch.definitions.length" class="chapter-extra">
+              <h3>{{ t("books.chapterDefinitions") }}</h3>
+              <DefinitionList :definitions="ch.definitions" />
+            </div>
           </details>
           <div v-else class="chapter-title chapter-title-plain">
             <span class="chapter-dot" aria-hidden="true"></span>
@@ -704,6 +713,17 @@ onUnmounted(() => {
   padding-top: 0.5rem;
   font-size: 0.85rem;
   opacity: 0.85;
+}
+.chapter-card .chapter-extra {
+  padding: 0 0.65rem 0.65rem;
+}
+.chapter-card .chapter-extra h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .badge {
   padding: 0.15rem 0.5rem;

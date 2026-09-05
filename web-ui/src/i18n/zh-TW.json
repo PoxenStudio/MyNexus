@@ -86,6 +86,8 @@
     "noChapters": "暫無章節數據",
     "keywords": "內容關鍵詞",
     "noKeywords": "無",
+    "chapterKeywords": "本章關鍵詞",
+    "chapterDefinitions": "本章定義",
     "language": "語言",
     "languageSaveError": "保存語言失敗",
     "summarySaveError": "保存全書總結失敗",

@@ -5,6 +5,14 @@ export interface Keyword {
   weight: number;
 }
 
+// One term/concept a chapter itself defines or explains — LLM-extracted
+// (see worker/src/pipelines/summary.py's _extract_chapter_definitions).
+// content is the book's own explanation, not something the model invented.
+export interface Definition {
+  name: string;
+  content: string;
+}
+
 export interface Book {
   id: string;
   title: string;
@@ -35,6 +43,11 @@ export interface Chapter {
   level: number;
   sort_order: number;
   summary: string;
+  // This chapter's own top-N content keywords — distinct from Book.keywords,
+  // which is the whole-book aggregate across every chapter.
+  keywords: Keyword[];
+  // Terms/concepts this chapter itself defines, LLM-extracted.
+  definitions: Definition[];
 }
 
 export interface BookDetail extends Book {

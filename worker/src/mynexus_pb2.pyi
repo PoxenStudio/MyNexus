@@ -236,14 +236,26 @@ class FailRequest(_message.Message):
     def __init__(self, task_id: _Optional[str] = ..., error_msg: _Optional[str] = ...) -> None: ...
 
 class ChapterSummaryRequest(_message.Message):
-    __slots__ = ("task_id", "chapter_id", "summary")
+    __slots__ = ("task_id", "chapter_id", "summary", "keywords", "definitions")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
     CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    KEYWORDS_FIELD_NUMBER: _ClassVar[int]
+    DEFINITIONS_FIELD_NUMBER: _ClassVar[int]
     task_id: str
     chapter_id: str
     summary: str
-    def __init__(self, task_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
+    keywords: _containers.RepeatedCompositeFieldContainer[Keyword]
+    definitions: _containers.RepeatedCompositeFieldContainer[Definition]
+    def __init__(self, task_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., summary: _Optional[str] = ..., keywords: _Optional[_Iterable[_Union[Keyword, _Mapping]]] = ..., definitions: _Optional[_Iterable[_Union[Definition, _Mapping]]] = ...) -> None: ...
+
+class Definition(_message.Message):
+    __slots__ = ("name", "content")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    content: str
+    def __init__(self, name: _Optional[str] = ..., content: _Optional[str] = ...) -> None: ...
 
 class BookSummaryRequest(_message.Message):
     __slots__ = ("task_id", "book_id", "summary", "keywords")

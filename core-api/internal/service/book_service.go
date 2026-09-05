@@ -443,7 +443,7 @@ func (s *BookService) ListChunks(bookID, chapterID string, page, size int) ([]mo
 
 func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 	rows, err := s.db.Query(
-		`SELECT id, book_id, title, level, sort_order, content, summary
+		`SELECT id, book_id, title, level, sort_order, content, summary, keywords, definitions
 		 FROM chapters WHERE book_id = ? ORDER BY sort_order ASC`, bookID)
 	if err != nil {
 		return nil, fmt.Errorf("list chapters: %w", err)
@@ -453,7 +453,9 @@ func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 	var chapters []models.Chapter
 	for rows.Next() {
 		var c models.Chapter
-		if err := rows.Scan(&c.ID, &c.BookID, &c.Title, &c.Level, &c.SortOrder, &c.Content, &c.Summary); err != nil {
+		if err := rows.Scan(
+			&c.ID, &c.BookID, &c.Title, &c.Level, &c.SortOrder, &c.Content, &c.Summary, &c.Keywords, &c.Definitions,
+		); err != nil {
 			return nil, fmt.Errorf("scan chapter: %w", err)
 		}
 		chapters = append(chapters, c)
@@ -461,12 +463,18 @@ func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 	return chapters, rows.Err()
 }
 
-// UpdateChapterSummary persists one chapter's summary — the map step of
+// UpdateChapterSummary persists one chapter's summary, its own top-N
+// keywords, and its LLM-extracted definitions — the map step of
 // worker/src/pipelines/summary.py's summarization run, called once per
 // chapter as soon as it's ready (not batched), so progress survives a
-// mid-run crash/failure.
-func (s *BookService) UpdateChapterSummary(chapterID, summary string) error {
-	_, err := s.db.Exec(`UPDATE chapters SET summary = ? WHERE id = ?`, summary, chapterID)
+// mid-run crash/failure. keywordsJSON/definitionsJSON are already-encoded
+// JSON arrays (see grpcserver.ReportChapterSummary), same storage
+// convention as SetBookSummary's keywordsJSON.
+func (s *BookService) UpdateChapterSummary(chapterID, summary, keywordsJSON, definitionsJSON string) error {
+	_, err := s.db.Exec(
+		`UPDATE chapters SET summary = ?, keywords = ?, definitions = ? WHERE id = ?`,
+		summary, keywordsJSON, definitionsJSON, chapterID,
+	)
 	return err
 }
 

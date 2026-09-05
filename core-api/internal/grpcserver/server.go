@@ -235,7 +235,26 @@ func (s *CoreAPIServer) ReportChapterSummary(ctx context.Context, req *mynexuspb
 	if _, err := s.tasks.GetTask(req.TaskId); err != nil {
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
-	if err := s.books.UpdateChapterSummary(req.ChapterId, req.Summary); err != nil {
+
+	keywords := make([]dto.KeywordResponse, 0, len(req.Keywords))
+	for _, kw := range req.Keywords {
+		keywords = append(keywords, dto.KeywordResponse{Term: kw.Term, Weight: kw.Weight})
+	}
+	keywordsJSON, err := json.Marshal(keywords)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal keywords: %v", err)
+	}
+
+	definitions := make([]dto.DefinitionResponse, 0, len(req.Definitions))
+	for _, def := range req.Definitions {
+		definitions = append(definitions, dto.DefinitionResponse{Name: def.Name, Content: def.Content})
+	}
+	definitionsJSON, err := json.Marshal(definitions)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal definitions: %v", err)
+	}
+
+	if err := s.books.UpdateChapterSummary(req.ChapterId, req.Summary, string(keywordsJSON), string(definitionsJSON)); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return &mynexuspb.Ack{Ok: true}, nil

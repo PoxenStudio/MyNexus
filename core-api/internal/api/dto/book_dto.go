@@ -78,16 +78,52 @@ func NewBookResponse(b models.Book, maxKeywords int) BookResponse {
 	}
 }
 
+// DefinitionResponse is one term/concept a chapter itself defines or
+// explains, LLM-extracted from the chapter's text (see
+// worker/src/pipelines/summary.py's _extract_chapter_definitions) — Content
+// is the book's own explanation, not one the model invented from general
+// knowledge.
+type DefinitionResponse struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
 type ChapterResponse struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	Level     int    `json:"level"`
 	SortOrder int    `json:"sort_order"`
 	Summary   string `json:"summary"`
+	// Keywords is this chapter's own top-N content keywords — distinct from
+	// BookResponse.Keywords, which is the whole-book aggregate across every
+	// chapter (see worker/src/pipelines/summary.py's run()).
+	Keywords    []KeywordResponse    `json:"keywords"`
+	Definitions []DefinitionResponse `json:"definitions"`
 }
 
+// NewChapterResponse decodes c.Keywords/c.Definitions the same way
+// NewBookResponse decodes Book.Keywords — already bounded to a small count
+// at write time (see _CHAPTER_KEYWORDS_DISPLAY_CAP/_DEFINITIONS_CAP_PER_CHAPTER
+// in summary.py), so no further truncation is applied here, just a
+// weight-descending sort for keywords.
 func NewChapterResponse(c models.Chapter) ChapterResponse {
-	return ChapterResponse{ID: c.ID, Title: c.Title, Level: c.Level, SortOrder: c.SortOrder, Summary: c.Summary}
+	var keywords []KeywordResponse
+	_ = json.Unmarshal([]byte(c.Keywords), &keywords)
+	if keywords == nil {
+		keywords = []KeywordResponse{}
+	}
+	sort.Slice(keywords, func(i, j int) bool { return keywords[i].Weight > keywords[j].Weight })
+
+	var definitions []DefinitionResponse
+	_ = json.Unmarshal([]byte(c.Definitions), &definitions)
+	if definitions == nil {
+		definitions = []DefinitionResponse{}
+	}
+
+	return ChapterResponse{
+		ID: c.ID, Title: c.Title, Level: c.Level, SortOrder: c.SortOrder, Summary: c.Summary,
+		Keywords: keywords, Definitions: definitions,
+	}
 }
 
 type BookDetailResponse struct {

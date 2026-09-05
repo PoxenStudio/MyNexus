@@ -48,7 +48,9 @@
       "Bash(python3 -c ' *)",
       "Bash(go vet *)",
       "Bash(python3 -c \"import grpc_tools\")",
-      "Bash(pip show *)"
+      "Bash(pip show *)",
+      "Bash(/Volumes/data/cache/go/bin/protoc-gen-go --version)",
+      "Bash(/Volumes/data/cache/go/bin/protoc-gen-go-grpc --version)"
     ]
   }
 }

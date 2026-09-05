@@ -288,6 +288,20 @@ message ChapterSummaryRequest {
   string task_id = 1;
   string chapter_id = 2;
   string summary = 3;
+  // This chapter's own top-N content keywords (local jieba/NLTK extraction,
+  // see worker/src/util/keywords.py and pipelines/summary.py's
+  // _extract_chapter_keywords) — distinct from BookSummaryRequest.keywords,
+  // which is the whole-book reduction across every chapter.
+  repeated Keyword keywords = 4;
+  // Terms/concepts defined in this chapter's text, LLM-extracted (see
+  // pipelines/summary.py's _extract_chapter_definitions) — the definition
+  // given by the book itself, not one the model invents.
+  repeated Definition definitions = 5;
+}
+
+message Definition {
+  string name = 1;
+  string content = 2;
 }
 
 message BookSummaryRequest {

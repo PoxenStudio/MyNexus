@@ -86,6 +86,8 @@
     "noChapters": "No chapters yet",
     "keywords": "Content Keywords",
     "noKeywords": "None",
+    "chapterKeywords": "Chapter Keywords",
+    "chapterDefinitions": "Chapter Definitions",
     "language": "Language",
     "languageSaveError": "Failed to save language",
     "summarySaveError": "Failed to save the book summary",
