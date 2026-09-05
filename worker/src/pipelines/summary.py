@@ -503,6 +503,12 @@ class SummaryPipeline:
             # Keeps original chapter order for the reduce step: chapters not
             # in to_generate keep their existing summary untouched.
             summaries_by_id = {ch.id: ch.summary for ch in usable}
+            # (chapter_id, summary) pairs awaiting embedding — collected here
+            # instead of indexed immediately per chapter so every embedding
+            # call in this run happens only after every LLM call has
+            # finished (see the comment further below, where they're
+            # actually indexed).
+            pending_index: list[tuple[str, str]] = []
             total = len(to_generate)
             for i, ch in enumerate(to_generate):
                 # Progress before this chapter starts — the same value
@@ -537,7 +543,9 @@ class SummaryPipeline:
                 self.core_api.report_chapter_summary(
                     task_id, ch.id, summary, keywords=chapter_keywords, definitions=chapter_definitions
                 )
-                self._index_summary(f"{ch.id}:summary", book_id, ch.id, summary)
+                # Embedding happens later, in one batch — see pending_index's
+                # declaration above and where it's drained below.
+                pending_index.append((ch.id, summary))
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
                 progress = 5 + int(80 * (i + 1) / max(total, 1))
@@ -565,6 +573,23 @@ class SummaryPipeline:
 
             self.core_api.report_progress(task_id, 95, "reducing_done")
             self.core_api.report_book_summary(task_id, book_id, book_summary, keywords)
+
+            # All embedding calls for this run happen here, after every LLM
+            # call above (chapter summaries, chapter definitions, and the
+            # book-level reduce) has already finished — rather than
+            # interleaved per chapter — so a summarize task swaps between
+            # the LLM and embedding models at most once instead of twice per
+            # chapter. On a memory-constrained local Ollama instance serving
+            # both from the same process, alternating models that often
+            # forces it to reload one or the other every time; see
+            # util/http.py's host_lock docstring for the related (but
+            # distinct — that one's about genuine concurrent overlap, this
+            # is about serial thrashing) failure mode this also helps with.
+            # Chapters skipped this run (force_restart=False, already
+            # summarized) are intentionally not re-embedded here — their
+            # existing vector from a previous run is left as-is.
+            for ch_id, summary in pending_index:
+                self._index_summary(f"{ch_id}:summary", book_id, ch_id, summary)
             self._index_summary(f"{book_id}:summary", book_id, "", book_summary)
         except Exception as exc:  # noqa: BLE001
             logger.exception("summarization failed (task_id=%s book_id=%s)", task_id, book_id)
