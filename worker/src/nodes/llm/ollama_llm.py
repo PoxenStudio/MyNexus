@@ -4,7 +4,7 @@ from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM
 from util.debug_log import LLMCallLogger
-from util.http import call_provider
+from util.http import call_provider, host_lock
 
 
 class OllamaLLM(BaseLLM):
@@ -32,7 +32,12 @@ class OllamaLLM(BaseLLM):
         logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
         chunks: list[str] = []
         try:
-            with call_provider(req, timeout=120, service="llm", provider="ollama", model=self.model) as resp:
+            # Held for the whole streamed response, not just the connect —
+            # see host_lock's docstring for why a partial hold wouldn't
+            # actually prevent the model-swap-mid-generation failure mode.
+            with host_lock(self.base_url), call_provider(
+                req, timeout=120, service="llm", provider="ollama", model=self.model
+            ) as resp:
                 for raw_line in resp:
                     line = raw_line.decode("utf-8", errors="ignore").strip()
                     if not line:
@@ -66,7 +71,9 @@ class OllamaLLM(BaseLLM):
         )
         logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
         try:
-            with call_provider(req, timeout=120, service="llm", provider="ollama", model=self.model) as resp:
+            with host_lock(self.base_url), call_provider(
+                req, timeout=120, service="llm", provider="ollama", model=self.model
+            ) as resp:
                 data = json.loads(resp.read())
         except Exception as exc:
             if logger:

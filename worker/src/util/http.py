@@ -1,5 +1,6 @@
 import ipaddress
 import logging
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -9,6 +10,34 @@ logger = logging.getLogger(__name__)
 
 _no_proxy_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 _default_opener = urllib.request.build_opener()
+
+# One lock per distinct host:port, shared process-wide by every caller that
+# resolves to the same address — regardless of which provider class
+# (OllamaLLM, OllamaEmbedder, ...) or pipeline (ingest, summarize, chat) it's
+# called from. Ollama only keeps one model actively loaded per GPU/CPU
+# budget; if an embedding call (e.g. bge-m3, from an ingest task) and an LLM
+# call (e.g. qwen2.5:7b-instruct, from a concurrently-running summarize or
+# chat) land on the same local Ollama instance at once, Ollama may swap one
+# model out to load the other — and a request whose model just got evicted
+# mid-generation doesn't get a normal error, its connection is simply cut,
+# surfacing here as a bare `HTTPError 500` / `URLError` with nothing useful
+# in Ollama's own log beyond "completion error ... EOF". Ollama's own
+# provider classes hold this lock for the *entire* request (including
+# streaming the response body, not just opening the connection) to keep two
+# different models' requests from ever overlapping against the same
+# instance — see OllamaLLM.process/call and OllamaEmbedder.process. A
+# distinct lock per host:port means unrelated targets (a remote OpenAI
+# endpoint, a second local service) are never serialized against each other
+# for no reason.
+_host_locks_guard = threading.Lock()
+_host_locks: dict[str, threading.Lock] = {}
+
+
+def host_lock(url: str) -> threading.Lock:
+    parsed = urlparse(url)
+    key = f"{parsed.hostname}:{parsed.port or ''}"
+    with _host_locks_guard:
+        return _host_locks.setdefault(key, threading.Lock())
 
 
 def _is_local_or_lan(host: str) -> bool:

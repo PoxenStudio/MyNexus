@@ -2,7 +2,7 @@ import json
 import urllib.request
 
 from nodes.embedders.base_embedder import BaseEmbedder
-from util.http import call_provider
+from util.http import call_provider, host_lock
 
 
 class OllamaEmbedder(BaseEmbedder):
@@ -19,17 +19,22 @@ class OllamaEmbedder(BaseEmbedder):
 
     def process(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
-        for text in texts:
-            payload = json.dumps({"model": self.model, "prompt": text}).encode("utf-8")
-            req = urllib.request.Request(
-                f"{self.base_url}/api/embeddings",
-                data=payload,
-                method="POST",
-                headers={"Content-Type": "application/json"},
-            )
-            with call_provider(req, timeout=60, service="embedding", provider="ollama", model=self.model) as resp:
-                body = json.loads(resp.read())
-            vectors.append(body["embedding"])
+        # Held for the whole batch, not re-acquired per text — otherwise an
+        # LLM call could slip in between two texts of the same batch and
+        # still trigger the model-swap-mid-batch failure this lock exists
+        # to prevent (see host_lock's docstring).
+        with host_lock(self.base_url):
+            for text in texts:
+                payload = json.dumps({"model": self.model, "prompt": text}).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{self.base_url}/api/embeddings",
+                    data=payload,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with call_provider(req, timeout=60, service="embedding", provider="ollama", model=self.model) as resp:
+                    body = json.loads(resp.read())
+                vectors.append(body["embedding"])
         if vectors:
             self._dimension = len(vectors[0])
         return vectors
