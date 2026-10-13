@@ -248,7 +248,10 @@
     "retrievalFusionHint": "加权求和直接混合两路打分，对分数尺度敏感；RRF 按排名融合，对分数分布更稳健。",
     "vectorWeight": "向量检索权重",
     "keywordWeight": "关键词检索权重",
-    "retrievalWeightsHint": "两路权重仅在对应检索有结果时参与归一化，无需保证相加等于 1。"
+    "retrievalWeightsHint": "两路权重仅在对应检索有结果时参与归一化，无需保证相加等于 1。",
+    "localModel": "本地模型",
+    "localModelHint": "模型在首次向量化时自动下载并本地缓存（约 90–220MB），无需 API Key，数据不出本机。",
+    "localNoTest": "本地模式无需连通性测试，保存后直接对书籍建索引即可。"
   },
   "chat": {
     "newSession": "新建会话",

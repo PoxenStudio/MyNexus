@@ -1,5 +1,6 @@
 from config import WorkerConfig
 from nodes.embedders.base_embedder import BaseEmbedder
+from nodes.embedders.local_embedder import LocalEmbedder
 from nodes.embedders.ollama_embedder import OllamaEmbedder
 from nodes.embedders.openai_embedder import OpenAIEmbedder
 from nodes.llm.base_llm import BaseLLM
@@ -13,6 +14,8 @@ from vector_store.simple_store import SimpleVectorStore
 def get_embedder(cfg: WorkerConfig) -> BaseEmbedder:
     if cfg.embedding_provider == "ollama":
         return OllamaEmbedder(cfg.embedding_ollama.base_url, cfg.embedding_ollama.model)
+    if cfg.embedding_provider == "local":
+        return LocalEmbedder(cfg.embedding_local_model)
     provider = cfg.embedding_openai
     return OpenAIEmbedder(provider.api_key, provider.base_url, provider.model)
 

@@ -248,7 +248,10 @@
     "retrievalFusionHint": "Weighted sum blends raw scores directly and is sensitive to score scales; RRF fuses by rank and is more robust to score distributions.",
     "vectorWeight": "Vector retrieval weight",
     "keywordWeight": "Keyword retrieval weight",
-    "retrievalWeightsHint": "Each weight only joins normalisation when its retrieval returned results; they don't need to sum to 1."
+    "retrievalWeightsHint": "Each weight only joins normalisation when its retrieval returned results; they don't need to sum to 1.",
+    "localModel": "Local model",
+    "localModelHint": "The model downloads and caches locally on first vectorization (~90–220MB) — no API key needed; data never leaves this machine.",
+    "localNoTest": "Local mode needs no connectivity test — just index books after saving."
   },
   "chat": {
     "newSession": "New Session",

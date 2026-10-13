@@ -20,14 +20,15 @@ const saving = ref(false);
 const saved = ref(false);
 const error = ref("");
 
-const originalEmbedding = ref<{ provider: string; openai_model: string; ollama_model: string } | null>(null);
+const originalEmbedding = ref<{ provider: string; openai_model: string; ollama_model: string; local_model: string } | null>(null);
 const embeddingChanged = computed(() => {
   if (!settings.value || !originalEmbedding.value) return false;
   const e = settings.value.embedding;
   return (
     e.provider !== originalEmbedding.value.provider ||
     e.openai.model !== originalEmbedding.value.openai_model ||
-    e.ollama.model !== originalEmbedding.value.ollama_model
+    e.ollama.model !== originalEmbedding.value.ollama_model ||
+    e.local.model !== originalEmbedding.value.local_model
   );
 });
 
@@ -39,7 +40,12 @@ async function load() {
   try {
     settings.value = await fetchSettings();
     const e = settings.value.embedding;
-    originalEmbedding.value = { provider: e.provider, openai_model: e.openai.model, ollama_model: e.ollama.model };
+    originalEmbedding.value = {
+      provider: e.provider,
+      openai_model: e.openai.model,
+      ollama_model: e.ollama.model,
+      local_model: e.local.model,
+    };
   } finally {
     loading.value = false;
   }
@@ -154,11 +160,23 @@ onMounted(load);
         <label>
           {{ t("settings.provider") }}
           <select v-model="settings.embedding.provider">
+            <option value="local">local</option>
             <option value="openai">openai</option>
             <option value="ollama">ollama</option>
           </select>
         </label>
-        <template v-if="settings.embedding.provider === 'openai'">
+        <template v-if="settings.embedding.provider === 'local'">
+          <label>
+            {{ t("settings.localModel") }}
+            <select v-model="settings.embedding.local.model">
+              <option value="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2">multilingual-MiniLM-L12-v2 (~220MB)</option>
+              <option value="BAAI/bge-small-zh-v1.5">bge-small-zh-v1.5 (~90MB)</option>
+              <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (~90MB)</option>
+            </select>
+          </label>
+          <p class="hint">{{ t("settings.localModelHint") }}</p>
+        </template>
+        <template v-else-if="settings.embedding.provider === 'openai'">
           <label>
             {{ t("settings.apiKey") }}
             <input v-model="settings.embedding.openai.api_key" type="password" autocomplete="off" />
@@ -182,7 +200,7 @@ onMounted(load);
             <input v-model="settings.embedding.ollama.model" />
           </label>
         </template>
-        <div class="test-row">
+        <div v-if="settings.embedding.provider !== 'local'" class="test-row">
           <button type="button" :disabled="testing === 'embedding'" @click="runTest('embedding')">
             {{ testing === "embedding" ? t("common.loading") : t("settings.testConnection") }}
           </button>
@@ -190,6 +208,7 @@ onMounted(load);
             {{ testResult.message }}
           </span>
         </div>
+        <p v-else class="hint">{{ t("settings.localNoTest") }}</p>
         <p v-if="embeddingChanged" class="hint warn">{{ t("settings.embeddingChangedHint") }}</p>
       </fieldset>
 

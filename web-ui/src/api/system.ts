@@ -59,6 +59,7 @@ export interface SystemSettings {
     provider: string;
     openai: ProviderSettings;
     ollama: ProviderSettings;
+    local: { model: string };
   };
   llm: {
     provider: string;
@@ -120,7 +121,7 @@ export interface ProviderTestResult {
 
 export interface ProviderTestRequest {
   provider: "embedding" | "llm";
-  kind: "openai" | "ollama";
+  kind: "openai" | "ollama" | "local";
   base_url: string;
   api_key?: string;
   model?: string;

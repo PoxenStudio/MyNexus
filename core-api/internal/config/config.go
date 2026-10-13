@@ -80,10 +80,15 @@ type ProviderConfig struct {
 	Model   string `yaml:"model" json:"model"`
 }
 
+type LocalEmbeddingConfig struct {
+	Model string `yaml:"model" json:"model"`
+}
+
 type EmbeddingConfig struct {
-	Provider string         `yaml:"provider" json:"provider"`
-	OpenAI   ProviderConfig `yaml:"openai" json:"openai"`
-	Ollama   ProviderConfig `yaml:"ollama" json:"ollama"`
+	Provider string               `yaml:"provider" json:"provider"`
+	OpenAI   ProviderConfig       `yaml:"openai" json:"openai"`
+	Ollama   ProviderConfig       `yaml:"ollama" json:"ollama"`
+	Local    LocalEmbeddingConfig `yaml:"local" json:"local"`
 }
 
 type LLMConfig struct {
@@ -189,9 +194,10 @@ func defaults() Config {
 		// Embedding/LLM/Splitter defaults mirror worker/src/config.py's
 		// dataclass defaults — keep the two in sync if either changes.
 		Embedding: EmbeddingConfig{
-			Provider: "openai",
+			Provider: "local",
 			OpenAI:   ProviderConfig{BaseURL: "https://api.openai.com/v1", Model: "text-embedding-3-small"},
 			Ollama:   ProviderConfig{BaseURL: "http://localhost:11434", Model: "nomic-embed-text"},
+			Local:    LocalEmbeddingConfig{Model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"},
 		},
 		LLM: LLMConfig{
 			Provider: "openai",

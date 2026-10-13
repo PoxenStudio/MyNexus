@@ -25,13 +25,14 @@ class WorkerConfig:
     port: int = 8001
     max_concurrent_tasks: int = 1
 
-    embedding_provider: str = "openai"
+    embedding_provider: str = "local"
     embedding_openai: ProviderConfig = field(
         default_factory=lambda: ProviderConfig(base_url="https://api.openai.com/v1", model="text-embedding-3-small")
     )
     embedding_ollama: ProviderConfig = field(
         default_factory=lambda: ProviderConfig(base_url="http://localhost:11434", model="nomic-embed-text")
     )
+    embedding_local_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
     llm_provider: str = "openai"
     llm_openai: ProviderConfig = field(
@@ -98,7 +99,11 @@ class WorkerConfig:
 
     @property
     def active_embedder(self) -> ProviderConfig:
-        return self.embedding_openai if self.embedding_provider == "openai" else self.embedding_ollama
+        if self.embedding_provider == "openai":
+            return self.embedding_openai
+        if self.embedding_provider == "ollama":
+            return self.embedding_ollama
+        return ProviderConfig(model=self.embedding_local_model)
 
     @property
     def active_llm(self) -> ProviderConfig:
@@ -128,6 +133,7 @@ def load_config() -> WorkerConfig:
     cfg.embedding_provider = raw.get("embedding", {}).get("provider", cfg.embedding_provider)
     cfg.embedding_openai = _provider(raw, "embedding", "openai", cfg.embedding_openai)
     cfg.embedding_ollama = _provider(raw, "embedding", "ollama", cfg.embedding_ollama)
+    cfg.embedding_local_model = raw.get("embedding", {}).get("local", {}).get("model", cfg.embedding_local_model)
 
     cfg.llm_provider = raw.get("llm", {}).get("provider", cfg.llm_provider)
     cfg.llm_openai = _provider(raw, "llm", "openai", cfg.llm_openai)

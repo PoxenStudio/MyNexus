@@ -140,16 +140,22 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 // TestProvider pings the submitted provider settings (ollama: GET /api/tags,
 // openai-compatible: GET /models with Bearer auth) without saving anything,
 // so the settings page can verify connectivity before the save+restart cycle.
+// kind=local has no remote endpoint to ping: the model downloads on first use.
 func (h *SystemHandler) TestProvider(c *gin.Context) {
 	var body struct {
 		Provider string `json:"provider" binding:"required,oneof=embedding llm"`
-		Kind     string `json:"kind" binding:"required,oneof=openai ollama"`
+		Kind     string `json:"kind" binding:"required,oneof=openai ollama local"`
 		BaseURL  string `json:"base_url" binding:"required"`
 		APIKey   string `json:"api_key"`
 		Model    string `json:"model"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if body.Kind == "local" {
+		c.JSON(http.StatusOK, gin.H{"ok": true, "note": "local provider has no endpoint to test; the model downloads on first use"})
 		return
 	}
 
