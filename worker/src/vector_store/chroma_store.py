@@ -38,6 +38,8 @@ class ChromaStore(BaseVectorStore):
                     "chapter_id": c.chapter_id,
                     "position": c.position,
                     "token_count": c.token_count,
+                    "start_offset": getattr(c, "start_offset", 0),
+                    "end_offset": getattr(c, "end_offset", 0),
                 }
                 for c in chunks
             ],
@@ -79,6 +81,8 @@ class ChromaStore(BaseVectorStore):
             "content": content,
             "position": metadata.get("position", 0),
             "token_count": metadata.get("token_count", 0),
+            "start_offset": metadata.get("start_offset", 0),
+            "end_offset": metadata.get("end_offset", 0),
         }
 
 

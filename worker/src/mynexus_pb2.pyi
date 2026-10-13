@@ -341,13 +341,37 @@ class BookInfoRequest(_message.Message):
     query: str
     def __init__(self, query: _Optional[str] = ...) -> None: ...
 
+class ChapterContentRequest(_message.Message):
+    __slots__ = ("book_id", "chapter_id")
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
+    book_id: str
+    chapter_id: str
+    def __init__(self, book_id: _Optional[str] = ..., chapter_id: _Optional[str] = ...) -> None: ...
+
+class ChapterContentResponse(_message.Message):
+    __slots__ = ("chapter_id", "title", "content", "sort_order")
+    CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_FIELD_NUMBER: _ClassVar[int]
+    SORT_ORDER_FIELD_NUMBER: _ClassVar[int]
+    chapter_id: str
+    title: str
+    content: str
+    sort_order: int
+    def __init__(self, chapter_id: _Optional[str] = ..., title: _Optional[str] = ..., content: _Optional[str] = ..., sort_order: _Optional[int] = ...) -> None: ...
+
 class ChapterInfo(_message.Message):
-    __slots__ = ("title", "summary")
+    __slots__ = ("chapter_id", "title", "summary", "sort_order")
+    CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
     TITLE_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    SORT_ORDER_FIELD_NUMBER: _ClassVar[int]
+    chapter_id: str
     title: str
     summary: str
-    def __init__(self, title: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
+    sort_order: int
+    def __init__(self, chapter_id: _Optional[str] = ..., title: _Optional[str] = ..., summary: _Optional[str] = ..., sort_order: _Optional[int] = ...) -> None: ...
 
 class BookInfo(_message.Message):
     __slots__ = ("book_id", "title", "author", "publisher", "category", "tags", "summary", "chapters")

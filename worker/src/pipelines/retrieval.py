@@ -54,20 +54,32 @@ class RetrievalPipeline:
         book_ids: list[str] | None = None,
         top_k: int = 10,
         score_threshold: float = 0.0,
+        mode: str = "hybrid",
     ) -> list[dict]:
         records = self.vector_store.all(book_ids)
         if not records:
             return []
 
-        vector_scores = self._vector_scores(query, book_ids, len(records))
-        keyword_scores = self._keyword_scores(query, records, book_ids, top_k)
+        vector_scores: dict[str, float] = {}
+        keyword_scores: dict[str, float] = {}
+        if mode in ("hybrid", "vector"):
+            vector_scores = self._vector_scores(query, book_ids, len(records))
+        if mode in ("hybrid", "bm25"):
+            keyword_scores = self._keyword_scores(query, records, book_ids, top_k)
+
+        active_weights = {
+            "vector": self.VECTOR_WEIGHT if vector_scores else 0.0,
+            "keyword": self.KEYWORD_WEIGHT if keyword_scores else 0.0,
+        }
+        weight_sum = sum(active_weights.values())
+        if weight_sum == 0:
+            return []
 
         fused = []
         for r in records:
             v = vector_scores.get(r["id"], 0.0)
             k = keyword_scores.get(r["id"], 0.0)
-            weight_sum = (self.VECTOR_WEIGHT if vector_scores else 0) + self.KEYWORD_WEIGHT
-            score = (self.VECTOR_WEIGHT * v + self.KEYWORD_WEIGHT * k) / weight_sum
+            score = (active_weights["vector"] * v + active_weights["keyword"] * k) / weight_sum
             if score >= score_threshold:
                 fused.append({**r, "score": score, "vector_score": v, "keyword_score": k})
 

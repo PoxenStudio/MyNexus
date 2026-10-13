@@ -212,6 +212,14 @@ service CoreApiService {
   // structured response) rather than a single do-everything RPC.
   rpc GetLibraryStats(LibraryStatsRequest) returns (LibraryStatsResponse);
 
+  // Read-only chapter-content lookup, called by Worker's QA pipeline when the
+  // LLM invokes the "read_chapter" chat tool — returns the chapter's cleaned
+  // plain-text content (same text the chunks were split from, so character
+  // offsets align) plus title/order for display. Backs sequential-reading
+  // questions (chapter overview, character relations) that semantic retrieval
+  // handles poorly. Read-only; no task/state side effects.
+  rpc GetChapterContent(ChapterContentRequest) returns (ChapterContentResponse);
+
   // Read-only book-metadata/summary lookup, called by Worker's QA pipeline
   // when the LLM invokes the "get_book_info" chat tool — returns every
   // field a book record carries (title/author/publisher/category/tags,
@@ -361,9 +369,23 @@ message BookInfoRequest {
   string query = 1;
 }
 
+message ChapterContentRequest {
+  string book_id = 1;
+  string chapter_id = 2;
+}
+
+message ChapterContentResponse {
+  string chapter_id = 1;
+  string title = 2;
+  string content = 3;
+  int32 sort_order = 4;
+}
+
 message ChapterInfo {
-  string title = 1;
-  string summary = 2;
+  string chapter_id = 1;
+  string title = 2;
+  string summary = 3;
+  int32 sort_order = 4;
 }
 
 message BookInfo {

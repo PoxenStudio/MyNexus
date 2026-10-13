@@ -124,6 +124,24 @@ class CoreApiClient:
             "by_status": {c.status: c.count for c in resp.by_status},
         }
 
+    def get_chapter_content(self, book_id: str, chapter_id: str) -> dict | None:
+        """Backs the chat "read_chapter" tool (see tools/read_chapter.py).
+        Returns None on any RPC error — the tool then reports it couldn't
+        fetch the chapter rather than raising and aborting the whole chat
+        turn."""
+        try:
+            resp = self._stub.GetChapterContent(
+                mynexus_pb2.ChapterContentRequest(book_id=book_id, chapter_id=chapter_id), timeout=10
+            )
+        except grpc.RpcError:
+            return None
+        return {
+            "chapter_id": resp.chapter_id,
+            "title": resp.title,
+            "content": resp.content,
+            "sort_order": resp.sort_order,
+        }
+
     def get_book_info(self, query: str) -> list[dict] | None:
         """Backs the chat "get_book_info" tool (see tools/book_info.py).
         Returns None on any RPC error — the tool then reports it couldn't
@@ -142,7 +160,15 @@ class CoreApiClient:
                 "category": b.category,
                 "tags": list(b.tags),
                 "summary": b.summary,
-                "chapters": [{"title": c.title, "summary": c.summary} for c in b.chapters],
+                "chapters": [
+                    {
+                        "chapter_id": c.chapter_id,
+                        "title": c.title,
+                        "summary": c.summary,
+                        "sort_order": c.sort_order,
+                    }
+                    for c in b.chapters
+                ],
             }
             for b in resp.books
         ]

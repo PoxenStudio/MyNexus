@@ -6,7 +6,10 @@ from nodes.factory import get_llm
 from pipelines.retrieval import RetrievalPipeline
 from tools.book_info import BookInfoTool
 from tools.library_stats import LibraryStatsTool
+from tools.list_chapters import ListChaptersTool
+from tools.read_chapter import ReadChapterTool
 from tools.registry import ToolRegistry
+from tools.semantic_search import SemanticSearchTool
 
 _SYSTEM_PROMPT_TEMPLATE = (
     "你是一个书籍知识库问答助手。请仅根据下面提供的参考片段回答用户问题，"
@@ -20,11 +23,14 @@ _SYSTEM_PROMPT_TEMPLATE = (
 # hasn't run yet at that point, and system-status/book-info questions
 # wouldn't hit anything relevant in it anyway).
 _TOOL_DECISION_PROMPT = (
-    "你是一个书籍知识库问答助手，可以调用工具查询系统状态或书籍基础信息。"
-    "如果用户问题是关于系统/书库本身状态的（例如书籍数量、处理进度等），"
-    "或者是关于某本书的基础信息/总结类问题（例如作者、出版社、分类、标签、"
-    "全书总结、某一章讲了什么），请调用合适的工具；"
-    "如果问题需要引用书籍具体内容的细节片段，不要调用任何工具，直接留空。"
+    "你是一个书籍知识库问答助手，可以调用工具查询系统状态、书籍基础信息、书籍章节结构与正文、"
+    "或按语义检索内容片段。请按问题类型选择工具：\n"
+    "- 系统/书库状态（数量、进度）→ get_library_stats\n"
+    "- 书的元信息/已生成的总结 → get_book_info\n"
+    "- 章节目录（决定读哪章）→ list_chapters\n"
+    "- 章节正文/概述/人物关系/情节脉络 → read_chapter\n"
+    "- 按语义找观点/定位段落/跨书检索 → semantic_search\n"
+    "如果问题不在上述范围、或可通过对话历史直接回答，不要调用任何工具，直接留空。"
 )
 
 
@@ -43,7 +49,15 @@ class QAPipeline:
         # second one just for tools. Add new BaseTool subclasses here as the
         # assistant's system-status/book-lookup capabilities grow (see
         # tools/base.py).
-        self.tools = ToolRegistry([LibraryStatsTool(self.retrieval.core_api), BookInfoTool(self.retrieval.core_api)])
+        self.tools = ToolRegistry(
+            [
+                LibraryStatsTool(self.retrieval.core_api),
+                BookInfoTool(self.retrieval.core_api),
+                ListChaptersTool(self.retrieval.core_api),
+                ReadChapterTool(self.retrieval.core_api),
+                SemanticSearchTool(self.retrieval),
+            ]
+        )
 
     def answer(
         self, messages: list[dict], book_ids: list[str] | None = None, top_k: int = 5
@@ -105,11 +119,12 @@ class QAPipeline:
         return call["name"], call["arguments"]
 
     def _answer_from_tool(self, messages: list[dict], result: dict) -> Iterator[dict]:
-        """Streams the final answer once a tool result is in hand. No
-        citations here — the answer comes from a structured lookup (system
-        status, or a book's stored metadata/summaries), not retrieved chunk
-        content, so there's nothing to cite (empty citations list, same
-        event shape the RAG path emits)."""
+        """Streams the final answer once a tool result is in hand. Tool results
+        may carry a __citations side-channel (semantic_search / read_chapter
+        do, so the frontend can still render clickable references) — those are
+        stripped from the LLM payload and forwarded as the turn's citations
+        event instead of the default empty list."""
+        citations = result.pop("__citations", []) or []
         system_message = {
             "role": "system",
             "content": (
@@ -122,7 +137,7 @@ class QAPipeline:
         llm_messages = [system_message] + messages
         for delta in self.llm.process(llm_messages):
             yield {"type": "delta", "content": delta}
-        yield {"type": "citations", "citations": []}
+        yield {"type": "citations", "citations": citations}
 
 
 if __name__ == "__main__":

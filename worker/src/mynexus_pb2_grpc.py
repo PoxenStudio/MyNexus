@@ -449,6 +449,11 @@ class CoreApiServiceStub(object):
                 request_serializer=mynexus__pb2.LibraryStatsRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.LibraryStatsResponse.FromString,
                 _registered_method=True)
+        self.GetChapterContent = channel.unary_unary(
+                '/mynexus.CoreApiService/GetChapterContent',
+                request_serializer=mynexus__pb2.ChapterContentRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.ChapterContentResponse.FromString,
+                _registered_method=True)
         self.GetBookInfo = channel.unary_unary(
                 '/mynexus.CoreApiService/GetBookInfo',
                 request_serializer=mynexus__pb2.BookInfoRequest.SerializeToString,
@@ -533,6 +538,18 @@ class CoreApiServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetChapterContent(self, request, context):
+        """Read-only chapter-content lookup, called by Worker's QA pipeline when the
+        LLM invokes the "read_chapter" chat tool — returns the chapter's cleaned
+        plain-text content (same text the chunks were split from, so character
+        offsets align) plus title/order for display. Backs sequential-reading
+        questions (chapter overview, character relations) that semantic retrieval
+        handles poorly. Read-only; no task/state side effects.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetBookInfo(self, request, context):
         """Read-only book-metadata/summary lookup, called by Worker's QA pipeline
         when the LLM invokes the "get_book_info" chat tool — returns every
@@ -592,6 +609,11 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
                     servicer.GetLibraryStats,
                     request_deserializer=mynexus__pb2.LibraryStatsRequest.FromString,
                     response_serializer=mynexus__pb2.LibraryStatsResponse.SerializeToString,
+            ),
+            'GetChapterContent': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetChapterContent,
+                    request_deserializer=mynexus__pb2.ChapterContentRequest.FromString,
+                    response_serializer=mynexus__pb2.ChapterContentResponse.SerializeToString,
             ),
             'GetBookInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.GetBookInfo,
@@ -817,6 +839,33 @@ class CoreApiService(object):
             '/mynexus.CoreApiService/GetLibraryStats',
             mynexus__pb2.LibraryStatsRequest.SerializeToString,
             mynexus__pb2.LibraryStatsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetChapterContent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/GetChapterContent',
+            mynexus__pb2.ChapterContentRequest.SerializeToString,
+            mynexus__pb2.ChapterContentResponse.FromString,
             options,
             channel_credentials,
             insecure,

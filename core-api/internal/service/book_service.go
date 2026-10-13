@@ -509,6 +509,22 @@ func (s *BookService) ChapterTitle(chapterID string) (string, error) {
 	return title, nil
 }
 
+// GetChapterByID returns one chapter with its full cleaned content, scoped to
+// the given book (caller-facing safety: a wrong book_id yields NotFound even
+// if the chapter id exists under another book). Backs the chat "read_chapter"
+// tool via grpcserver.GetChapterContent.
+func (s *BookService) GetChapterByID(bookID, chapterID string) (*models.Chapter, error) {
+	var c models.Chapter
+	err := s.db.QueryRow(
+		`SELECT id, book_id, title, level, sort_order, content FROM chapters WHERE id = ? AND book_id = ?`,
+		chapterID, bookID,
+	).Scan(&c.ID, &c.BookID, &c.Title, &c.Level, &c.SortOrder, &c.Content)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 // KeywordSearchResult is one hit from KeywordSearch, ranked by Postgres's
 // ts_rank over the chunks.content_tsv generated column.
 type KeywordSearchResult struct {

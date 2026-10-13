@@ -49,6 +49,8 @@ class SimpleVectorStore(BaseVectorStore):
                     "content": chunk.content,
                     "position": chunk.position,
                     "token_count": chunk.token_count,
+                    "start_offset": getattr(chunk, "start_offset", 0),
+                    "end_offset": getattr(chunk, "end_offset", 0),
                     "vector": vector,
                 }
             self._save(list(by_id.values()))

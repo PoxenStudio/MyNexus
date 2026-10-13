@@ -448,6 +448,7 @@ const (
 	CoreApiService_ReportBookSummary_FullMethodName    = "/mynexus.CoreApiService/ReportBookSummary"
 	CoreApiService_KeywordSearch_FullMethodName        = "/mynexus.CoreApiService/KeywordSearch"
 	CoreApiService_GetLibraryStats_FullMethodName      = "/mynexus.CoreApiService/GetLibraryStats"
+	CoreApiService_GetChapterContent_FullMethodName    = "/mynexus.CoreApiService/GetChapterContent"
 	CoreApiService_GetBookInfo_FullMethodName          = "/mynexus.CoreApiService/GetBookInfo"
 )
 
@@ -487,6 +488,13 @@ type CoreApiServiceClient interface {
 	// one-off: keep new ones in this same shape (empty or narrow request,
 	// structured response) rather than a single do-everything RPC.
 	GetLibraryStats(ctx context.Context, in *LibraryStatsRequest, opts ...grpc.CallOption) (*LibraryStatsResponse, error)
+	// Read-only chapter-content lookup, called by Worker's QA pipeline when the
+	// LLM invokes the "read_chapter" chat tool — returns the chapter's cleaned
+	// plain-text content (same text the chunks were split from, so character
+	// offsets align) plus title/order for display. Backs sequential-reading
+	// questions (chapter overview, character relations) that semantic retrieval
+	// handles poorly. Read-only; no task/state side effects.
+	GetChapterContent(ctx context.Context, in *ChapterContentRequest, opts ...grpc.CallOption) (*ChapterContentResponse, error)
 	// Read-only book-metadata/summary lookup, called by Worker's QA pipeline
 	// when the LLM invokes the "get_book_info" chat tool — returns every
 	// field a book record carries (title/author/publisher/category/tags,
@@ -589,6 +597,16 @@ func (c *coreApiServiceClient) GetLibraryStats(ctx context.Context, in *LibraryS
 	return out, nil
 }
 
+func (c *coreApiServiceClient) GetChapterContent(ctx context.Context, in *ChapterContentRequest, opts ...grpc.CallOption) (*ChapterContentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChapterContentResponse)
+	err := c.cc.Invoke(ctx, CoreApiService_GetChapterContent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *coreApiServiceClient) GetBookInfo(ctx context.Context, in *BookInfoRequest, opts ...grpc.CallOption) (*BookInfoResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(BookInfoResponse)
@@ -635,6 +653,13 @@ type CoreApiServiceServer interface {
 	// one-off: keep new ones in this same shape (empty or narrow request,
 	// structured response) rather than a single do-everything RPC.
 	GetLibraryStats(context.Context, *LibraryStatsRequest) (*LibraryStatsResponse, error)
+	// Read-only chapter-content lookup, called by Worker's QA pipeline when the
+	// LLM invokes the "read_chapter" chat tool — returns the chapter's cleaned
+	// plain-text content (same text the chunks were split from, so character
+	// offsets align) plus title/order for display. Backs sequential-reading
+	// questions (chapter overview, character relations) that semantic retrieval
+	// handles poorly. Read-only; no task/state side effects.
+	GetChapterContent(context.Context, *ChapterContentRequest) (*ChapterContentResponse, error)
 	// Read-only book-metadata/summary lookup, called by Worker's QA pipeline
 	// when the LLM invokes the "get_book_info" chat tool — returns every
 	// field a book record carries (title/author/publisher/category/tags,
@@ -680,6 +705,9 @@ func (UnimplementedCoreApiServiceServer) KeywordSearch(context.Context, *Keyword
 }
 func (UnimplementedCoreApiServiceServer) GetLibraryStats(context.Context, *LibraryStatsRequest) (*LibraryStatsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetLibraryStats not implemented")
+}
+func (UnimplementedCoreApiServiceServer) GetChapterContent(context.Context, *ChapterContentRequest) (*ChapterContentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChapterContent not implemented")
 }
 func (UnimplementedCoreApiServiceServer) GetBookInfo(context.Context, *BookInfoRequest) (*BookInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBookInfo not implemented")
@@ -849,6 +877,24 @@ func _CoreApiService_GetLibraryStats_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CoreApiService_GetChapterContent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChapterContentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoreApiServiceServer).GetChapterContent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoreApiService_GetChapterContent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoreApiServiceServer).GetChapterContent(ctx, req.(*ChapterContentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CoreApiService_GetBookInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BookInfoRequest)
 	if err := dec(in); err != nil {
@@ -905,6 +951,10 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLibraryStats",
 			Handler:    _CoreApiService_GetLibraryStats_Handler,
+		},
+		{
+			MethodName: "GetChapterContent",
+			Handler:    _CoreApiService_GetChapterContent_Handler,
 		},
 		{
 			MethodName: "GetBookInfo",
