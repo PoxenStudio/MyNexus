@@ -31,8 +31,11 @@ class TokenSplitter(BaseSplitter):
                 continue
             start = 0
             while start < len(text):
-                piece = text[start : start + self.chunk_size_chars].strip()
+                raw = text[start : start + self.chunk_size_chars]
+                piece = raw.strip()
                 if piece:
+                    lead = len(raw) - len(raw.lstrip())
+                    trail = len(raw) - len(raw.rstrip())
                     chunks.append(
                         Chunk(
                             id=str(uuid.uuid4()),
@@ -41,6 +44,8 @@ class TokenSplitter(BaseSplitter):
                             content=piece,
                             position=position,
                             token_count=len(piece),
+                            start_offset=start + lead,
+                            end_offset=start + len(raw) - trail,
                         )
                     )
                     position += 1

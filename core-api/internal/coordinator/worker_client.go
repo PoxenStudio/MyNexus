@@ -211,6 +211,8 @@ type Citation struct {
 	BookID    string
 	Score     float64
 	Content   string
+	StartOffset int
+	EndOffset   int
 }
 
 // ChatStream lets the caller pull streamed chat events one at a time —
@@ -236,6 +238,7 @@ func (s *ChatStream) Recv() (ChatEvent, error) {
 		for _, c := range payload.Citations.Items {
 			citations = append(citations, Citation{
 				ChunkID: c.ChunkId, ChapterID: c.ChapterId, BookID: c.BookId, Score: c.Score, Content: c.Content,
+				StartOffset: int(c.StartOffset), EndOffset: int(c.EndOffset),
 			})
 		}
 		return ChatEvent{Citations: citations}, nil

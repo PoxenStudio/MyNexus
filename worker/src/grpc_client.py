@@ -44,6 +44,8 @@ class CoreApiClient:
                 position=c.position,
                 token_count=c.token_count,
                 vector_id=c.id,  # local vector store keys by chunk id
+                start_offset=c.start_offset,
+                end_offset=c.end_offset,
             )
             for c in chunks
         ]

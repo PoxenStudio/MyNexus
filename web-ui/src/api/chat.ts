@@ -17,6 +17,8 @@ export interface Citation {
   book_id: string;
   score: number;
   content: string;
+  start_offset?: number;
+  end_offset?: number;
 }
 
 export interface ChatMessage {

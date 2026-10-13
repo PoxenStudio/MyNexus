@@ -34,3 +34,5 @@ class Chunk:
     content: str = ""
     position: int = 0
     token_count: int = 0
+    start_offset: int = 0
+    end_offset: int = 0

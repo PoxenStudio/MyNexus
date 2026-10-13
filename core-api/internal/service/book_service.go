@@ -385,15 +385,15 @@ func (s *BookService) SaveChunks(bookID string, chunks []ParsedChunk) error {
 	}
 
 	stmt, err := tx.Prepare(
-		`INSERT INTO chunks (id, chapter_id, book_id, content, token_count, position, vector_id, keywords)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, '[]')`)
+		`INSERT INTO chunks (id, chapter_id, book_id, content, token_count, position, vector_id, keywords, start_offset, end_offset)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, '[]', ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("prepare insert chunk: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, c := range chunks {
-		if _, err := stmt.Exec(c.ID, c.ChapterID, bookID, c.Content, c.TokenCount, c.Position, c.VectorID); err != nil {
+		if _, err := stmt.Exec(c.ID, c.ChapterID, bookID, c.Content, c.TokenCount, c.Position, c.VectorID, c.StartOffset, c.EndOffset); err != nil {
 			return fmt.Errorf("insert chunk: %w", err)
 		}
 	}
@@ -423,7 +423,7 @@ func (s *BookService) ListChunks(bookID, chapterID string, page, size int) ([]mo
 
 	listArgs := append(append([]any{}, args...), size, (page-1)*size)
 	rows, err := s.db.Query(
-		`SELECT id, chapter_id, book_id, content, token_count, position, vector_id, keywords
+		`SELECT id, chapter_id, book_id, content, token_count, position, vector_id, keywords, start_offset, end_offset
 		 FROM chunks `+where+` ORDER BY position ASC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list chunks: %w", err)
@@ -433,7 +433,7 @@ func (s *BookService) ListChunks(bookID, chapterID string, page, size int) ([]mo
 	var chunks []models.Chunk
 	for rows.Next() {
 		var c models.Chunk
-		if err := rows.Scan(&c.ID, &c.ChapterID, &c.BookID, &c.Content, &c.TokenCount, &c.Position, &c.VectorID, &c.Keywords); err != nil {
+		if err := rows.Scan(&c.ID, &c.ChapterID, &c.BookID, &c.Content, &c.TokenCount, &c.Position, &c.VectorID, &c.Keywords, &c.StartOffset, &c.EndOffset); err != nil {
 			return nil, 0, fmt.Errorf("scan chunk: %w", err)
 		}
 		chunks = append(chunks, c)
@@ -575,6 +575,8 @@ type ParsedChunk struct {
 	Position   int
 	TokenCount int
 	VectorID   string
+	StartOffset int
+	EndOffset   int
 }
 
 type rowScanner interface {

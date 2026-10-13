@@ -171,12 +171,15 @@ type ChunkResponse struct {
 	TokenCount int    `json:"token_count"`
 	Position   int    `json:"position"`
 	VectorID   string `json:"vector_id"`
+	StartOffset int   `json:"start_offset,omitempty"`
+	EndOffset   int   `json:"end_offset,omitempty"`
 }
 
 func NewChunkResponse(c models.Chunk) ChunkResponse {
 	return ChunkResponse{
 		ID: c.ID, ChapterID: c.ChapterID, Content: c.Content,
 		TokenCount: c.TokenCount, Position: c.Position, VectorID: c.VectorID,
+		StartOffset: c.StartOffset, EndOffset: c.EndOffset,
 	}
 }
 

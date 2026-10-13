@@ -127,6 +127,7 @@ func (s *CoreAPIServer) ReportComplete(ctx context.Context, req *mynexuspb.Compl
 		chunks = append(chunks, service.ParsedChunk{
 			ID: ch.Id, ChapterID: ch.ChapterId, Content: ch.Content,
 			Position: int(ch.Position), TokenCount: int(ch.TokenCount), VectorID: ch.VectorId,
+			StartOffset: int(ch.StartOffset), EndOffset: int(ch.EndOffset),
 		})
 	}
 	if err := s.books.SaveChunks(task.BookID, chunks); err != nil {

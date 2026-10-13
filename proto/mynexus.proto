@@ -131,6 +131,8 @@ message SearchResult {
   int32 position = 5;
   int32 token_count = 6;
   double score = 7;
+  int32 start_offset = 8;
+  int32 end_offset = 9;
 }
 
 message SearchResponse {
@@ -154,6 +156,8 @@ message Citation {
   string book_id = 3;
   double score = 4;
   string content = 5;
+  int32 start_offset = 6;
+  int32 end_offset = 7;
 }
 
 message CitationList {
@@ -255,6 +259,8 @@ message Chunk {
   int32 position = 4;
   int32 token_count = 5;
   string vector_id = 6;
+  int32 start_offset = 7;
+  int32 end_offset = 8;
 }
 
 message MetadataRequest {

@@ -74,7 +74,7 @@ class SearchRequest(_message.Message):
     def __init__(self, query: _Optional[str] = ..., book_ids: _Optional[_Iterable[str]] = ..., top_k: _Optional[int] = ..., score_threshold: _Optional[float] = ...) -> None: ...
 
 class SearchResult(_message.Message):
-    __slots__ = ("chunk_id", "book_id", "chapter_id", "content", "position", "token_count", "score")
+    __slots__ = ("chunk_id", "book_id", "chapter_id", "content", "position", "token_count", "score", "start_offset", "end_offset")
     CHUNK_ID_FIELD_NUMBER: _ClassVar[int]
     BOOK_ID_FIELD_NUMBER: _ClassVar[int]
     CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
@@ -82,6 +82,8 @@ class SearchResult(_message.Message):
     POSITION_FIELD_NUMBER: _ClassVar[int]
     TOKEN_COUNT_FIELD_NUMBER: _ClassVar[int]
     SCORE_FIELD_NUMBER: _ClassVar[int]
+    START_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    END_OFFSET_FIELD_NUMBER: _ClassVar[int]
     chunk_id: str
     book_id: str
     chapter_id: str
@@ -89,7 +91,9 @@ class SearchResult(_message.Message):
     position: int
     token_count: int
     score: float
-    def __init__(self, chunk_id: _Optional[str] = ..., book_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., content: _Optional[str] = ..., position: _Optional[int] = ..., token_count: _Optional[int] = ..., score: _Optional[float] = ...) -> None: ...
+    start_offset: int
+    end_offset: int
+    def __init__(self, chunk_id: _Optional[str] = ..., book_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., content: _Optional[str] = ..., position: _Optional[int] = ..., token_count: _Optional[int] = ..., score: _Optional[float] = ..., start_offset: _Optional[int] = ..., end_offset: _Optional[int] = ...) -> None: ...
 
 class SearchResponse(_message.Message):
     __slots__ = ("results",)
@@ -116,18 +120,22 @@ class ChatRequest(_message.Message):
     def __init__(self, messages: _Optional[_Iterable[_Union[ChatMessage, _Mapping]]] = ..., book_ids: _Optional[_Iterable[str]] = ..., top_k: _Optional[int] = ...) -> None: ...
 
 class Citation(_message.Message):
-    __slots__ = ("chunk_id", "chapter_id", "book_id", "score", "content")
+    __slots__ = ("chunk_id", "chapter_id", "book_id", "score", "content", "start_offset", "end_offset")
     CHUNK_ID_FIELD_NUMBER: _ClassVar[int]
     CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
     BOOK_ID_FIELD_NUMBER: _ClassVar[int]
     SCORE_FIELD_NUMBER: _ClassVar[int]
     CONTENT_FIELD_NUMBER: _ClassVar[int]
+    START_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    END_OFFSET_FIELD_NUMBER: _ClassVar[int]
     chunk_id: str
     chapter_id: str
     book_id: str
     score: float
     content: str
-    def __init__(self, chunk_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., book_id: _Optional[str] = ..., score: _Optional[float] = ..., content: _Optional[str] = ...) -> None: ...
+    start_offset: int
+    end_offset: int
+    def __init__(self, chunk_id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., book_id: _Optional[str] = ..., score: _Optional[float] = ..., content: _Optional[str] = ..., start_offset: _Optional[int] = ..., end_offset: _Optional[int] = ...) -> None: ...
 
 class CitationList(_message.Message):
     __slots__ = ("items",)
@@ -188,20 +196,24 @@ class Chapter(_message.Message):
     def __init__(self, id: _Optional[str] = ..., title: _Optional[str] = ..., level: _Optional[int] = ..., sort_order: _Optional[int] = ..., content: _Optional[str] = ..., summary: _Optional[str] = ...) -> None: ...
 
 class Chunk(_message.Message):
-    __slots__ = ("id", "chapter_id", "content", "position", "token_count", "vector_id")
+    __slots__ = ("id", "chapter_id", "content", "position", "token_count", "vector_id", "start_offset", "end_offset")
     ID_FIELD_NUMBER: _ClassVar[int]
     CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
     CONTENT_FIELD_NUMBER: _ClassVar[int]
     POSITION_FIELD_NUMBER: _ClassVar[int]
     TOKEN_COUNT_FIELD_NUMBER: _ClassVar[int]
     VECTOR_ID_FIELD_NUMBER: _ClassVar[int]
+    START_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    END_OFFSET_FIELD_NUMBER: _ClassVar[int]
     id: str
     chapter_id: str
     content: str
     position: int
     token_count: int
     vector_id: str
-    def __init__(self, id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., content: _Optional[str] = ..., position: _Optional[int] = ..., token_count: _Optional[int] = ..., vector_id: _Optional[str] = ...) -> None: ...
+    start_offset: int
+    end_offset: int
+    def __init__(self, id: _Optional[str] = ..., chapter_id: _Optional[str] = ..., content: _Optional[str] = ..., position: _Optional[int] = ..., token_count: _Optional[int] = ..., vector_id: _Optional[str] = ..., start_offset: _Optional[int] = ..., end_offset: _Optional[int] = ...) -> None: ...
 
 class MetadataRequest(_message.Message):
     __slots__ = ("task_id", "book")

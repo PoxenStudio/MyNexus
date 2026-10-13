@@ -128,9 +128,10 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 			citations := make([]dto.CitationResponse, 0, len(event.Citations))
 			for _, cit := range event.Citations {
 				citations = append(citations, dto.CitationResponse{
-					ChunkID: cit.ChunkID, ChapterID: cit.ChapterID, BookID: cit.BookID,
-					Score: cit.Score, Content: cit.Content,
-				})
+				ChunkID: cit.ChunkID, ChapterID: cit.ChapterID, BookID: cit.BookID,
+				Score: cit.Score, Content: cit.Content,
+				StartOffset: cit.StartOffset, EndOffset: cit.EndOffset,
+			})
 			}
 			citationsBytes, _ := json.Marshal(citations)
 			citationsJSON = string(citationsBytes)

@@ -486,6 +486,8 @@ type SearchResult struct {
 	Position      int32                  `protobuf:"varint,5,opt,name=position,proto3" json:"position,omitempty"`
 	TokenCount    int32                  `protobuf:"varint,6,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
 	Score         float64                `protobuf:"fixed64,7,opt,name=score,proto3" json:"score,omitempty"`
+	StartOffset   int32                  `protobuf:"varint,8,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
+	EndOffset     int32                  `protobuf:"varint,9,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -565,6 +567,20 @@ func (x *SearchResult) GetTokenCount() int32 {
 func (x *SearchResult) GetScore() float64 {
 	if x != nil {
 		return x.Score
+	}
+	return 0
+}
+
+func (x *SearchResult) GetStartOffset() int32 {
+	if x != nil {
+		return x.StartOffset
+	}
+	return 0
+}
+
+func (x *SearchResult) GetEndOffset() int32 {
+	if x != nil {
+		return x.EndOffset
 	}
 	return 0
 }
@@ -732,6 +748,8 @@ type Citation struct {
 	BookId        string                 `protobuf:"bytes,3,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
 	Score         float64                `protobuf:"fixed64,4,opt,name=score,proto3" json:"score,omitempty"`
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	StartOffset   int32                  `protobuf:"varint,6,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
+	EndOffset     int32                  `protobuf:"varint,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -799,6 +817,20 @@ func (x *Citation) GetContent() string {
 		return x.Content
 	}
 	return ""
+}
+
+func (x *Citation) GetStartOffset() int32 {
+	if x != nil {
+		return x.StartOffset
+	}
+	return 0
+}
+
+func (x *Citation) GetEndOffset() int32 {
+	if x != nil {
+		return x.EndOffset
+	}
+	return 0
 }
 
 type CitationList struct {
@@ -1193,6 +1225,8 @@ type Chunk struct {
 	Position      int32                  `protobuf:"varint,4,opt,name=position,proto3" json:"position,omitempty"`
 	TokenCount    int32                  `protobuf:"varint,5,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
 	VectorId      string                 `protobuf:"bytes,6,opt,name=vector_id,json=vectorId,proto3" json:"vector_id,omitempty"`
+	StartOffset   int32                  `protobuf:"varint,7,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
+	EndOffset     int32                  `protobuf:"varint,8,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1267,6 +1301,20 @@ func (x *Chunk) GetVectorId() string {
 		return x.VectorId
 	}
 	return ""
+}
+
+func (x *Chunk) GetStartOffset() int32 {
+	if x != nil {
+		return x.StartOffset
+	}
+	return 0
+}
+
+func (x *Chunk) GetEndOffset() int32 {
+	if x != nil {
+		return x.EndOffset
+	}
+	return 0
 }
 
 type MetadataRequest struct {
@@ -2305,7 +2353,7 @@ const file_mynexus_proto_rawDesc = "" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x19\n" +
 	"\bbook_ids\x18\x02 \x03(\tR\abookIds\x12\x13\n" +
 	"\x05top_k\x18\x03 \x01(\x05R\x04topK\x12'\n" +
-	"\x0fscore_threshold\x18\x04 \x01(\x01R\x0escoreThreshold\"\xce\x01\n" +
+	"\x0fscore_threshold\x18\x04 \x01(\x01R\x0escoreThreshold\"\x90\x02\n" +
 	"\fSearchResult\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x17\n" +
 	"\abook_id\x18\x02 \x01(\tR\x06bookId\x12\x1d\n" +
@@ -2315,7 +2363,10 @@ const file_mynexus_proto_rawDesc = "" +
 	"\bposition\x18\x05 \x01(\x05R\bposition\x12\x1f\n" +
 	"\vtoken_count\x18\x06 \x01(\x05R\n" +
 	"tokenCount\x12\x14\n" +
-	"\x05score\x18\a \x01(\x01R\x05score\"A\n" +
+	"\x05score\x18\a \x01(\x01R\x05score\x12!\n" +
+	"\fstart_offset\x18\b \x01(\x05R\vstartOffset\x12\x1d\n" +
+	"\n" +
+	"end_offset\x18\t \x01(\x05R\tendOffset\"A\n" +
 	"\x0eSearchResponse\x12/\n" +
 	"\aresults\x18\x01 \x03(\v2\x15.mynexus.SearchResultR\aresults\";\n" +
 	"\vChatMessage\x12\x12\n" +
@@ -2324,14 +2375,17 @@ const file_mynexus_proto_rawDesc = "" +
 	"\vChatRequest\x120\n" +
 	"\bmessages\x18\x01 \x03(\v2\x14.mynexus.ChatMessageR\bmessages\x12\x19\n" +
 	"\bbook_ids\x18\x02 \x03(\tR\abookIds\x12\x13\n" +
-	"\x05top_k\x18\x03 \x01(\x05R\x04topK\"\x8d\x01\n" +
+	"\x05top_k\x18\x03 \x01(\x05R\x04topK\"\xcf\x01\n" +
 	"\bCitation\x12\x19\n" +
 	"\bchunk_id\x18\x01 \x01(\tR\achunkId\x12\x1d\n" +
 	"\n" +
 	"chapter_id\x18\x02 \x01(\tR\tchapterId\x12\x17\n" +
 	"\abook_id\x18\x03 \x01(\tR\x06bookId\x12\x14\n" +
 	"\x05score\x18\x04 \x01(\x01R\x05score\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\tR\acontent\"7\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12!\n" +
+	"\fstart_offset\x18\x06 \x01(\x05R\vstartOffset\x12\x1d\n" +
+	"\n" +
+	"end_offset\x18\a \x01(\x05R\tendOffset\"7\n" +
 	"\fCitationList\x12'\n" +
 	"\x05items\x18\x01 \x03(\v2\x11.mynexus.CitationR\x05items\"e\n" +
 	"\tChatChunk\x12\x16\n" +
@@ -2356,7 +2410,7 @@ const file_mynexus_proto_rawDesc = "" +
 	"\n" +
 	"sort_order\x18\x04 \x01(\x05R\tsortOrder\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12\x18\n" +
-	"\asummary\x18\x06 \x01(\tR\asummary\"\xaa\x01\n" +
+	"\asummary\x18\x06 \x01(\tR\asummary\"\xec\x01\n" +
 	"\x05Chunk\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -2365,7 +2419,10 @@ const file_mynexus_proto_rawDesc = "" +
 	"\bposition\x18\x04 \x01(\x05R\bposition\x12\x1f\n" +
 	"\vtoken_count\x18\x05 \x01(\x05R\n" +
 	"tokenCount\x12\x1b\n" +
-	"\tvector_id\x18\x06 \x01(\tR\bvectorId\"Q\n" +
+	"\tvector_id\x18\x06 \x01(\tR\bvectorId\x12!\n" +
+	"\fstart_offset\x18\a \x01(\x05R\vstartOffset\x12\x1d\n" +
+	"\n" +
+	"end_offset\x18\b \x01(\x05R\tendOffset\"Q\n" +
 	"\x0fMetadataRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12%\n" +
 	"\x04book\x18\x02 \x01(\v2\x11.mynexus.BookMetaR\x04book\"\xeb\x01\n" +

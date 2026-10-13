@@ -9,4 +9,6 @@ type Chunk struct {
 	Position   int
 	VectorID   string
 	Keywords   string // JSON array, stored as-is
+	StartOffset int
+	EndOffset   int
 }

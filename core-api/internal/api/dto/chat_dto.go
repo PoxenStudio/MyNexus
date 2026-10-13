@@ -29,6 +29,8 @@ type CitationResponse struct {
 	BookID    string  `json:"book_id"`
 	Score     float64 `json:"score"`
 	Content   string  `json:"content"`
+	StartOffset int   `json:"start_offset,omitempty"`
+	EndOffset   int   `json:"end_offset,omitempty"`
 }
 
 type RenameSessionRequest struct {
