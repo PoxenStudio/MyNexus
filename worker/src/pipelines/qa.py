@@ -62,13 +62,32 @@ class QAPipeline:
     def answer(
         self, messages: list[dict], book_ids: list[str] | None = None, top_k: int = 5
     ) -> Iterator[dict]:
-        if self.tools:
-            tool_call = self._decide_tool(messages)
-            if tool_call is not None:
-                name, arguments = tool_call
-                result = self.tools.run(name, arguments)
-                yield from self._answer_from_tool(messages, result)
-                return
+        tool_results: list[dict] = []
+        citations: list[dict] = []
+        working = list(messages)
+
+        for _ in range(self.config.chat_max_tool_rounds):
+            tool_call = self._decide_tool(working)
+            if tool_call is None:
+                break
+            name, arguments = tool_call
+            result = self.tools.run(name, arguments)
+            citations.extend(result.pop("__citations", []) or [])
+            tool_results.append({"tool": name, "arguments": arguments, "result": result})
+            working = working + [
+                {"role": "assistant", "content": f"[已调用工具 {name}]"},
+                {
+                    "role": "user",
+                    "content": (
+                        f"工具 {name} 返回：\n{json.dumps(result, ensure_ascii=False)}\n"
+                        "请根据以上工具结果继续回答，或调用其他工具获取更多上下文。"
+                    ),
+                },
+            ]
+
+        if tool_results:
+            yield from self._answer_from_tools(messages, tool_results, citations)
+            return
 
         question = messages[-1]["content"] if messages else ""
         citations = self.retrieval.search(question, book_ids=book_ids, top_k=top_k)
@@ -118,20 +137,23 @@ class QAPipeline:
         call = calls[0]
         return call["name"], call["arguments"]
 
-    def _answer_from_tool(self, messages: list[dict], result: dict) -> Iterator[dict]:
-        """Streams the final answer once a tool result is in hand. Tool results
-        may carry a __citations side-channel (semantic_search / read_chapter
-        do, so the frontend can still render clickable references) — those are
-        stripped from the LLM payload and forwarded as the turn's citations
-        event instead of the default empty list."""
-        citations = result.pop("__citations", []) or []
+    def _answer_from_tools(
+        self, messages: list[dict], tool_results: list[dict], citations: list[dict]
+    ) -> Iterator[dict]:
+        """Streams the final answer from accumulated tool results (single- or multi-round)."""
+        context = "\n\n".join(
+            f"[{r['tool']}({json.dumps(r['arguments'], ensure_ascii=False)})]\n"
+            + json.dumps(r["result"], ensure_ascii=False)
+            for r in tool_results
+        )
         system_message = {
             "role": "system",
             "content": (
-                "你是一个书籍知识库问答助手。已经为你查询到以下数据（JSON），"
+                "你是一个书籍知识库问答助手。已经为你查询到以下多组数据（按工具调用分组），"
                 "请据此直接回答用户问题，不需要标注引用编号；"
-                "如果用户问的是总结类问题，可以直接引用其中的总结/摘要内容作答：\n"
-                + json.dumps(result, ensure_ascii=False)
+                "如果用户问的是总结类问题，可以直接引用其中的总结/摘要内容作答；"
+                "如果工具结果不足以完整回答，请如实说明信息边界（例如只读了部分章节）：\n"
+                + context
             ),
         }
         llm_messages = [system_message] + messages

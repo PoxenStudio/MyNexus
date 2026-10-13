@@ -87,6 +87,9 @@ class WorkerConfig:
     # util/chapter_title.py) instead of ingesting/summarizing them.
     skip_backmatter_chapters: bool = True
 
+    # 会话工具调用最大轮数，达到后强制基于已积累上下文作答。
+    chat_max_tool_rounds: int = 3
+
     raw: dict = field(default_factory=dict)
 
     @property
@@ -142,6 +145,7 @@ def load_config() -> WorkerConfig:
         "skip_backmatter_chapters", cfg.skip_backmatter_chapters
     )
     cfg.cover_font_path = raw.get("cover", {}).get("font_path", cfg.cover_font_path)
+    cfg.chat_max_tool_rounds = int(raw.get("chat", {}).get("max_tool_rounds", cfg.chat_max_tool_rounds))
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
         cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")

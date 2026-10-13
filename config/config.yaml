@@ -53,6 +53,8 @@ i18n:
 chat:
     enabled: true
     max_sessions: 100
+    # Worker 侧会话工具调用最大轮数（决策-执行循环上限），达到后强制基于已积累上下文作答。
+    max_tool_rounds: 3
 keyword:
     max_keywords: 50
 debug:
