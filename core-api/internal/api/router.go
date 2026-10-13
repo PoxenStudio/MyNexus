@@ -90,6 +90,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.GET("/system/config", sys.Config)
 			adminOnly.GET("/system/settings", sys.Settings)
 			adminOnly.PUT("/system/settings", sys.SaveSettings)
+			adminOnly.POST("/system/test-provider", sys.TestProvider)
 
 			adminOnly.POST("/books/import", books.Import)
 			adminOnly.POST("/books/bulk-delete", books.BulkDelete)

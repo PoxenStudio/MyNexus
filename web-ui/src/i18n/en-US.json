@@ -237,7 +237,18 @@
     "maxKeywordsHint": "Upper bound on the content-keyword cloud shown on a book's detail page. Changing this applies immediately to already-summarized books — no re-summarizing needed.",
     "skipBackmatterChapters": "Skip bibliography/index chapters when generating chapter summaries",
     "debugLogging": "Enable debug logging",
-    "debugLoggingHint": "When on, every LLM call's request and response are each saved as a file under the mynexus-llm-debug subdirectory of the OS temp dir — replay one with worker/tests/replay_llm_debug.py."
+    "debugLoggingHint": "When on, every LLM call's request and response are each saved as a file under the mynexus-llm-debug subdirectory of the OS temp dir — replay one with worker/tests/replay_llm_debug.py.",
+    "testConnection": "Test connection",
+    "testOk": "Connection OK",
+    "testFail": "Connection failed",
+    "embeddingChangedHint": "Embedding provider or model changed — rebuild each book's index after saving for it to take effect.",
+    "retrieval": "Retrieval",
+    "retrievalFusion": "Hybrid fusion strategy",
+    "fusionWeighted": "Weighted sum",
+    "retrievalFusionHint": "Weighted sum blends raw scores directly and is sensitive to score scales; RRF fuses by rank and is more robust to score distributions.",
+    "vectorWeight": "Vector retrieval weight",
+    "keywordWeight": "Keyword retrieval weight",
+    "retrievalWeightsHint": "Each weight only joins normalisation when its retrieval returned results; they don't need to sum to 1."
   },
   "chat": {
     "newSession": "New Session",

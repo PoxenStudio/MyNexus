@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { fetchSettings, saveSettings, type SystemSettings } from "../../api/system";
+import {
+  fetchSettings,
+  saveSettings,
+  testProvider,
+  type SystemSettings,
+} from "../../api/system";
 import { useAuthStore } from "../../stores/auth";
 
 const { t } = useI18n();
@@ -15,12 +20,49 @@ const saving = ref(false);
 const saved = ref(false);
 const error = ref("");
 
+const originalEmbedding = ref<{ provider: string; openai_model: string; ollama_model: string } | null>(null);
+const embeddingChanged = computed(() => {
+  if (!settings.value || !originalEmbedding.value) return false;
+  const e = settings.value.embedding;
+  return (
+    e.provider !== originalEmbedding.value.provider ||
+    e.openai.model !== originalEmbedding.value.openai_model ||
+    e.ollama.model !== originalEmbedding.value.ollama_model
+  );
+});
+
+const testing = ref<"embedding" | "llm" | null>(null);
+const testResult = ref<{ target: "embedding" | "llm"; ok: boolean; message: string } | null>(null);
+
 async function load() {
   loading.value = true;
   try {
     settings.value = await fetchSettings();
+    const e = settings.value.embedding;
+    originalEmbedding.value = { provider: e.provider, openai_model: e.openai.model, ollama_model: e.ollama.model };
   } finally {
     loading.value = false;
+  }
+}
+
+async function runTest(target: "embedding" | "llm") {
+  if (!settings.value) return;
+  const s = settings.value[target];
+  testing.value = target;
+  testResult.value = null;
+  try {
+    const r = await testProvider({
+      provider: target,
+      kind: s.provider as "openai" | "ollama",
+      base_url: s[s.provider as "openai" | "ollama"].base_url,
+      api_key: s[s.provider as "openai" | "ollama"].api_key,
+      model: s[s.provider as "openai" | "ollama"].model,
+    });
+    testResult.value = { target, ok: r.ok, message: r.ok ? t("settings.testOk") : r.error || t("settings.testFail") };
+  } catch (e: any) {
+    testResult.value = { target, ok: false, message: e?.response?.data?.error || t("settings.testFail") };
+  } finally {
+    testing.value = null;
   }
 }
 
@@ -140,6 +182,15 @@ onMounted(load);
             <input v-model="settings.embedding.ollama.model" />
           </label>
         </template>
+        <div class="test-row">
+          <button type="button" :disabled="testing === 'embedding'" @click="runTest('embedding')">
+            {{ testing === "embedding" ? t("common.loading") : t("settings.testConnection") }}
+          </button>
+          <span v-if="testResult?.target === 'embedding'" :class="testResult.ok ? 'success' : 'error'">
+            {{ testResult.message }}
+          </span>
+        </div>
+        <p v-if="embeddingChanged" class="hint warn">{{ t("settings.embeddingChangedHint") }}</p>
       </fieldset>
 
       <fieldset>
@@ -175,6 +226,35 @@ onMounted(load);
             <input v-model="settings.llm.ollama.model" />
           </label>
         </template>
+        <div class="test-row">
+          <button type="button" :disabled="testing === 'llm'" @click="runTest('llm')">
+            {{ testing === "llm" ? t("common.loading") : t("settings.testConnection") }}
+          </button>
+          <span v-if="testResult?.target === 'llm'" :class="testResult.ok ? 'success' : 'error'">
+            {{ testResult.message }}
+          </span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>{{ t("settings.retrieval") }}</legend>
+        <label>
+          {{ t("settings.retrievalFusion") }}
+          <select v-model="settings.retrieval.fusion">
+            <option value="weighted">{{ t("settings.fusionWeighted") }}</option>
+            <option value="rrf">RRF</option>
+          </select>
+        </label>
+        <p class="hint">{{ t("settings.retrievalFusionHint") }}</p>
+        <label>
+          {{ t("settings.vectorWeight") }}
+          <input v-model.number="settings.retrieval.vector_weight" type="number" min="0" max="1" step="0.1" />
+        </label>
+        <label>
+          {{ t("settings.keywordWeight") }}
+          <input v-model.number="settings.retrieval.keyword_weight" type="number" min="0" max="1" step="0.1" />
+        </label>
+        <p class="hint">{{ t("settings.retrievalWeightsHint") }}</p>
       </fieldset>
 
       <fieldset>
@@ -295,6 +375,32 @@ button.primary {
 button.primary:disabled {
   opacity: 0.6;
   cursor: default;
+}
+.test-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.test-row button {
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.test-row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.test-row span {
+  font-size: 0.85rem;
+}
+.hint.warn {
+  color: #b8860b;
+  opacity: 1;
 }
 .error {
   color: #d33;

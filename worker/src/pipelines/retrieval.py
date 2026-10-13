@@ -39,14 +39,16 @@ class RetrievalPipeline:
       BM25-over-full-corpus pass, unchanged.
     """
 
-    VECTOR_WEIGHT = 0.6
-    KEYWORD_WEIGHT = 0.4
+    RRF_K = 60
 
     def __init__(self, config: WorkerConfig | None = None) -> None:
         self.config = config or load_config()
         self.embedder = get_embedder(self.config)
         self.vector_store = get_vector_store(self.config)
         self.core_api = CoreApiClient(self.config)
+        self.fusion = self.config.retrieval_fusion
+        self.vector_weight = self.config.retrieval_vector_weight
+        self.keyword_weight = self.config.retrieval_keyword_weight
 
     def search(
         self,
@@ -55,6 +57,7 @@ class RetrievalPipeline:
         top_k: int = 10,
         score_threshold: float = 0.0,
         mode: str = "hybrid",
+        fusion: str | None = None,
     ) -> list[dict]:
         records = self.vector_store.all(book_ids)
         if not records:
@@ -68,23 +71,50 @@ class RetrievalPipeline:
             keyword_scores = self._keyword_scores(query, records, book_ids, top_k)
 
         active_weights = {
-            "vector": self.VECTOR_WEIGHT if vector_scores else 0.0,
-            "keyword": self.KEYWORD_WEIGHT if keyword_scores else 0.0,
+            "vector": self.vector_weight if vector_scores else 0.0,
+            "keyword": self.keyword_weight if keyword_scores else 0.0,
         }
         weight_sum = sum(active_weights.values())
         if weight_sum == 0:
             return []
 
+        if (fusion or self.fusion) == "rrf":
+            fused_scores = self._fuse_rrf(vector_scores, keyword_scores, active_weights)
+        else:
+            fused_scores = {
+                r["id"]: (active_weights["vector"] * vector_scores.get(r["id"], 0.0)
+                          + active_weights["keyword"] * keyword_scores.get(r["id"], 0.0)) / weight_sum
+                for r in records
+            }
+
         fused = []
         for r in records:
             v = vector_scores.get(r["id"], 0.0)
             k = keyword_scores.get(r["id"], 0.0)
-            score = (active_weights["vector"] * v + active_weights["keyword"] * k) / weight_sum
+            score = fused_scores.get(r["id"], 0.0)
             if score >= score_threshold:
                 fused.append({**r, "score": score, "vector_score": v, "keyword_score": k})
 
         fused.sort(key=lambda x: x["score"], reverse=True)
         return fused[:top_k]
+
+    def _fuse_rrf(
+        self,
+        vector_scores: dict[str, float],
+        keyword_scores: dict[str, float],
+        weights: dict[str, float],
+    ) -> dict[str, float]:
+        def ranks(scores: dict[str, float]) -> list[str]:
+            return [cid for cid, _ in sorted(scores.items(), key=lambda kv: kv[1], reverse=True)]
+
+        fused: dict[str, float] = {}
+        for key, scores in (("vector", vector_scores), ("keyword", keyword_scores)):
+            if not scores:
+                continue
+            w = weights[key] / (weights["vector"] + weights["keyword"])
+            for rank, cid in enumerate(ranks(scores), start=1):
+                fused[cid] = fused.get(cid, 0.0) + w / (self.RRF_K + rank)
+        return fused
 
     def _vector_scores(self, query: str, book_ids: list[str] | None, limit: int) -> dict[str, float]:
         try:

@@ -98,6 +98,12 @@ type SplitterConfig struct {
 	Strategy     string `yaml:"strategy" json:"strategy"`
 }
 
+type RetrievalConfig struct {
+	Fusion        string  `yaml:"fusion" json:"fusion"`
+	VectorWeight  float64 `yaml:"vector_weight" json:"vector_weight"`
+	KeywordWeight float64 `yaml:"keyword_weight" json:"keyword_weight"`
+}
+
 type I18nConfig struct {
 	DefaultLocale string   `yaml:"default_locale" json:"default_locale"`
 	Supported     []string `yaml:"supported" json:"supported"`
@@ -159,6 +165,7 @@ type Config struct {
 	I18n      I18nConfig      `yaml:"i18n"`
 	Chat      ChatConfig      `yaml:"chat"`
 	Keyword   KeywordConfig   `yaml:"keyword"`
+	Retrieval RetrievalConfig `yaml:"retrieval"`
 	Debug     DebugConfig     `yaml:"debug"`
 	Summary   SummaryConfig   `yaml:"summary"`
 
@@ -194,8 +201,9 @@ func defaults() Config {
 		Splitter: SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
 		I18n:     I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
 		Chat:     ChatConfig{Enabled: true, MaxSessions: 100},
-		Keyword:  KeywordConfig{MaxKeywords: 50},
-		Debug:    DebugConfig{LLMLogging: false},
+		Keyword:   KeywordConfig{MaxKeywords: 50},
+		Retrieval: RetrievalConfig{Fusion: "weighted", VectorWeight: 0.6, KeywordWeight: 0.4},
+		Debug:     DebugConfig{LLMLogging: false},
 		Summary:  SummaryConfig{SkipBackmatterChapters: true},
 	}
 }

@@ -237,7 +237,18 @@
     "maxKeywordsHint": "书籍详情页词云展示的内容关键词数量上限，修改后已总结过的书籍立即按新上限展示，无需重新总结。",
     "skipBackmatterChapters": "生成章节总结时跳过书后参考书目及索引章节",
     "debugLogging": "打开调试日志",
-    "debugLoggingHint": "开启后，每次调用 LLM 的请求与响应都会分别保存为文件，写入系统临时目录下的 mynexus-llm-debug 子目录，可用 worker/tests/replay_llm_debug.py 重放调试。"
+    "debugLoggingHint": "开启后，每次调用 LLM 的请求与响应都会分别保存为文件，写入系统临时目录下的 mynexus-llm-debug 子目录，可用 worker/tests/replay_llm_debug.py 重放调试。",
+    "testConnection": "测试连接",
+    "testOk": "连接成功",
+    "testFail": "连接失败",
+    "embeddingChangedHint": "已修改 Embedding 提供方或模型，保存后需对书籍重建索引才能生效。",
+    "retrieval": "检索",
+    "retrievalFusion": "混合检索融合方式",
+    "fusionWeighted": "加权求和",
+    "retrievalFusionHint": "加权求和直接混合两路打分，对分数尺度敏感；RRF 按排名融合，对分数分布更稳健。",
+    "vectorWeight": "向量检索权重",
+    "keywordWeight": "关键词检索权重",
+    "retrievalWeightsHint": "两路权重仅在对应检索有结果时参与归一化，无需保证相加等于 1。"
   },
   "chat": {
     "newSession": "新建会话",

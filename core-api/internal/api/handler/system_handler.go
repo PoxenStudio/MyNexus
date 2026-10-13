@@ -2,8 +2,11 @@ package handler
 
 import (
 	"database/sql"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -76,18 +79,15 @@ func (h *SystemHandler) Settings(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.SystemSettings{
 		Storage: cfg.Storage, Worker: cfg.Worker, Embedding: cfg.Embedding,
 		LLM: cfg.LLM, Splitter: cfg.Splitter, I18n: cfg.I18n, Chat: cfg.Chat,
-		Keyword: cfg.Keyword, Debug: cfg.Debug, Summary: cfg.Summary,
+		Keyword: cfg.Keyword, Retrieval: cfg.Retrieval, Debug: cfg.Debug, Summary: cfg.Summary,
 	})
 }
 
 // SaveSettings rewrites config.yaml with the submitted sections, leaving
 // server/auth exactly as currently on disk (re-read fresh, not from h.cfg,
-// so an env-injected secret never gets baked into the file — see
-// config.LoadFromFile). It then restarts both services: Worker via a
-// best-effort gRPC Shutdown call, and this process via os.Exit after the
-// response is flushed — see the proto comment on WorkerService.Shutdown and
-// docs/部署说明.md for what "restart" does and doesn't do in each deployment
-// mode.
+// so an env-injected secret never gets baked into the file), then restarts
+// both services: Worker via a best-effort gRPC Shutdown call, and this
+// process via os.Exit after the response is flushed.
 func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	var body dto.SystemSettings
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -109,6 +109,7 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	onDisk.I18n = body.I18n
 	onDisk.Chat = body.Chat
 	onDisk.Keyword = body.Keyword
+	onDisk.Retrieval = body.Retrieval
 	onDisk.Debug = body.Debug
 	onDisk.Summary = body.Summary
 
@@ -134,6 +135,59 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 		time.Sleep(300 * time.Millisecond)
 		os.Exit(0)
 	}()
+}
+
+// TestProvider pings the submitted provider settings (ollama: GET /api/tags,
+// openai-compatible: GET /models with Bearer auth) without saving anything,
+// so the settings page can verify connectivity before the save+restart cycle.
+func (h *SystemHandler) TestProvider(c *gin.Context) {
+	var body struct {
+		Provider string `json:"provider" binding:"required,oneof=embedding llm"`
+		Kind     string `json:"kind" binding:"required,oneof=openai ollama"`
+		BaseURL  string `json:"base_url" binding:"required"`
+		APIKey   string `json:"api_key"`
+		Model    string `json:"model"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	url := strings.TrimRight(body.BaseURL, "/")
+	hc := &http.Client{Timeout: 8 * time.Second}
+	var req *http.Request
+	if body.Kind == "ollama" {
+		req, _ = http.NewRequest(http.MethodGet, url+"/api/tags", nil)
+	} else {
+		req, _ = http.NewRequest(http.MethodGet, url+"/models", nil)
+		req.Header.Set("Authorization", "Bearer "+body.APIKey)
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": "connect: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 400 {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": fmt.Sprintf("HTTP %d: %s", resp.StatusCode, truncate(string(data), 200))})
+		return
+	}
+	result := gin.H{"ok": true}
+	if body.Kind == "openai" && body.Model != "" {
+		if !strings.Contains(string(data), `"id":"`+body.Model+`"`) && !strings.Contains(string(data), `"id": "`+body.Model+`"`) {
+			result["ok"] = false
+			result["error"] = "model not found in /models list"
+		}
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 func countByStatus(db *sql.DB, table string) map[string]int64 {

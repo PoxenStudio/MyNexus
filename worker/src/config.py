@@ -90,6 +90,10 @@ class WorkerConfig:
     # 会话工具调用最大轮数，达到后强制基于已积累上下文作答。
     chat_max_tool_rounds: int = 3
 
+    retrieval_fusion: str = "weighted"
+    retrieval_vector_weight: float = 0.6
+    retrieval_keyword_weight: float = 0.4
+
     raw: dict = field(default_factory=dict)
 
     @property
@@ -146,6 +150,11 @@ def load_config() -> WorkerConfig:
     )
     cfg.cover_font_path = raw.get("cover", {}).get("font_path", cfg.cover_font_path)
     cfg.chat_max_tool_rounds = int(raw.get("chat", {}).get("max_tool_rounds", cfg.chat_max_tool_rounds))
+
+    retrieval = raw.get("retrieval", {})
+    cfg.retrieval_fusion = retrieval.get("fusion", cfg.retrieval_fusion)
+    cfg.retrieval_vector_weight = float(retrieval.get("vector_weight", cfg.retrieval_vector_weight))
+    cfg.retrieval_keyword_weight = float(retrieval.get("keyword_weight", cfg.retrieval_keyword_weight))
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
         cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")

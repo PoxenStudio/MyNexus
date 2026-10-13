@@ -34,7 +34,7 @@ export async function fetchConfig(): Promise<SystemConfig> {
 }
 
 // Mirrors core-api/internal/api/dto.SystemSettings — every config.yaml
-// section except server/auth (see docs/部署说明.md).
+// section except server/auth.
 export interface ProviderSettings {
   api_key: string;
   base_url: string;
@@ -82,10 +82,12 @@ export interface SystemSettings {
     max_sessions: number;
   };
   keyword: {
-    // Max whole-book content keywords a book detail response returns (see
-    // dto.NewBookResponse) — applied at read time, so raising this later
-    // surfaces more already-extracted keywords without re-summarizing.
     max_keywords: number;
+  };
+  retrieval: {
+    fusion: string;
+    vector_weight: number;
+    keyword_weight: number;
   };
   debug: {
     llm_logging: boolean;
@@ -109,4 +111,22 @@ export async function fetchSettings(): Promise<SystemSettings> {
 // arrives normally; core-api exits shortly after sending it.
 export async function saveSettings(settings: SystemSettings): Promise<void> {
   await apiClient.put("/system/settings", settings);
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface ProviderTestRequest {
+  provider: "embedding" | "llm";
+  kind: "openai" | "ollama";
+  base_url: string;
+  api_key?: string;
+  model?: string;
+}
+
+export async function testProvider(req: ProviderTestRequest): Promise<ProviderTestResult> {
+  const { data } = await apiClient.post<ProviderTestResult>("/system/test-provider", req);
+  return data;
 }

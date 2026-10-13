@@ -237,7 +237,18 @@
     "maxKeywordsHint": "書籍詳情頁詞雲展示的內容關鍵詞數量上限，修改後已總結過的書籍立即按新上限展示，無需重新總結。",
     "skipBackmatterChapters": "生成章節總結時跳過書後參考書目及索引章節",
     "debugLogging": "打開調試日誌",
-    "debugLoggingHint": "開啟後，每次調用 LLM 的請求與回應都會分別保存為檔案，寫入系統暫存目錄下的 mynexus-llm-debug 子目錄，可用 worker/tests/replay_llm_debug.py 重放調試。"
+    "debugLoggingHint": "開啟後，每次調用 LLM 的請求與回應都會分別保存為檔案，寫入系統暫存目錄下的 mynexus-llm-debug 子目錄，可用 worker/tests/replay_llm_debug.py 重放調試。",
+    "testConnection": "測試連接",
+    "testOk": "連接成功",
+    "testFail": "連接失敗",
+    "embeddingChangedHint": "已修改 Embedding 提供方或模型，保存後需對書籍重建索引才能生效。",
+    "retrieval": "檢索",
+    "retrievalFusion": "混合檢索融合方式",
+    "fusionWeighted": "加權求和",
+    "retrievalFusionHint": "加權求和直接混合兩路打分，對分數尺度敏感；RRF 按排名融合，對分數分佈更穩健。",
+    "vectorWeight": "向量檢索權重",
+    "keywordWeight": "關鍵詞檢索權重",
+    "retrievalWeightsHint": "兩路權重僅在對應檢索有結果時參與歸一化，無需保證相加等於 1。"
   },
   "chat": {
     "newSession": "新建會話",
