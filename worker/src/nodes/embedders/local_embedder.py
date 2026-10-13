@@ -4,8 +4,9 @@ from nodes.embedders.base_embedder import BaseEmbedder
 class LocalEmbedder(BaseEmbedder):
     """Runs an ONNX embedding model in-process via fastembed (no external service)."""
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, model_path: str = "") -> None:
         self.model = model
+        self.model_path = model_path
         self._engine = None
         self._dimension = 0
 
@@ -19,7 +20,8 @@ class LocalEmbedder(BaseEmbedder):
                 from fastembed import TextEmbedding
             except ImportError as e:
                 raise RuntimeError("fastembed is required for embedding.provider=local") from e
-            self._engine = TextEmbedding(self.model)
+            kwargs = {"cache_dir": self.model_path} if self.model_path else {}
+            self._engine = TextEmbedding(self.model, **kwargs)
         return self._engine
 
     def process(self, texts: list[str]) -> list[list[float]]:

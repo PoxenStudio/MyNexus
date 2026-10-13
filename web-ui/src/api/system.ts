@@ -59,7 +59,7 @@ export interface SystemSettings {
     provider: string;
     openai: ProviderSettings;
     ollama: ProviderSettings;
-    local: { model: string };
+    local: { model: string; model_path: string };
   };
   llm: {
     provider: string;

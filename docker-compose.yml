@@ -57,6 +57,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./config:/app/config
+      # Local embedding model cache (embedding.local.model_path, default /data/models) —
+      # change the host side to any directory you want to keep the model in.
+      - ./data/models:/data/models
     environment:
       - PORT=8001
       - MYNEXUS_CONFIG_PATH=/app/config/config.yaml

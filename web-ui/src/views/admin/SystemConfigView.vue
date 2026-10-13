@@ -20,7 +20,7 @@ const saving = ref(false);
 const saved = ref(false);
 const error = ref("");
 
-const originalEmbedding = ref<{ provider: string; openai_model: string; ollama_model: string; local_model: string } | null>(null);
+const originalEmbedding = ref<{ provider: string; openai_model: string; ollama_model: string; local_model: string; local_model_path: string } | null>(null);
 const embeddingChanged = computed(() => {
   if (!settings.value || !originalEmbedding.value) return false;
   const e = settings.value.embedding;
@@ -28,7 +28,8 @@ const embeddingChanged = computed(() => {
     e.provider !== originalEmbedding.value.provider ||
     e.openai.model !== originalEmbedding.value.openai_model ||
     e.ollama.model !== originalEmbedding.value.ollama_model ||
-    e.local.model !== originalEmbedding.value.local_model
+    e.local.model !== originalEmbedding.value.local_model ||
+    e.local.model_path !== originalEmbedding.value.local_model_path
   );
 });
 
@@ -45,6 +46,7 @@ async function load() {
       openai_model: e.openai.model,
       ollama_model: e.ollama.model,
       local_model: e.local.model,
+      local_model_path: e.local.model_path,
     };
   } finally {
     loading.value = false;
@@ -175,6 +177,11 @@ onMounted(load);
             </select>
           </label>
           <p class="hint">{{ t("settings.localModelHint") }}</p>
+          <label>
+            {{ t("settings.localModelPath") }}
+            <input v-model="settings.embedding.local.model_path" :placeholder="t('settings.localModelPathPlaceholder')" />
+          </label>
+          <p class="hint">{{ t("settings.localModelPathHint") }}</p>
         </template>
         <template v-else-if="settings.embedding.provider === 'openai'">
           <label>

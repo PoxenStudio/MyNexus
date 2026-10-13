@@ -81,7 +81,8 @@ type ProviderConfig struct {
 }
 
 type LocalEmbeddingConfig struct {
-	Model string `yaml:"model" json:"model"`
+	Model     string `yaml:"model" json:"model"`
+	ModelPath string `yaml:"model_path" json:"model_path"`
 }
 
 type EmbeddingConfig struct {
@@ -197,7 +198,7 @@ func defaults() Config {
 			Provider: "local",
 			OpenAI:   ProviderConfig{BaseURL: "https://api.openai.com/v1", Model: "text-embedding-3-small"},
 			Ollama:   ProviderConfig{BaseURL: "http://localhost:11434", Model: "nomic-embed-text"},
-			Local:    LocalEmbeddingConfig{Model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"},
+			Local:    LocalEmbeddingConfig{Model: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", ModelPath: "/data/models"},
 		},
 		LLM: LLMConfig{
 			Provider: "openai",

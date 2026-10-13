@@ -250,7 +250,10 @@
     "keywordWeight": "Keyword retrieval weight",
     "retrievalWeightsHint": "Each weight only joins normalisation when its retrieval returned results; they don't need to sum to 1.",
     "localModel": "Local model",
-    "localModelHint": "The model downloads and caches locally on first vectorization (~90–220MB) — no API key needed; data never leaves this machine.",
+    "localModelHint": "The model loads on first vectorization (~90–220MB) — no API key needed; data never leaves this machine.",
+    "localModelPath": "Model file directory",
+    "localModelPathPlaceholder": "Leave empty to download and cache from HuggingFace automatically",
+    "localModelPathHint": "When set, the model loads from this directory first (it still downloads there if missing). Docker deployments default to /data/models; change the mount in docker-compose.yml.",
     "localNoTest": "Local mode needs no connectivity test — just index books after saving."
   },
   "chat": {

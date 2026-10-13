@@ -33,6 +33,7 @@ class WorkerConfig:
         default_factory=lambda: ProviderConfig(base_url="http://localhost:11434", model="nomic-embed-text")
     )
     embedding_local_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_local_model_path: str = ""
 
     llm_provider: str = "openai"
     llm_openai: ProviderConfig = field(
@@ -134,6 +135,7 @@ def load_config() -> WorkerConfig:
     cfg.embedding_openai = _provider(raw, "embedding", "openai", cfg.embedding_openai)
     cfg.embedding_ollama = _provider(raw, "embedding", "ollama", cfg.embedding_ollama)
     cfg.embedding_local_model = raw.get("embedding", {}).get("local", {}).get("model", cfg.embedding_local_model)
+    cfg.embedding_local_model_path = raw.get("embedding", {}).get("local", {}).get("model_path", cfg.embedding_local_model_path)
 
     cfg.llm_provider = raw.get("llm", {}).get("provider", cfg.llm_provider)
     cfg.llm_openai = _provider(raw, "llm", "openai", cfg.llm_openai)

@@ -250,7 +250,10 @@
     "keywordWeight": "关键词检索权重",
     "retrievalWeightsHint": "两路权重仅在对应检索有结果时参与归一化，无需保证相加等于 1。",
     "localModel": "本地模型",
-    "localModelHint": "模型在首次向量化时自动下载并本地缓存（约 90–220MB），无需 API Key，数据不出本机。",
+    "localModelHint": "模型在首次向量化时加载（约 90–220MB），无需 API Key，数据不出本机。",
+    "localModelPath": "模型文件目录",
+    "localModelPathPlaceholder": "留空则自动从 HuggingFace 下载并缓存",
+    "localModelPathHint": "配置后优先从该目录加载模型文件（不存在时仍会下载到该目录）；Docker 部署默认 /data/models，可在 docker-compose.yml 中修改挂载目录。",
     "localNoTest": "本地模式无需连通性测试，保存后直接对书籍建索引即可。"
   },
   "chat": {

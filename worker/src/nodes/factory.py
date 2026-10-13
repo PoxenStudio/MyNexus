@@ -15,7 +15,7 @@ def get_embedder(cfg: WorkerConfig) -> BaseEmbedder:
     if cfg.embedding_provider == "ollama":
         return OllamaEmbedder(cfg.embedding_ollama.base_url, cfg.embedding_ollama.model)
     if cfg.embedding_provider == "local":
-        return LocalEmbedder(cfg.embedding_local_model)
+        return LocalEmbedder(cfg.embedding_local_model, cfg.embedding_local_model_path)
     provider = cfg.embedding_openai
     return OpenAIEmbedder(provider.api_key, provider.base_url, provider.model)
 
