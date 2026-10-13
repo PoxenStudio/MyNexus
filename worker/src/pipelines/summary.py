@@ -8,7 +8,7 @@ from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_embedder, get_llm, get_vector_store
 from schemas.document import Chunk
-from util.keywords import extract_keywords, merge_topk
+from util.keywords import extract_keywords, filter_by_doc_frequency, merge_topk
 from util.text_split import split_into_segments
 
 logger = logging.getLogger(__name__)
@@ -563,12 +563,24 @@ class SummaryPipeline:
             # of whatever chapters happened to be regenerated. Rolling
             # reduce at the book level mirrors _extract_chapter_keywords'
             # segment-level one, for the same memory-bounding reason.
+            # doc_freq tracks, per term, how many chapters it showed up in
+            # at all (see util.keywords.merge_topk/filter_by_doc_frequency),
+            # so a term common across nearly every chapter — generic to
+            # *this* book even if no static stopword list names it — can be
+            # dropped after the loop instead of just riding high on summed
+            # weight.
             keyword_totals: dict[str, float] = {}
+            keyword_doc_freq: dict[str, int] = {}
+            num_keyword_chapters = 0
             for ch in usable:
                 if _is_keyword_skip_chapter(ch.title):
                     continue
+                num_keyword_chapters += 1
                 chapter_keywords = self._extract_chapter_keywords(ch.content, lang)
-                keyword_totals = merge_topk(keyword_totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP)
+                keyword_totals = merge_topk(
+                    keyword_totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP, doc_freq=keyword_doc_freq
+                )
+            keyword_totals = filter_by_doc_frequency(keyword_totals, keyword_doc_freq, num_keyword_chapters)
             keywords = sorted(keyword_totals.items(), key=lambda item: item[1], reverse=True)
 
             self.core_api.report_progress(task_id, 95, "reducing_done")
