@@ -241,6 +241,17 @@ onMounted(load);
             {{ t("settings.model") }}
             <input v-model="settings.llm.openai.model" />
           </label>
+          <label>
+            {{ t("settings.chapterTokenBudget") }}
+            <input
+              v-model.number="settings.llm.openai.chapter_token_budget"
+              type="number"
+              min="5000"
+              max="50000"
+              step="1000"
+            />
+          </label>
+          <p class="hint">{{ t("settings.chapterTokenBudgetHint") }}</p>
         </template>
         <template v-else>
           <label>

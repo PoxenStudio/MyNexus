@@ -92,10 +92,23 @@ type EmbeddingConfig struct {
 	Local    LocalEmbeddingConfig `yaml:"local" json:"local"`
 }
 
+// LLMOpenAIConfig extends ProviderConfig with ChapterTokenBudget: the
+// single-chapter input cap (in tokens, ~chars — see worker's
+// text_split.fit_to_budget) the summary pipeline head/tail-samples down to
+// before calling the LLM, so one huge chapter can't blow up token spend.
+// 5000–50000; <= 0 disables the cap. Worker-side only (llm.provider must be
+// "openai" for it to apply) — kept here for config.yaml round-trip fidelity.
+type LLMOpenAIConfig struct {
+	APIKey             string `yaml:"api_key" json:"api_key"`
+	BaseURL            string `yaml:"base_url" json:"base_url"`
+	Model              string `yaml:"model" json:"model"`
+	ChapterTokenBudget int    `yaml:"chapter_token_budget" json:"chapter_token_budget"`
+}
+
 type LLMConfig struct {
-	Provider string         `yaml:"provider" json:"provider"`
-	OpenAI   ProviderConfig `yaml:"openai" json:"openai"`
-	Ollama   ProviderConfig `yaml:"ollama" json:"ollama"`
+	Provider string          `yaml:"provider" json:"provider"`
+	OpenAI   LLMOpenAIConfig `yaml:"openai" json:"openai"`
+	Ollama   ProviderConfig  `yaml:"ollama" json:"ollama"`
 }
 
 type SplitterConfig struct {
@@ -202,16 +215,16 @@ func defaults() Config {
 		},
 		LLM: LLMConfig{
 			Provider: "openai",
-			OpenAI:   ProviderConfig{BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini"},
+			OpenAI:   LLMOpenAIConfig{BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini", ChapterTokenBudget: 30000},
 			Ollama:   ProviderConfig{BaseURL: "http://localhost:11434", Model: "llama3"},
 		},
-		Splitter: SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
-		I18n:     I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
-		Chat:     ChatConfig{Enabled: true, MaxSessions: 100},
+		Splitter:  SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
+		I18n:      I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
+		Chat:      ChatConfig{Enabled: true, MaxSessions: 100},
 		Keyword:   KeywordConfig{MaxKeywords: 50},
 		Retrieval: RetrievalConfig{Fusion: "weighted", VectorWeight: 0.6, KeywordWeight: 0.4},
 		Debug:     DebugConfig{LLMLogging: false},
-		Summary:  SummaryConfig{SkipBackmatterChapters: true},
+		Summary:   SummaryConfig{SkipBackmatterChapters: true},
 	}
 }
 

@@ -67,6 +67,16 @@ def split_into_segments(
     return segments
 
 
+def fit_to_budget(text: str, budget_chars: int, head_ratio: float = 0.6) -> str:
+    """Samples an over-budget text down to budget_chars, keeping the head and
+    tail (a chapter's ending matters for its summary) and dropping the middle."""
+    if budget_chars <= 0 or len(text) <= budget_chars:
+        return text
+    head_chars = int(budget_chars * head_ratio)
+    tail_chars = budget_chars - head_chars
+    return text[:head_chars].rstrip() + "\n……\n" + text[-tail_chars:].lstrip()
+
+
 def _find_cut(text: str, target_chars: int, hard_limit_chars: int) -> int:
     # 1) paragraph break: the first "\n" at or after target_chars, as long as
     # it's not past hard_limit_chars (a paragraph break way out past the

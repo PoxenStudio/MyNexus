@@ -41,6 +41,12 @@ export interface ProviderSettings {
   model: string;
 }
 
+// LLM openai adds a single-chapter input cap for the summary pipeline (see
+// worker's _fit_budget; 5000–50000, 0 disables). OpenAI-provider only.
+export interface LLMProviderSettings extends ProviderSettings {
+  chapter_token_budget: number;
+}
+
 export interface SystemSettings {
   storage: {
     database: string;
@@ -63,7 +69,7 @@ export interface SystemSettings {
   };
   llm: {
     provider: string;
-    openai: ProviderSettings;
+    openai: LLMProviderSettings;
     ollama: ProviderSettings;
   };
   splitter: {

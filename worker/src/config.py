@@ -42,6 +42,7 @@ class WorkerConfig:
     llm_ollama: ProviderConfig = field(
         default_factory=lambda: ProviderConfig(base_url="http://localhost:11434", model="llama3")
     )
+    llm_openai_chapter_token_budget: int = 30000
 
     splitter: SplitterConfig = field(default_factory=SplitterConfig)
 
@@ -140,6 +141,8 @@ def load_config() -> WorkerConfig:
     cfg.llm_provider = raw.get("llm", {}).get("provider", cfg.llm_provider)
     cfg.llm_openai = _provider(raw, "llm", "openai", cfg.llm_openai)
     cfg.llm_ollama = _provider(raw, "llm", "ollama", cfg.llm_ollama)
+    budget = int(raw.get("llm", {}).get("openai", {}).get("chapter_token_budget", cfg.llm_openai_chapter_token_budget))
+    cfg.llm_openai_chapter_token_budget = min(max(budget, 5000), 50000) if budget > 0 else 0
 
     splitter = raw.get("splitter", {})
     cfg.splitter = SplitterConfig(
