@@ -1,6 +1,11 @@
+import logging
+
 import chromadb
+from chromadb.errors import InvalidArgumentError
 
 from vector_store.base_store import BaseVectorStore
+
+logger = logging.getLogger(__name__)
 
 _COLLECTION_NAME = "chunks"
 
@@ -28,6 +33,19 @@ class ChromaStore(BaseVectorStore):
     def upsert(self, chunks: list, vectors: list[list[float]]) -> None:
         if not chunks:
             return
+        dim = len(vectors[0])
+        stored = self._stored_dim()
+        if stored and stored != dim:
+            self._reset_collection(dim)
+        try:
+            self._upsert_batch(chunks, vectors)
+        except InvalidArgumentError as e:
+            if "dimension" not in str(e).lower():
+                raise
+            self._reset_collection(dim)
+            self._upsert_batch(chunks, vectors)
+
+    def _upsert_batch(self, chunks: list, vectors: list[list[float]]) -> None:
         self.collection.upsert(
             ids=[c.id for c in chunks],
             embeddings=vectors,
@@ -45,6 +63,22 @@ class ChromaStore(BaseVectorStore):
             ],
         )
 
+    def _stored_dim(self) -> int:
+        try:
+            return int((self.collection.metadata or {}).get("embedding_dim") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _reset_collection(self, dim: int) -> None:
+        logger.warning(
+            "embedding dimension changed; dropping collection %r and all indexed vectors — rebuild every book",
+            _COLLECTION_NAME,
+        )
+        self.client.delete_collection(_COLLECTION_NAME)
+        self.collection = self.client.get_or_create_collection(
+            _COLLECTION_NAME, metadata={"hnsw:space": "cosine", "embedding_dim": str(dim)}
+        )
+
     def delete_by_book(self, book_id: str) -> None:
         self.collection.delete(where={"book_id": book_id})
 
@@ -55,10 +89,16 @@ class ChromaStore(BaseVectorStore):
 
     def search(self, query_vector: list[float], top_k: int, book_ids: list[str] | None = None) -> list[dict]:
         where = {"book_id": {"$in": book_ids}} if book_ids else None
-        result = self.collection.query(
-            query_embeddings=[query_vector], n_results=top_k, where=where,
-            include=["documents", "metadatas", "distances"],
-        )
+        try:
+            result = self.collection.query(
+                query_embeddings=[query_vector], n_results=top_k, where=where,
+                include=["documents", "metadatas", "distances"],
+            )
+        except InvalidArgumentError as e:
+            if "dimension" not in str(e).lower():
+                raise
+            logger.warning("query vector dimension mismatch with collection; returning no results — rebuild every book")
+            return []
         if not result["ids"] or not result["ids"][0]:
             return []
 

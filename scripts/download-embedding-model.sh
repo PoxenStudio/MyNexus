@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pre-download a fastembed local embedding model from HuggingFace into a
 # cache directory (default /data/models) that embedding.local.model_path uses.
+# Default model name: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 set -euo pipefail
 
 MODEL="${1:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}"

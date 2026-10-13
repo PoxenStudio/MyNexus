@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -137,10 +139,6 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	}()
 }
 
-// TestProvider pings the submitted provider settings (ollama: GET /api/tags,
-// openai-compatible: GET /models with Bearer auth) without saving anything,
-// so the settings page can verify connectivity before the save+restart cycle.
-// kind=local has no remote endpoint to ping: the model downloads on first use.
 func (h *SystemHandler) TestProvider(c *gin.Context) {
 	var body struct {
 		Provider string `json:"provider" binding:"required,oneof=embedding llm"`
@@ -160,13 +158,25 @@ func (h *SystemHandler) TestProvider(c *gin.Context) {
 	}
 
 	url := strings.TrimRight(body.BaseURL, "/")
-	hc := &http.Client{Timeout: 8 * time.Second}
+	hc := &http.Client{Timeout: 15 * time.Second}
 	var req *http.Request
 	if body.Kind == "ollama" {
 		req, _ = http.NewRequest(http.MethodGet, url+"/api/tags", nil)
 	} else {
-		req, _ = http.NewRequest(http.MethodGet, url+"/models", nil)
+		// /models listing is unreliable on many OpenAI-compatible gateways, so
+		// verify auth+model with a real minimal inference call instead.
+		path := "/chat/completions"
+		payload, _ := json.Marshal(map[string]any{
+			"model":    body.Model,
+			"messages": []map[string]string{{"role": "user", "content": "ping"}},
+		})
+		if body.Provider == "embedding" {
+			path = "/embeddings"
+			payload, _ = json.Marshal(map[string]any{"model": body.Model, "input": "ping"})
+		}
+		req, _ = http.NewRequest(http.MethodPost, url+path, bytes.NewReader(payload))
 		req.Header.Set("Authorization", "Bearer "+body.APIKey)
+		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -179,14 +189,7 @@ func (h *SystemHandler) TestProvider(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": false, "error": fmt.Sprintf("HTTP %d: %s", resp.StatusCode, truncate(string(data), 200))})
 		return
 	}
-	result := gin.H{"ok": true}
-	if body.Kind == "openai" && body.Model != "" {
-		if !strings.Contains(string(data), `"id":"`+body.Model+`"`) && !strings.Contains(string(data), `"id": "`+body.Model+`"`) {
-			result["ok"] = false
-			result["error"] = "model not found in /models list"
-		}
-	}
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
 func truncate(s string, n int) string {

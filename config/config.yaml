@@ -34,11 +34,11 @@ embedding:
         model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
         model_path: ./data/models
 llm:
-    provider: ollama
+    provider: openai
     openai:
-        api_key: ""
-        base_url: https://api.openai.com/v1
-        model: gpt-4o-mini
+        api_key: sk-651ba337c70343e98ebc721d46f0d17d
+        base_url: https://api.deepseek.com
+        model: deepseek-v4-flash
     ollama:
         api_key: ""
         base_url: http://localhost:11434
@@ -56,14 +56,12 @@ i18n:
 chat:
     enabled: true
     max_sessions: 100
-    # Worker 侧会话工具调用最大轮数（决策-执行循环上限），达到后强制基于已积累上下文作答。
-    max_tool_rounds: 3
+keyword:
+    max_keywords: 50
 retrieval:
     fusion: weighted
     vector_weight: 0.6
     keyword_weight: 0.4
-keyword:
-    max_keywords: 50
 debug:
     llm_logging: true
 summary:

@@ -68,7 +68,7 @@ dev-up:
 	PORT=8080 go run ./core-api/cmd/mynexus-api > $(PARENT)/.tmp/core.log 2>&1 & \
 	MYNEXUS_CONFIG_PATH=$(PARENT)/config/config.yaml \
 	PYTHONUNBUFFERED=1 \
-	PORT=8001 python3 worker/src/server.py > $(PARENT)/.tmp/worker.log 2>&1 & \
+	PORT=8001 python worker/src/server.py > $(PARENT)/.tmp/worker.log 2>&1 & \
 	( cd web-ui && npm run dev > $(PARENT)/.tmp/web.log 2>&1 & ) ; \
 	 sleep 3 && echo 'Dev services started'
 
@@ -77,18 +77,7 @@ dev-down:
 	pkill -f 'worker/src/server.py' || true
 	pkill -f 'vite' || true
 
-# Tails all three dev-up log files at once in a single `tail` process — no
-# backgrounded sub-jobs of its own, deliberately, since dev-up's services
-# are themselves plain `&`-backgrounded (no setsid/disown) and therefore
-# share this shell's process group: a job-control signal aimed at a dev-logs
-# subshell's own background jobs (e.g. from `timeout`, or some shells'
-# Ctrl+C handling) can otherwise land on that whole group and take the dev
-# services down with it. A single foreground `tail -f` over all three files
-# has no such risk — Ctrl+C only ever stops the one tail process. `tail -f`
-# with multiple files prints a "==> file <==" header each time it switches
-# between them, which is enough to tell the three apart. touch first so
-# tail -f doesn't error out if a service hasn't written its log yet (or
-# dev-up was never run).
+# Tails all three dev-up log files at once in a single `tail` process
 dev-logs:
 	@touch $(PARENT)/.tmp/core.log $(PARENT)/.tmp/worker.log $(PARENT)/.tmp/web.log
 	cd $(PARENT)/.tmp && tail -n 20 -f core.log worker.log web.log
