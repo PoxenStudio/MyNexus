@@ -34,8 +34,12 @@ class SimpleVectorStore(BaseVectorStore):
             return json.load(f)
 
     def _save(self, records: list[dict]) -> None:
-        with open(self.file_path, "w", encoding="utf-8") as f:
+        temp_path = self.file_path + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(records, f, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_path, self.file_path)
 
     def upsert(self, chunks: list, vectors: list[list[float]]) -> None:
         with _LOCK:
@@ -65,6 +69,62 @@ class SimpleVectorStore(BaseVectorStore):
         if book_ids:
             records = [r for r in records if r["book_id"] in book_ids]
         return records
+
+    def export_by_book(self, book_id: str, offset: int, limit: int) -> list[dict]:
+        return [r for r in self.all([book_id])[offset : offset + limit] if "vector" in r]
+
+    def import_records(self, book_id: str, records: list[dict]) -> None:
+        with _LOCK:
+            current = self._load()
+            by_id = {r["id"]: r for r in current}
+            for record in records:
+                by_id[book_id + ":" + record["id"]] = {
+                    **record,
+                    "id": book_id + ":" + record["id"],
+                    "book_id": book_id,
+                }
+            self._save(list(by_id.values()))
+
+    def commit_import(self, book_id: str, staging_book_id: str, backup_book_id: str) -> None:
+        with _LOCK:
+            records = self._load()
+            updated = [
+                {
+                    **record,
+                    "id": backup_book_id + ":" + record["id"],
+                    "book_id": backup_book_id,
+                    "transfer_original_id": record["id"],
+                }
+                if record["book_id"] == book_id
+                else record
+                for record in records
+            ]
+            updated = [
+                {
+                    **record,
+                    "id": record["id"].removeprefix(staging_book_id + ":"),
+                    "book_id": book_id,
+                }
+                if record["book_id"] == staging_book_id
+                else record
+                for record in updated
+            ]
+            self._save(updated)
+
+    def rollback_import(self, book_id: str, staging_book_id: str, backup_book_id: str) -> None:
+        with _LOCK:
+            current = self._load()
+            backups = [record for record in current if record["book_id"] == backup_book_id]
+            records = [record for record in current if record["book_id"] not in (book_id, staging_book_id, backup_book_id)]
+            for record in backups:
+                restored = {**record}
+                restored["id"] = restored.pop(
+                    "transfer_original_id",
+                    restored["id"].removeprefix(backup_book_id + ":"),
+                )
+                restored["book_id"] = book_id
+                records.append(restored)
+            self._save(records)
 
     def search(self, query_vector: list[float], top_k: int, book_ids: list[str] | None = None) -> list[dict]:
         records = self.all(book_ids)

@@ -61,6 +61,32 @@ export interface BookListResponse {
   size: number;
 }
 
+export interface TransferPreview {
+  source_title: string;
+  target_title: string;
+  source_chapters: number;
+  matched_chapters: number;
+  source_vectors: number;
+  matched_vectors: number;
+  exact_book_match: boolean;
+  warning?: string;
+}
+
+export interface TransferJob {
+  id: string;
+  book_id: string;
+  type: "import" | "export";
+  status: "pending" | "processing" | "awaiting_confirmation" | "completed" | "failed" | "canceled";
+  stage: string;
+  progress: number;
+  error_msg: string;
+  target_file_name?: string;
+  source_title?: string;
+  preview?: TransferPreview;
+  created_at: string;
+  updated_at: string;
+}
+
 export async function listBooks(params: { page?: number; size?: number; status?: string; q?: string } = {}) {
   const { data } = await apiClient.get<BookListResponse>("/books", { params });
   return data;
@@ -134,5 +160,36 @@ export async function uploadBook(file: File) {
   const { data } = await apiClient.post<{ task_id: string; book_id: string }>("/books/import", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return data;
+}
+
+export async function importBookData(id: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiClient.post<TransferJob>(`/books/${id}/data-import`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function getActiveBookImport(id: string) {
+  const response = await apiClient.get<TransferJob | null>(`/books/${id}/active-import`, {
+    validateStatus: (status) => status === 200 || status === 204,
+  });
+  return response.status === 204 ? null : (response.data as TransferJob);
+}
+
+export async function getTransferJob(id: string) {
+  const { data } = await apiClient.get<TransferJob>(`/transfer-jobs/${id}`);
+  return data;
+}
+
+export async function confirmBookDataImport(id: string) {
+  const { data } = await apiClient.post<TransferJob>(`/transfer-jobs/${id}/confirm`);
+  return data;
+}
+
+export async function cancelBookDataImport(id: string) {
+  const { data } = await apiClient.post<TransferJob>(`/transfer-jobs/${id}/cancel`);
   return data;
 }

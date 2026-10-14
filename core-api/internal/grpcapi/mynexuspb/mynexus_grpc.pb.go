@@ -15,7 +15,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.35.1
-// source: proto/mynexus.proto
+// source: mynexus.proto
 
 package mynexuspb
 
@@ -32,14 +32,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkerService_TriggerIngest_FullMethodName      = "/mynexus.WorkerService/TriggerIngest"
-	WorkerService_Search_FullMethodName             = "/mynexus.WorkerService/Search"
-	WorkerService_Chat_FullMethodName               = "/mynexus.WorkerService/Chat"
-	WorkerService_Shutdown_FullMethodName           = "/mynexus.WorkerService/Shutdown"
-	WorkerService_ReembedBookSummary_FullMethodName = "/mynexus.WorkerService/ReembedBookSummary"
-	WorkerService_TriggerSummarize_FullMethodName   = "/mynexus.WorkerService/TriggerSummarize"
-	WorkerService_DeleteBook_FullMethodName         = "/mynexus.WorkerService/DeleteBook"
-	WorkerService_CancelTask_FullMethodName         = "/mynexus.WorkerService/CancelTask"
+	WorkerService_TriggerIngest_FullMethodName            = "/mynexus.WorkerService/TriggerIngest"
+	WorkerService_Search_FullMethodName                   = "/mynexus.WorkerService/Search"
+	WorkerService_Chat_FullMethodName                     = "/mynexus.WorkerService/Chat"
+	WorkerService_Shutdown_FullMethodName                 = "/mynexus.WorkerService/Shutdown"
+	WorkerService_ReembedBookSummary_FullMethodName       = "/mynexus.WorkerService/ReembedBookSummary"
+	WorkerService_TriggerSummarize_FullMethodName         = "/mynexus.WorkerService/TriggerSummarize"
+	WorkerService_DeleteBook_FullMethodName               = "/mynexus.WorkerService/DeleteBook"
+	WorkerService_CancelTask_FullMethodName               = "/mynexus.WorkerService/CancelTask"
+	WorkerService_ExportBookVectors_FullMethodName        = "/mynexus.WorkerService/ExportBookVectors"
+	WorkerService_ImportBookVectors_FullMethodName        = "/mynexus.WorkerService/ImportBookVectors"
+	WorkerService_CommitBookVectorImport_FullMethodName   = "/mynexus.WorkerService/CommitBookVectorImport"
+	WorkerService_RollbackBookVectorImport_FullMethodName = "/mynexus.WorkerService/RollbackBookVectorImport"
+	WorkerService_FinalizeBookVectorImport_FullMethodName = "/mynexus.WorkerService/FinalizeBookVectorImport"
 )
 
 // WorkerServiceClient is the client API for WorkerService service.
@@ -99,6 +104,15 @@ type WorkerServiceClient interface {
 	// reaches its terminal canceled state via ReportFail(canceled=true), not
 	// from this call itself.
 	CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*Ack, error)
+	// Exports a book's vector records in bounded batches. The embedding itself
+	// is included so derived-data archives can be restored on another device.
+	ExportBookVectors(ctx context.Context, in *VectorBookRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VectorRecord], error)
+	// Imports vectors under a temporary book id. The caller must explicitly
+	// commit or discard that staged set after its database transaction finishes.
+	ImportBookVectors(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VectorRecord, Ack], error)
+	CommitBookVectorImport(ctx context.Context, in *CommitBookVectorImportRequest, opts ...grpc.CallOption) (*Ack, error)
+	RollbackBookVectorImport(ctx context.Context, in *RollbackBookVectorImportRequest, opts ...grpc.CallOption) (*Ack, error)
+	FinalizeBookVectorImport(ctx context.Context, in *FinalizeBookVectorImportRequest, opts ...grpc.CallOption) (*Ack, error)
 }
 
 type workerServiceClient struct {
@@ -198,6 +212,68 @@ func (c *workerServiceClient) CancelTask(ctx context.Context, in *CancelTaskRequ
 	return out, nil
 }
 
+func (c *workerServiceClient) ExportBookVectors(ctx context.Context, in *VectorBookRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[VectorRecord], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &WorkerService_ServiceDesc.Streams[1], WorkerService_ExportBookVectors_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[VectorBookRequest, VectorRecord]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkerService_ExportBookVectorsClient = grpc.ServerStreamingClient[VectorRecord]
+
+func (c *workerServiceClient) ImportBookVectors(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[VectorRecord, Ack], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &WorkerService_ServiceDesc.Streams[2], WorkerService_ImportBookVectors_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[VectorRecord, Ack]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkerService_ImportBookVectorsClient = grpc.ClientStreamingClient[VectorRecord, Ack]
+
+func (c *workerServiceClient) CommitBookVectorImport(ctx context.Context, in *CommitBookVectorImportRequest, opts ...grpc.CallOption) (*Ack, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ack)
+	err := c.cc.Invoke(ctx, WorkerService_CommitBookVectorImport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workerServiceClient) RollbackBookVectorImport(ctx context.Context, in *RollbackBookVectorImportRequest, opts ...grpc.CallOption) (*Ack, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ack)
+	err := c.cc.Invoke(ctx, WorkerService_RollbackBookVectorImport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workerServiceClient) FinalizeBookVectorImport(ctx context.Context, in *FinalizeBookVectorImportRequest, opts ...grpc.CallOption) (*Ack, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ack)
+	err := c.cc.Invoke(ctx, WorkerService_FinalizeBookVectorImport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkerServiceServer is the server API for WorkerService service.
 // All implementations must embed UnimplementedWorkerServiceServer
 // for forward compatibility.
@@ -255,6 +331,15 @@ type WorkerServiceServer interface {
 	// reaches its terminal canceled state via ReportFail(canceled=true), not
 	// from this call itself.
 	CancelTask(context.Context, *CancelTaskRequest) (*Ack, error)
+	// Exports a book's vector records in bounded batches. The embedding itself
+	// is included so derived-data archives can be restored on another device.
+	ExportBookVectors(*VectorBookRequest, grpc.ServerStreamingServer[VectorRecord]) error
+	// Imports vectors under a temporary book id. The caller must explicitly
+	// commit or discard that staged set after its database transaction finishes.
+	ImportBookVectors(grpc.ClientStreamingServer[VectorRecord, Ack]) error
+	CommitBookVectorImport(context.Context, *CommitBookVectorImportRequest) (*Ack, error)
+	RollbackBookVectorImport(context.Context, *RollbackBookVectorImportRequest) (*Ack, error)
+	FinalizeBookVectorImport(context.Context, *FinalizeBookVectorImportRequest) (*Ack, error)
 	mustEmbedUnimplementedWorkerServiceServer()
 }
 
@@ -288,6 +373,21 @@ func (UnimplementedWorkerServiceServer) DeleteBook(context.Context, *DeleteBookR
 }
 func (UnimplementedWorkerServiceServer) CancelTask(context.Context, *CancelTaskRequest) (*Ack, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelTask not implemented")
+}
+func (UnimplementedWorkerServiceServer) ExportBookVectors(*VectorBookRequest, grpc.ServerStreamingServer[VectorRecord]) error {
+	return status.Error(codes.Unimplemented, "method ExportBookVectors not implemented")
+}
+func (UnimplementedWorkerServiceServer) ImportBookVectors(grpc.ClientStreamingServer[VectorRecord, Ack]) error {
+	return status.Error(codes.Unimplemented, "method ImportBookVectors not implemented")
+}
+func (UnimplementedWorkerServiceServer) CommitBookVectorImport(context.Context, *CommitBookVectorImportRequest) (*Ack, error) {
+	return nil, status.Error(codes.Unimplemented, "method CommitBookVectorImport not implemented")
+}
+func (UnimplementedWorkerServiceServer) RollbackBookVectorImport(context.Context, *RollbackBookVectorImportRequest) (*Ack, error) {
+	return nil, status.Error(codes.Unimplemented, "method RollbackBookVectorImport not implemented")
+}
+func (UnimplementedWorkerServiceServer) FinalizeBookVectorImport(context.Context, *FinalizeBookVectorImportRequest) (*Ack, error) {
+	return nil, status.Error(codes.Unimplemented, "method FinalizeBookVectorImport not implemented")
 }
 func (UnimplementedWorkerServiceServer) mustEmbedUnimplementedWorkerServiceServer() {}
 func (UnimplementedWorkerServiceServer) testEmbeddedByValue()                       {}
@@ -447,6 +547,78 @@ func _WorkerService_CancelTask_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkerService_ExportBookVectors_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(VectorBookRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(WorkerServiceServer).ExportBookVectors(m, &grpc.GenericServerStream[VectorBookRequest, VectorRecord]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkerService_ExportBookVectorsServer = grpc.ServerStreamingServer[VectorRecord]
+
+func _WorkerService_ImportBookVectors_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(WorkerServiceServer).ImportBookVectors(&grpc.GenericServerStream[VectorRecord, Ack]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkerService_ImportBookVectorsServer = grpc.ClientStreamingServer[VectorRecord, Ack]
+
+func _WorkerService_CommitBookVectorImport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitBookVectorImportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServiceServer).CommitBookVectorImport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerService_CommitBookVectorImport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServiceServer).CommitBookVectorImport(ctx, req.(*CommitBookVectorImportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkerService_RollbackBookVectorImport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RollbackBookVectorImportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServiceServer).RollbackBookVectorImport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerService_RollbackBookVectorImport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServiceServer).RollbackBookVectorImport(ctx, req.(*RollbackBookVectorImportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorkerService_FinalizeBookVectorImport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FinalizeBookVectorImportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServiceServer).FinalizeBookVectorImport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerService_FinalizeBookVectorImport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServiceServer).FinalizeBookVectorImport(ctx, req.(*FinalizeBookVectorImportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkerService_ServiceDesc is the grpc.ServiceDesc for WorkerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -482,6 +654,18 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "CancelTask",
 			Handler:    _WorkerService_CancelTask_Handler,
 		},
+		{
+			MethodName: "CommitBookVectorImport",
+			Handler:    _WorkerService_CommitBookVectorImport_Handler,
+		},
+		{
+			MethodName: "RollbackBookVectorImport",
+			Handler:    _WorkerService_RollbackBookVectorImport_Handler,
+		},
+		{
+			MethodName: "FinalizeBookVectorImport",
+			Handler:    _WorkerService_FinalizeBookVectorImport_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -489,8 +673,18 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _WorkerService_Chat_Handler,
 			ServerStreams: true,
 		},
+		{
+			StreamName:    "ExportBookVectors",
+			Handler:       _WorkerService_ExportBookVectors_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ImportBookVectors",
+			Handler:       _WorkerService_ImportBookVectors_Handler,
+			ClientStreams: true,
+		},
 	},
-	Metadata: "proto/mynexus.proto",
+	Metadata: "mynexus.proto",
 }
 
 const (
@@ -1116,5 +1310,5 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/mynexus.proto",
+	Metadata: "mynexus.proto",
 }

@@ -79,6 +79,49 @@ service WorkerService {
   // reaches its terminal canceled state via ReportFail(canceled=true), not
   // from this call itself.
   rpc CancelTask(CancelTaskRequest) returns (Ack);
+
+  // Exports a book's vector records in bounded batches. The embedding itself
+  // is included so derived-data archives can be restored on another device.
+  rpc ExportBookVectors(VectorBookRequest) returns (stream VectorRecord);
+  // Imports vectors under a temporary book id. The caller must explicitly
+  // commit or discard that staged set after its database transaction finishes.
+  rpc ImportBookVectors(stream VectorRecord) returns (Ack);
+  rpc CommitBookVectorImport(CommitBookVectorImportRequest) returns (Ack);
+  rpc RollbackBookVectorImport(RollbackBookVectorImportRequest) returns (Ack);
+  rpc FinalizeBookVectorImport(FinalizeBookVectorImportRequest) returns (Ack);
+}
+
+message VectorBookRequest {
+  string book_id = 1;
+}
+
+message VectorRecord {
+  string id = 1;
+  string book_id = 2;
+  string chapter_id = 3;
+  string content = 4;
+  int32 position = 5;
+  int32 token_count = 6;
+  int32 start_offset = 7;
+  int32 end_offset = 8;
+  repeated float embedding = 9;
+}
+
+message CommitBookVectorImportRequest {
+  string book_id = 1;
+  string staging_book_id = 2;
+  string backup_book_id = 3;
+}
+
+message RollbackBookVectorImportRequest {
+  string book_id = 1;
+  string staging_book_id = 2;
+  string backup_book_id = 3;
+}
+
+message FinalizeBookVectorImportRequest {
+  string staging_book_id = 1;
+  string backup_book_id = 2;
 }
 
 message CancelTaskRequest {

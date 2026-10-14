@@ -76,6 +76,31 @@ class WorkerServiceStub:
                 request_serializer=mynexus__pb2.CancelTaskRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.Ack.FromString,
                 _registered_method=True)
+        self.ExportBookVectors = channel.unary_stream(
+                '/mynexus.WorkerService/ExportBookVectors',
+                request_serializer=mynexus__pb2.VectorBookRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.VectorRecord.FromString,
+                _registered_method=True)
+        self.ImportBookVectors = channel.stream_unary(
+                '/mynexus.WorkerService/ImportBookVectors',
+                request_serializer=mynexus__pb2.VectorRecord.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
+        self.CommitBookVectorImport = channel.unary_unary(
+                '/mynexus.WorkerService/CommitBookVectorImport',
+                request_serializer=mynexus__pb2.CommitBookVectorImportRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
+        self.RollbackBookVectorImport = channel.unary_unary(
+                '/mynexus.WorkerService/RollbackBookVectorImport',
+                request_serializer=mynexus__pb2.RollbackBookVectorImportRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
+        self.FinalizeBookVectorImport = channel.unary_unary(
+                '/mynexus.WorkerService/FinalizeBookVectorImport',
+                request_serializer=mynexus__pb2.FinalizeBookVectorImportRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
 
 
 class WorkerServiceServicer:
@@ -176,6 +201,40 @@ class WorkerServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ExportBookVectors(self, request, context):
+        """Exports a book's vector records in bounded batches. The embedding itself
+        is included so derived-data archives can be restored on another device.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ImportBookVectors(self, request_iterator, context):
+        """Imports vectors under a temporary book id. The caller must explicitly
+        commit or discard that staged set after its database transaction finishes.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CommitBookVectorImport(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RollbackBookVectorImport(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def FinalizeBookVectorImport(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -217,6 +276,31 @@ def add_WorkerServiceServicer_to_server(servicer, server):
             'CancelTask': grpc.unary_unary_rpc_method_handler(
                     servicer.CancelTask,
                     request_deserializer=mynexus__pb2.CancelTaskRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'ExportBookVectors': grpc.unary_stream_rpc_method_handler(
+                    servicer.ExportBookVectors,
+                    request_deserializer=mynexus__pb2.VectorBookRequest.FromString,
+                    response_serializer=mynexus__pb2.VectorRecord.SerializeToString,
+            ),
+            'ImportBookVectors': grpc.stream_unary_rpc_method_handler(
+                    servicer.ImportBookVectors,
+                    request_deserializer=mynexus__pb2.VectorRecord.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'CommitBookVectorImport': grpc.unary_unary_rpc_method_handler(
+                    servicer.CommitBookVectorImport,
+                    request_deserializer=mynexus__pb2.CommitBookVectorImportRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'RollbackBookVectorImport': grpc.unary_unary_rpc_method_handler(
+                    servicer.RollbackBookVectorImport,
+                    request_deserializer=mynexus__pb2.RollbackBookVectorImportRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'FinalizeBookVectorImport': grpc.unary_unary_rpc_method_handler(
+                    servicer.FinalizeBookVectorImport,
+                    request_deserializer=mynexus__pb2.FinalizeBookVectorImportRequest.FromString,
                     response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
     }
@@ -437,6 +521,141 @@ class WorkerService:
             target,
             '/mynexus.WorkerService/CancelTask',
             mynexus__pb2.CancelTaskRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ExportBookVectors(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/mynexus.WorkerService/ExportBookVectors',
+            mynexus__pb2.VectorBookRequest.SerializeToString,
+            mynexus__pb2.VectorRecord.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ImportBookVectors(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_unary(
+            request_iterator,
+            target,
+            '/mynexus.WorkerService/ImportBookVectors',
+            mynexus__pb2.VectorRecord.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CommitBookVectorImport(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/CommitBookVectorImport',
+            mynexus__pb2.CommitBookVectorImportRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RollbackBookVectorImport(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/RollbackBookVectorImport',
+            mynexus__pb2.RollbackBookVectorImportRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FinalizeBookVectorImport(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/FinalizeBookVectorImport',
+            mynexus__pb2.FinalizeBookVectorImportRequest.SerializeToString,
             mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,

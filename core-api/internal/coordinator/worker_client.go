@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -313,6 +314,96 @@ func (c *WorkerClient) DeleteBook(bookID string) error {
 	defer cancel()
 
 	_, err := c.client.DeleteBook(ctx, &mynexuspb.DeleteBookRequest{BookId: bookID})
+	return wrapWorkerError(err)
+}
+
+type VectorRecord struct {
+	ID          string
+	BookID      string
+	ChapterID   string
+	Content     string
+	Position    int
+	TokenCount  int
+	StartOffset int
+	EndOffset   int
+	Embedding   []float32
+}
+
+func (c *WorkerClient) ExportBookVectors(bookID string, consume func(VectorRecord) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	stream, err := c.client.ExportBookVectors(ctx, &mynexuspb.VectorBookRequest{BookId: bookID})
+	if err != nil {
+		return wrapWorkerError(err)
+	}
+	for {
+		record, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return wrapWorkerError(err)
+		}
+		if err := consume(VectorRecord{
+			ID: record.Id, BookID: record.BookId, ChapterID: record.ChapterId, Content: record.Content,
+			Position: int(record.Position), TokenCount: int(record.TokenCount),
+			StartOffset: int(record.StartOffset), EndOffset: int(record.EndOffset),
+			Embedding: record.Embedding,
+		}); err != nil {
+			return err
+		}
+	}
+}
+
+func (c *WorkerClient) ImportBookVectors(
+	ctx context.Context,
+	produce func(func(VectorRecord) error) error,
+) error {
+	stream, err := c.client.ImportBookVectors(ctx)
+	if err != nil {
+		return wrapWorkerError(err)
+	}
+	err = produce(func(record VectorRecord) error {
+		return stream.Send(&mynexuspb.VectorRecord{
+			Id: record.ID, BookId: record.BookID, ChapterId: record.ChapterID, Content: record.Content,
+			Position: int32(record.Position), TokenCount: int32(record.TokenCount),
+			StartOffset: int32(record.StartOffset), EndOffset: int32(record.EndOffset),
+			Embedding: record.Embedding,
+		})
+	})
+	if err != nil {
+		_ = stream.CloseSend()
+		return err
+	}
+	_, err = stream.CloseAndRecv()
+	return wrapWorkerError(err)
+}
+
+func (c *WorkerClient) CommitBookVectorImport(bookID, stagingBookID, backupBookID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	_, err := c.client.CommitBookVectorImport(ctx, &mynexuspb.CommitBookVectorImportRequest{
+		BookId: bookID, StagingBookId: stagingBookID, BackupBookId: backupBookID,
+	})
+	return wrapWorkerError(err)
+}
+
+func (c *WorkerClient) RollbackBookVectorImport(bookID, stagingBookID, backupBookID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	_, err := c.client.RollbackBookVectorImport(ctx, &mynexuspb.RollbackBookVectorImportRequest{
+		BookId: bookID, StagingBookId: stagingBookID, BackupBookId: backupBookID,
+	})
+	return wrapWorkerError(err)
+}
+
+func (c *WorkerClient) FinalizeBookVectorImport(stagingBookID, backupBookID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	_, err := c.client.FinalizeBookVectorImport(ctx, &mynexuspb.FinalizeBookVectorImportRequest{
+		StagingBookId: stagingBookID, BackupBookId: backupBookID,
+	})
 	return wrapWorkerError(err)
 }
 

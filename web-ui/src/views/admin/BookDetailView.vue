@@ -2,7 +2,20 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
-import { getBook, rebuildBook, summarizeBook, updateBook, updateBookSummary, type BookDetail } from "../../api/books";
+import {
+  cancelBookDataImport,
+  confirmBookDataImport,
+  getActiveBookImport,
+  getBook,
+  getTransferJob,
+  importBookData,
+  rebuildBook,
+  summarizeBook,
+  updateBook,
+  updateBookSummary,
+  type BookDetail,
+  type TransferJob,
+} from "../../api/books";
 import { fetchBookTokenUsage, formatTokens, type BookTokenUsage } from "../../api/token";
 import { apiClient } from "../../api/client";
 import { listTasks, cancelTask, type Task } from "../../api/tasks";
@@ -42,6 +55,11 @@ const coverInitial = computed(() => (book.value?.title || book.value?.id || "?")
 
 const tokenUsage = ref<BookTokenUsage | null>(null);
 const tokenLoading = ref(false);
+const importInput = ref<HTMLInputElement | null>(null);
+const transferJob = ref<TransferJob | null>(null);
+const transferError = ref("");
+const transferBusy = ref(false);
+let transferPollTimer: ReturnType<typeof setInterval> | null = null;
 
 function callSiteLabel(site: string): string {
   const base = site.replace(/^summary\./, "").replace(/\.segment\.\d+$/, "").replace(/_\d+$/, "");
@@ -222,9 +240,110 @@ async function load() {
   loading.value = true;
   try {
     book.value = await getBook(route.params.id as string);
-    await Promise.all([findActiveTask(), loadTokenUsage()]);
+    await Promise.all([findActiveTask(), findActiveImport(), loadTokenUsage()]);
   } finally {
     loading.value = false;
+  }
+}
+
+const transferIsActive = computed(
+  () =>
+    transferJob.value !== null &&
+    ["pending", "processing", "awaiting_confirmation"].includes(transferJob.value.status),
+);
+
+async function findActiveImport() {
+  if (!book.value) return;
+  const active = await getActiveBookImport(book.value.id);
+  if (!active) return;
+  transferJob.value = active;
+  if (active.status !== "awaiting_confirmation") startTransferPolling();
+}
+
+function chooseImportFile() {
+  importInput.value?.click();
+}
+
+async function onImportFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || !book.value) return;
+  transferError.value = "";
+  transferBusy.value = true;
+  try {
+    transferJob.value = await importBookData(book.value.id, file);
+    startTransferPolling();
+    await pollTransfer();
+  } catch (e: any) {
+    transferError.value = e?.response?.data?.error || t("books.dataImportError");
+  } finally {
+    transferBusy.value = false;
+  }
+}
+
+function startTransferPolling() {
+  if (transferPollTimer) return;
+  transferPollTimer = setInterval(() => void pollTransfer(), 2000);
+}
+
+function stopTransferPolling() {
+  if (!transferPollTimer) return;
+  clearInterval(transferPollTimer);
+  transferPollTimer = null;
+}
+
+async function pollTransfer() {
+  if (!transferJob.value) return;
+  try {
+    transferJob.value = await getTransferJob(transferJob.value.id);
+    if (transferJob.value.status === "awaiting_confirmation") {
+      stopTransferPolling();
+      return;
+    }
+    if (transferJob.value.status === "completed") {
+      stopTransferPolling();
+      book.value = await getBook(transferJob.value.book_id);
+      return;
+    }
+    if (transferJob.value.status === "failed" || transferJob.value.status === "canceled") {
+      stopTransferPolling();
+      if (transferJob.value.status === "failed") {
+        transferError.value = transferJob.value.error_msg || t("books.dataImportError");
+      }
+    }
+  } catch (e: any) {
+    transferError.value = e?.response?.data?.error || t("books.dataImportError");
+    stopTransferPolling();
+  }
+}
+
+async function confirmDataImport() {
+  if (!transferJob.value) return;
+  transferError.value = "";
+  transferBusy.value = true;
+  try {
+    transferJob.value = await confirmBookDataImport(transferJob.value.id);
+    startTransferPolling();
+    await pollTransfer();
+  } catch (e: any) {
+    transferError.value = e?.response?.data?.error || t("books.dataImportError");
+  } finally {
+    transferBusy.value = false;
+  }
+}
+
+async function cancelDataImport() {
+  if (!transferJob.value) return;
+  transferBusy.value = true;
+  transferError.value = "";
+  try {
+    transferJob.value = await cancelBookDataImport(transferJob.value.id);
+    stopTransferPolling();
+  } catch (e: any) {
+    transferError.value = e?.response?.data?.error || t("books.dataImportError");
+  } finally {
+    transferBusy.value = false;
   }
 }
 
@@ -342,6 +461,7 @@ function stopPolling() {
 onMounted(load);
 onUnmounted(() => {
   stopPolling();
+  stopTransferPolling();
   setPageTitleSuffix(null);
 });
 </script>
@@ -395,6 +515,53 @@ onUnmounted(() => {
                 </dd>
               </dl>
               <p v-if="languageError" class="error">{{ languageError }}</p>
+              <div class="transfer-panel">
+                <input
+                  ref="importInput"
+                  class="visually-hidden"
+                  type="file"
+                  accept=".zip,application/zip"
+                  @change="onImportFileSelected"
+                />
+                <button
+                  type="button"
+                  class="ghost-btn"
+                  :disabled="transferBusy || transferIsActive || Boolean(activeTask)"
+                  @click="chooseImportFile"
+                >
+                  {{ transferBusy ? t("books.dataImportUploading") : t("books.importData") }}
+                </button>
+                <p v-if="transferJob && ['pending', 'processing'].includes(transferJob.status)" class="progress-line">
+                  {{ t("books.dataImportProgress", { progress: transferJob.progress, stage: transferJob.stage }) }}
+                </p>
+                <div v-if="transferJob?.status === 'awaiting_confirmation' && transferJob.preview" class="transfer-preview">
+                  <p>
+                    {{ t("books.dataImportPreview", {
+                      source: transferJob.preview.source_title,
+                      target: transferJob.preview.target_title,
+                      chapters: transferJob.preview.matched_chapters,
+                      totalChapters: transferJob.preview.source_chapters,
+                      vectors: transferJob.preview.matched_vectors,
+                      totalVectors: transferJob.preview.source_vectors
+                    }) }}
+                  </p>
+                  <p v-if="transferJob.preview.warning" class="transfer-warning">
+                    {{ t("books.dataImportWarning") }}
+                  </p>
+                  <div class="transfer-actions">
+                    <button type="button" class="primary" :disabled="transferBusy" @click="confirmDataImport">
+                      {{ t("books.confirmDataImport") }}
+                    </button>
+                    <button type="button" class="ghost-btn" :disabled="transferBusy" @click="cancelDataImport">
+                      {{ t("common.cancel") }}
+                    </button>
+                  </div>
+                </div>
+                <p v-if="transferJob?.status === 'completed'" class="transfer-success">
+                  {{ t("books.dataImportCompleted") }}
+                </p>
+                <p v-if="transferError" class="error">{{ transferError }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -653,6 +820,66 @@ onUnmounted(() => {
 }
 .language-row select {
   font-size: 0.85rem;
+}
+.transfer-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.transfer-preview {
+  flex-basis: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+.transfer-preview p {
+  margin: 0;
+}
+.transfer-preview .transfer-warning {
+  margin-top: 0.5rem;
+  color: var(--warning, #a16207);
+}
+.transfer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.transfer-actions button {
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.transfer-actions .primary {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+}
+.transfer-actions .ghost-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+}
+.transfer-success {
+  margin: 0;
+  color: var(--success, #16803c);
+  font-size: 0.85rem;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .summary-section {
   margin: 1.5rem 0;

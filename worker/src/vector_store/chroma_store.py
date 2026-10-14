@@ -82,6 +82,145 @@ class ChromaStore(BaseVectorStore):
     def delete_by_book(self, book_id: str) -> None:
         self.collection.delete(where={"book_id": book_id})
 
+    def export_by_book(self, book_id: str, offset: int, limit: int) -> list[dict]:
+        result = self.collection.get(
+            where={"book_id": book_id},
+            limit=limit,
+            offset=offset,
+            include=["documents", "metadatas", "embeddings"],
+        )
+        return [
+            {
+                **self._to_record(result["ids"][i], result["metadatas"][i], result["documents"][i]),
+                "vector": result["embeddings"][i].tolist(),
+            }
+            for i in range(len(result["ids"]))
+        ]
+
+    def import_records(self, book_id: str, records: list[dict]) -> None:
+        if not records:
+            return
+        self.collection.upsert(
+            ids=[book_id + ":" + record["id"] for record in records],
+            embeddings=[record["vector"] for record in records],
+            documents=[record["content"] for record in records],
+            metadatas=[
+                {
+                    "book_id": book_id,
+                    "chapter_id": record["chapter_id"],
+                    "position": record["position"],
+                    "token_count": record["token_count"],
+                    "start_offset": record["start_offset"],
+                    "end_offset": record["end_offset"],
+                }
+                for record in records
+            ],
+        )
+
+    def _ids_for_book(self, book_id: str) -> list[str]:
+        return self.collection.get(where={"book_id": book_id}, include=[])["ids"]
+
+    def _upsert_records(self, records: list[dict]) -> None:
+        if not records:
+            return
+        self.collection.upsert(
+            ids=[record["id"] for record in records],
+            documents=[record["content"] for record in records],
+            metadatas=[record["metadata"] for record in records],
+            embeddings=[record["embedding"] for record in records],
+        )
+
+    def _records_by_ids(self, ids: list[str]) -> list[dict]:
+        if not ids:
+            return []
+        result = self.collection.get(
+            ids=ids,
+            include=["documents", "metadatas", "embeddings"],
+        )
+        records = []
+        for i, old_id in enumerate(result["ids"]):
+            records.append(
+                {
+                    "id": old_id,
+                    "content": result["documents"][i],
+                    "metadata": result["metadatas"][i],
+                    "embedding": result["embeddings"][i].tolist(),
+                }
+            )
+        return records
+
+    def commit_import(self, book_id: str, staging_book_id: str, backup_book_id: str) -> None:
+        old_ids = self._ids_for_book(book_id)
+        stage_ids = self._ids_for_book(staging_book_id)
+        try:
+            for start in range(0, len(old_ids), 128):
+                old_records = self._records_by_ids(old_ids[start : start + 128])
+                for record in old_records:
+                    original_id = record["id"]
+                    record["id"] = backup_book_id + ":" + original_id
+                    record["metadata"]["transfer_original_id"] = original_id
+                    record["metadata"]["book_id"] = backup_book_id
+                self._upsert_records(old_records)
+            self.delete_by_book(book_id)
+        except Exception:
+            self.delete_by_book(backup_book_id)
+            raise
+
+        try:
+            for start in range(0, len(stage_ids), 128):
+                batch_ids = stage_ids[start : start + 128]
+                result = self.collection.get(
+                    ids=batch_ids,
+                    include=["documents", "metadatas", "embeddings"],
+                )
+                records = []
+                for i, old_id in enumerate(result["ids"]):
+                    metadata = result["metadatas"][i]
+                    metadata["book_id"] = book_id
+                    records.append(
+                        {
+                            "id": old_id.removeprefix(staging_book_id + ":"),
+                            "content": result["documents"][i],
+                            "metadata": metadata,
+                            "embedding": result["embeddings"][i].tolist(),
+                        }
+                    )
+                self._upsert_records(records)
+            self.delete_by_book(staging_book_id)
+        except Exception:
+            self.rollback_import(book_id, staging_book_id, backup_book_id)
+            raise
+
+    def rollback_import(self, book_id: str, staging_book_id: str, backup_book_id: str) -> None:
+        self.delete_by_book(book_id)
+        self.delete_by_book(staging_book_id)
+        backup_ids = self._ids_for_book(backup_book_id)
+        for start in range(0, len(backup_ids), 128):
+            batch_ids = backup_ids[start : start + 128]
+            result = self.collection.get(
+                ids=batch_ids,
+                include=["documents", "metadatas", "embeddings"],
+            )
+            records = []
+            for i, backup_id in enumerate(result["ids"]):
+                metadata = result["metadatas"][i]
+                original_id = metadata.pop("transfer_original_id", backup_id.removeprefix(backup_book_id + ":"))
+                metadata["book_id"] = book_id
+                records.append(
+                    {
+                        "id": original_id,
+                        "content": result["documents"][i],
+                        "metadata": metadata,
+                        "embedding": result["embeddings"][i].tolist(),
+                    }
+                )
+            self._upsert_records(records)
+        self.delete_by_book(backup_book_id)
+
+    def finalize_import(self, staging_book_id: str, backup_book_id: str) -> None:
+        self.delete_by_book(staging_book_id)
+        self.delete_by_book(backup_book_id)
+
     def all(self, book_ids: list[str] | None = None) -> list[dict]:
         where = {"book_id": {"$in": book_ids}} if book_ids else None
         result = self.collection.get(where=where, include=["documents", "metadatas"])

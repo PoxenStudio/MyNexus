@@ -1,6 +1,8 @@
 package api
 
 import (
+	"path/filepath"
+
 	"github.com/gin-gonic/gin"
 
 	"mynexus/core-api/internal/api/handler"
@@ -39,6 +41,11 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	userSvc := service.NewUserService(db)
 	auditSvc := service.NewAuditService(db)
 	llmUsageSvc := service.NewLLMUsageService(db)
+	transfersSvc := service.NewTransferService(db, bookSvc, workerClient, filepath.Dir(cfg.Storage.UploadDir))
+	if err := transfersSvc.Start(); err != nil {
+		panic(err)
+	}
+
 	sessions := auth.NewSessionManager()
 
 	sys := handler.NewSystemHandler(cfg, store, workerClient, auditSvc)
@@ -51,6 +58,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	auditH := handler.NewAuditHandler(auditSvc)
 	usersH := handler.NewUserHandler(userSvc, auditSvc)
 	llmUsage := handler.NewLLMUsageHandler(llmUsageSvc)
+	transfers := handler.NewTransferHandler(transfersSvc)
 
 	r.GET("/healthz", sys.Health)
 
@@ -108,11 +116,16 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.GET("/books/:id/chunks", books.Chunks)
 			adminOnly.POST("/books/:id/rebuild", books.Rebuild)
 			adminOnly.POST("/books/:id/summarize", books.Summarize)
+			adminOnly.POST("/books/:id/data-import", transfers.Import)
+			adminOnly.GET("/books/:id/active-import", transfers.ActiveImport)
 
 			adminOnly.GET("/tasks", tasks.List)
 			adminOnly.GET("/tasks/:id", tasks.Get)
 			adminOnly.POST("/tasks/:id/retry", tasks.Retry)
 			adminOnly.POST("/tasks/:id/cancel", tasks.Cancel)
+			adminOnly.GET("/transfer-jobs/:id", transfers.Get)
+			adminOnly.POST("/transfer-jobs/:id/confirm", transfers.ConfirmImport)
+			adminOnly.POST("/transfer-jobs/:id/cancel", transfers.CancelImport)
 
 			adminOnly.POST("/search/hybrid", search.Hybrid)
 
@@ -128,6 +141,13 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.PUT("/users/:id/status", usersH.SetStatus)
 			adminOnly.PUT("/users/:id/password", usersH.ResetPassword)
 		}
+	}
+
+	exportAPI := v1.Group("/internal/book-data")
+	exportAPI.Use(middleware.RequireExportToken())
+	{
+		exportAPI.POST("/exports", transfers.CreateExport)
+		exportAPI.GET("/exports/:id", transfers.GetExport)
 	}
 
 	// Worker-facing calls (task progress/complete/fail, keyword search) are no

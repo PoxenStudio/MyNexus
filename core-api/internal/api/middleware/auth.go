@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +11,24 @@ import (
 	"mynexus/core-api/internal/auth"
 	"mynexus/core-api/internal/service"
 )
+
+// RequireExportToken keeps the machine-to-machine export trigger separate
+// from browser sessions and general-purpose admin API tokens.
+func RequireExportToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		expected := os.Getenv("MYNEXUS_EXPORT_TOKEN")
+		if expected == "" {
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "book export token is not configured"})
+			return
+		}
+		provided := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid export token"})
+			return
+		}
+		c.Next()
+	}
+}
 
 // RequireAuth accepts either a valid admin session cookie (browser use of the
 // admin web-ui — see AuthHandler.Login) or a valid `Authorization: Bearer

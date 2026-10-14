@@ -8,6 +8,7 @@ protobuf instead of JSON, and native streaming for Chat.
 from concurrent import futures
 import logging
 from logging.handlers import RotatingFileHandler
+import math
 import os
 import socket
 import sys
@@ -141,6 +142,88 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         # citations) for a book that no longer has a books/chunks row (see
         # .claude/memory/mynexus_orphaned_vectors.md).
         self.retrieval.vector_store.delete_by_book(request.book_id)
+        return mynexus_pb2.Ack(ok=True)
+
+    def ExportBookVectors(self, request, context):
+        offset = 0
+        batch_size = 128
+        while context.is_active():
+            records = self.retrieval.vector_store.export_by_book(request.book_id, offset, batch_size)
+            if not records:
+                return
+            for record in records:
+                yield mynexus_pb2.VectorRecord(
+                    id=record["id"],
+                    book_id=record["book_id"],
+                    chapter_id=record["chapter_id"],
+                    content=record["content"],
+                    position=record["position"],
+                    token_count=record["token_count"],
+                    start_offset=record["start_offset"],
+                    end_offset=record["end_offset"],
+                    embedding=record["vector"],
+                )
+            offset += len(records)
+
+    def ImportBookVectors(self, request_iterator, context):
+        staging_book_id = ""
+        dimension = 0
+        batch = []
+        try:
+            for record in request_iterator:
+                if not staging_book_id:
+                    staging_book_id = record.book_id
+                elif record.book_id != staging_book_id:
+                    context.abort(grpc.StatusCode.INVALID_ARGUMENT, "mixed staging book ids")
+                embedding = list(record.embedding)
+                if not embedding or not all(math.isfinite(value) for value in embedding):
+                    context.abort(grpc.StatusCode.INVALID_ARGUMENT, "invalid vector embedding")
+                if not dimension:
+                    dimension = len(embedding)
+                elif len(embedding) != dimension:
+                    context.abort(grpc.StatusCode.INVALID_ARGUMENT, "mixed vector dimensions")
+                batch.append(
+                    {
+                        "id": record.id,
+                        "book_id": staging_book_id,
+                        "chapter_id": record.chapter_id,
+                        "content": record.content,
+                        "position": record.position,
+                        "token_count": record.token_count,
+                        "start_offset": record.start_offset,
+                        "end_offset": record.end_offset,
+                        "vector": embedding,
+                    }
+                )
+                if len(batch) >= 128:
+                    self.retrieval.vector_store.import_records(staging_book_id, batch)
+                    batch = []
+            if batch:
+                self.retrieval.vector_store.import_records(staging_book_id, batch)
+        except Exception as exc:
+            if staging_book_id:
+                self.retrieval.vector_store.delete_by_book(staging_book_id)
+            if isinstance(exc, grpc.RpcError):
+                raise
+            context.abort(grpc.StatusCode.INTERNAL, f"vector import failed: {exc}")
+        return mynexus_pb2.Ack(ok=True)
+
+    def CommitBookVectorImport(self, request, context):
+        self.retrieval.vector_store.commit_import(
+            request.book_id, request.staging_book_id, request.backup_book_id
+        )
+        return mynexus_pb2.Ack(ok=True)
+
+    def RollbackBookVectorImport(self, request, context):
+        self.retrieval.vector_store.rollback_import(
+            request.book_id, request.staging_book_id, request.backup_book_id
+        )
+        return mynexus_pb2.Ack(ok=True)
+
+    def FinalizeBookVectorImport(self, request, context):
+        self.retrieval.vector_store.finalize_import(
+            request.staging_book_id, request.backup_book_id
+        )
         return mynexus_pb2.Ack(ok=True)
 
     def Shutdown(self, request, context):
