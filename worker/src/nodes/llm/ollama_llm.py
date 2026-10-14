@@ -10,6 +10,8 @@ from util.http import call_provider, host_lock
 class OllamaLLM(BaseLLM):
     """Calls a local/LAN Ollama server's /api/chat endpoint with stream=true."""
 
+    _MAX_OUTPUT_TOKENS = 8192
+
     def __init__(self, base_url: str, model: str, debug: bool = False) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -23,7 +25,14 @@ class OllamaLLM(BaseLLM):
         usage = LLMUsage(provider="ollama", model=self.model, call_site=call_site)
 
         def _gen() -> Iterator[str]:
-            payload = json.dumps({"model": self.model, "messages": messages, "stream": True}).encode("utf-8")
+            payload = json.dumps(
+                {
+                    "model": self.model,
+                    "messages": messages,
+                    "stream": True,
+                    "options": {"num_predict": self._MAX_OUTPUT_TOKENS},
+                }
+            ).encode("utf-8")
             req = urllib.request.Request(
                 f"{self.base_url}/api/chat",
                 data=payload,
@@ -50,6 +59,7 @@ class OllamaLLM(BaseLLM):
                             usage.prompt_tokens = int(event.get("prompt_eval_count") or 0)
                             usage.completion_tokens = int(event.get("eval_count") or 0)
                             usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+                            usage.finish_reason = event.get("done_reason", "")
                             break
             except Exception as exc:
                 if logger:
@@ -62,7 +72,12 @@ class OllamaLLM(BaseLLM):
         return _UsageIterator(_gen(), usage)
 
     def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
-        body: dict = {"model": self.model, "messages": messages, "stream": False}
+        body: dict = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "options": {"num_predict": self._MAX_OUTPUT_TOKENS},
+        }
         if tools:
             body["tools"] = tools
         payload = json.dumps(body).encode("utf-8")
@@ -97,6 +112,7 @@ class OllamaLLM(BaseLLM):
             provider="ollama",
             model=self.model,
             call_site=call_site,
+            finish_reason=data.get("done_reason", ""),
         )
         if logger:
             logged = {k: v for k, v in result.items() if k != "usage"}

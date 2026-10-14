@@ -84,6 +84,12 @@ def _is_keyword_skip_chapter(title: str) -> bool:
 # (not by every delta) to keep that from growing unbounded on a long chapter.
 _PROGRESS_TICK_SECONDS = 3.0
 
+# Provider-agnostic finish_reason strings that signal the model hit its output
+# token ceiling mid-response — these map to the same set ReadAny uses for its
+# truncation detection (see reading-agent.ts's OUTPUT_LIMIT_FINISH_REASONS).
+# Different providers name the event differently, so match the lowercase set.
+_OUTPUT_LIMIT_FINISH_REASONS = frozenset({"length", "max_tokens", "max_completion_tokens", "token_limit"})
+
 _CHAPTER_PROMPT_TEMPLATE = (
     "请用中文对下面的章节内容做摘要，控制在400字以内，只输出摘要正文本身，不要"
     "加“摘要：”之类的前缀，也不要复述章节标题。这是书籍章节摘要任务，不是对话，"
@@ -404,6 +410,11 @@ class SummaryPipeline:
                     last_tick = now
         text = "".join(chunks).strip()
         usage = stream.usage
+        if usage.finish_reason and usage.finish_reason.lower() in _OUTPUT_LIMIT_FINISH_REASONS:
+            logger.warning(
+                "LLM output truncated (finish_reason=%s) site=%s task=%s book=%s completion_tokens=%d",
+                usage.finish_reason, call_site, task_id, book_id, usage.completion_tokens,
+            )
         if task_id and usage.total_tokens > 0:
             logger.debug(
                 "report token usage: task=%s book=%s site=%s total=%d (prompt=%d completion=%d) provider=%s model=%s",

@@ -7,7 +7,9 @@ protobuf instead of JSON, and native streaming for Chat.
 
 from concurrent import futures
 import logging
+from logging.handlers import RotatingFileHandler
 import os
+import sys
 import threading
 
 import grpc
@@ -157,8 +159,25 @@ def main():
     # Pipelines log failures (e.g. ingestion.py's exception handler) via the
     # stdlib logging module; without a handler configured those are silently
     # dropped instead of showing up in .tmp/worker.log.
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(fmt)
+    root.addHandler(stdout_handler)
+
     cfg = load_config()
+    if cfg.log_dir:
+        os.makedirs(cfg.log_dir, exist_ok=True)
+        log_path = os.path.join(cfg.log_dir, "worker.log")
+        file_handler = RotatingFileHandler(
+            log_path, maxBytes=20 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        )
+        file_handler.setFormatter(fmt)
+        root.addHandler(file_handler)
+        logging.info("file logging enabled: %s", log_path)
+    else:
+        logging.info("file logging disabled (log_dir not configured)")
     # config.yaml is only ever read here, once, at process start (see
     # WorkerServicer.__init__ — every pipeline is constructed a single time
     # and reused for the process's whole lifetime). Editing config.yaml by

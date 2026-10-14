@@ -97,6 +97,8 @@ class WorkerConfig:
     retrieval_vector_weight: float = 0.6
     retrieval_keyword_weight: float = 0.4
 
+    log_dir: str = ""
+
     raw: dict = field(default_factory=dict)
 
     @property
@@ -166,6 +168,14 @@ def load_config() -> WorkerConfig:
     cfg.retrieval_fusion = retrieval.get("fusion", cfg.retrieval_fusion)
     cfg.retrieval_vector_weight = float(retrieval.get("vector_weight", cfg.retrieval_vector_weight))
     cfg.retrieval_keyword_weight = float(retrieval.get("keyword_weight", cfg.retrieval_keyword_weight))
+
+    configured_log_dir = raw.get("storage", {}).get("log_dir", "")
+    if configured_log_dir:
+        cfg.log_dir = configured_log_dir
+    elif os.getenv("MYNEXUS_IN_DOCKER", "").strip().lower() in ("1", "true", "yes", "on"):
+        cfg.log_dir = "/data/logs"
+    else:
+        cfg.log_dir = "./data/logs"
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
         cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")

@@ -76,7 +76,11 @@ class OpenAILLM(BaseLLM):
                             usage.completion_tokens = int(u.get("completion_tokens", 0))
                             usage.total_tokens = int(u.get("total_tokens", 0))
                             continue
-                        delta = event["choices"][0].get("delta", {})
+                        choice = event["choices"][0]
+                        finish = choice.get("finish_reason")
+                        if finish:
+                            usage.finish_reason = finish
+                        delta = choice.get("delta", {})
                         content = delta.get("content")
                         if content:
                             if logger:
@@ -125,6 +129,7 @@ class OpenAILLM(BaseLLM):
             provider="openai",
             model=self.model,
             call_site=call_site,
+            finish_reason=(data.get("choices") or [{}])[0].get("finish_reason", ""),
         )
         if logger:
             logged = {k: v for k, v in result.items() if k != "usage"}

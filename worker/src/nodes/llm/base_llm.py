@@ -13,6 +13,7 @@ class LLMUsage:
     provider: str = ""
     model: str = ""
     call_site: str = ""
+    finish_reason: str = ""
 
 
 class _UsageIterator(Iterator[str]):
