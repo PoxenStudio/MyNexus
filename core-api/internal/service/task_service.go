@@ -254,6 +254,13 @@ func (s *TaskService) Fail(id, errMsg string) error {
 	return s.transition(id, models.TaskStatusFailed, 0, errMsg, "failed", errMsg)
 }
 
+// Cancel marks a task canceled — either directly by TaskHandler.Cancel when
+// Worker has no active run for it (undispatched / worker unreachable), or via
+// ReportFail(canceled=true) once Worker actually interrupts the run.
+func (s *TaskService) Cancel(id string) error {
+	return s.transition(id, models.TaskStatusCanceled, 0, "", "canceled", "")
+}
+
 // transition updates status/progress/error_msg and appends a structured entry
 // to stages_log in one go, so every state change Core API records for a task
 // (progress ticks from Worker, completion, failure, manual retry) leaves a

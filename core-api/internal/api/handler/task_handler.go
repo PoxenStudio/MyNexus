@@ -113,3 +113,54 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 	}
 	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task))
 }
+
+// Cancel asks Worker to interrupt a running task (currently only summarize
+// runs honor the flag — see worker's CancelTask). Only pending/processing
+// tasks can be cancelled. When Worker confirms it set the cancel flag the
+// task stays processing until Worker actually stops and reports back
+// ReportFail(canceled=true); when Worker has no such active run (never
+// dispatched, or Worker unreachable/restarted) the task is marked canceled
+// directly since nothing is running that would ever report.
+func (h *TaskHandler) Cancel(c *gin.Context) {
+	id := c.Param("id")
+	task, err := h.tasks.GetTask(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+		return
+	}
+	if task.Status != models.TaskStatusPending && task.Status != models.TaskStatusProcessing {
+		c.JSON(http.StatusConflict, gin.H{"error": "task is not running"})
+		return
+	}
+
+	markCanceled := func() {
+		if err := h.tasks.Cancel(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if actor, ok := c.Get("actor"); ok {
+			_ = h.audit.Log(actor.(string), "task.cancel", "task", id, "book_id="+task.BookID)
+		}
+		updated, err := h.tasks.GetTask(id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, dto.NewTaskResponse(*updated))
+	}
+
+	if task.DispatchedAt == "" {
+		markCanceled()
+		return
+	}
+	found, err := h.worker.CancelTask(id)
+	if err != nil || !found {
+		markCanceled()
+		return
+	}
+
+	if actor, ok := c.Get("actor"); ok {
+		_ = h.audit.Log(actor.(string), "task.cancel", "task", id, "book_id="+task.BookID)
+	}
+	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task))
+}

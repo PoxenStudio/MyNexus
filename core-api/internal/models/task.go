@@ -5,6 +5,10 @@ const (
 	TaskStatusProcessing = "processing"
 	TaskStatusCompleted  = "completed"
 	TaskStatusFailed     = "failed"
+	// Terminal like completed/failed but reached via user cancellation (see
+	// TaskHandler.Cancel) — distinct so the UI shows "已取消" without a red
+	// error, and so CountDispatched/queryOrphaned treat it as done.
+	TaskStatusCanceled = "canceled"
 )
 
 const (

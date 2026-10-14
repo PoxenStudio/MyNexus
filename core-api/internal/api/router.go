@@ -112,6 +112,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.GET("/tasks", tasks.List)
 			adminOnly.GET("/tasks/:id", tasks.Get)
 			adminOnly.POST("/tasks/:id/retry", tasks.Retry)
+			adminOnly.POST("/tasks/:id/cancel", tasks.Cancel)
 
 			adminOnly.POST("/search/hybrid", search.Hybrid)
 

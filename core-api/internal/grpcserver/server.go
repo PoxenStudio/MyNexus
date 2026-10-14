@@ -214,7 +214,15 @@ func (s *CoreAPIServer) ReportFail(ctx context.Context, req *mynexuspb.FailReque
 		return nil, status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
-	if err := s.tasks.Fail(req.TaskId, req.ErrorMsg); err != nil {
+	// A user-cancelled run reports canceled=true (see worker summary.py's
+	// CancelledError path) and gets the distinct terminal status so the UI
+	// shows "已取消" instead of a red failure.
+	if req.Canceled {
+		err = s.tasks.Cancel(req.TaskId)
+	} else {
+		err = s.tasks.Fail(req.TaskId, req.ErrorMsg)
+	}
+	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	// See the matching guard in ReportProgress: a failed summarize run

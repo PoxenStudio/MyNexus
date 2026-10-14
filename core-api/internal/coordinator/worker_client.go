@@ -206,11 +206,11 @@ type ChatEvent struct {
 }
 
 type Citation struct {
-	ChunkID   string
-	ChapterID string
-	BookID    string
-	Score     float64
-	Content   string
+	ChunkID     string
+	ChapterID   string
+	BookID      string
+	Score       float64
+	Content     string
 	StartOffset int
 	EndOffset   int
 }
@@ -298,6 +298,21 @@ func (c *WorkerClient) DeleteBook(bookID string) error {
 		return fmt.Errorf("call worker DeleteBook: %w", err)
 	}
 	return nil
+}
+
+// CancelTask asks Worker to interrupt a running background task (see the rpc
+// comment in mynexus.proto). found=false means Worker has no active run with
+// that id (e.g. it restarted and lost its in-memory state) — the caller then
+// marks the task canceled directly instead of waiting for a report.
+func (c *WorkerClient) CancelTask(taskID string) (found bool, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ack, err := c.client.CancelTask(ctx, &mynexuspb.CancelTaskRequest{TaskId: taskID})
+	if err != nil {
+		return false, fmt.Errorf("call worker CancelTask: %w", err)
+	}
+	return ack.Ok, nil
 }
 
 // Shutdown asks Worker to exit shortly after acking, so it restarts and

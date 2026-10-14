@@ -53,11 +53,13 @@ const callsiteChartData = computed(() => {
 
 async function loadTokenUsage() {
   if (!book.value) return;
-  tokenLoading.value = true;
+  // pollTask re-runs this every 2s; only the first load may show the
+  // "加载中" placeholder, later refreshes swap data in silently (no flicker).
+  if (tokenUsage.value === null) tokenLoading.value = true;
   try {
     tokenUsage.value = await fetchBookTokenUsage(book.value.id);
   } catch {
-    tokenUsage.value = null;
+    // keep previously shown numbers on a refresh hiccup
   } finally {
     tokenLoading.value = false;
   }
