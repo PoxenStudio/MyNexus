@@ -56,36 +56,35 @@ storage:
   postgres:
     dsn: "postgres://mynexus:mynexus@localhost:5432/mynexus?sslmode=disable"
 
-# 方式 B：环境变量（Docker Compose 默认走这条路，见下）
+# 方式 B：原生运行时可使用环境变量
 export MYNEXUS_STORAGE_DATABASE=postgres
 export MYNEXUS_STORAGE_POSTGRES_DSN="postgres://mynexus:mynexus@postgres:5432/mynexus?sslmode=disable"
 ```
+
+Docker Compose 的集成镜像默认使用 SQLite；切换为 Postgres 时，请在挂载的 `config-runtime/config.yaml` 中配置 `storage.database` 和 `storage.postgres.dsn`，并自行提供可从容器访问的 Postgres 服务。
 
 ## 部署方式
 
 ### 方式一：Docker Compose（推荐，生产/NAS 部署）
 
 ```bash
-# 1. 按需修改 config/config.yaml（数据库路径、向量库、LLM/Embedding 提供方等）
-
-# 2. 设置必要的环境变量（可选，也可直接写入 config.yaml）
-export OPENAI_API_KEY=sk-xxx
-export JWT_SECRET=your-secret
-
-# 3. 启动全部服务（默认 SQLite 后端）
+# 构建并启动集成镜像（首次启动会在 config-runtime/config.yaml 中生成默认配置）
 docker compose up -d --build
 
-# 若要改用 Postgres 后端：额外启用 postgres profile 并设置 STORAGE_DATABASE
-STORAGE_DATABASE=postgres docker compose --profile postgres up -d --build
+# 更新 LLM/Embedding 服务密钥后重建容器（也可在 config-runtime/config.yaml 中配置）
+OPENAI_API_KEY=sk-xxx docker compose up -d
 ```
 
-服务启动后：
+浏览器访问 http://localhost:3000。三个服务运行在同一个容器中，nginx 对外提供前端并代理 API；Core API 和 worker 仅在容器内部通过 gRPC 通信。Compose 将宿主机 `./data` 和 `./config-runtime` 分别挂载到 `/data` 与 `/config`。默认配置使用 SQLite，数据库、向量库、上传文件和本地模型均保存在 `/data`。可通过 `MYNEXUS_DATA_DIR`、`MYNEXUS_CONFIG_DIR` 和 `MYNEXUS_PORT` 指定宿主机目录和端口。
 
-- Web 管理后台：http://localhost:3000
-- Core API：http://localhost:8080
-- Worker（内部服务，gRPC 端口 8001，一般无需直接访问，也无法用浏览器/curl 直接访问）：`localhost:8001`
+不使用 Compose 时也可以直接运行单个镜像：
 
-数据与配置通过卷挂载持久化在宿主机的 `./data` 与 `./config` 目录下。Worker 容器内存上限为 1536M（ChromaDB 的实际需求，适配 4GB+ 内存的 NAS 环境）。Core API 与 Worker 之间的内部通信为 gRPC（见系统设计文档 §1.3），浏览器与 Core API 之间仍是普通 HTTP/SSE，不受影响。
+```bash
+docker build -t poxenstudio/mynexus:latest .
+docker run -d --name mynexus -p 3000:80 \
+  -v "$PWD/data:/data" -v "$PWD/config-runtime:/config" \
+  --restart unless-stopped poxenstudio/mynexus:latest
+```
 
 ### 方式二：本地开发（Makefile）
 

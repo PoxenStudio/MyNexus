@@ -1,0 +1,69 @@
+server:
+  port: "8080"
+  cors_origins:
+    - "*"
+  grpc_port: "9090"
+  internal_url: localhost:9090
+auth:
+  jwt_secret: change-me-in-production
+  token_prefix: mnx_
+storage:
+  database: sqlite
+  sqlite:
+    path: /data/mynexus.db
+  postgres:
+    dsn: ""
+  vector_store: chroma
+  vector_store_path: /data/vectorstore
+  upload_dir: /data/uploads
+worker:
+  url: localhost:8001
+  max_concurrent_tasks: 1
+  task_timeout_seconds: 600
+embedding:
+  provider: local
+  openai:
+    api_key: ""
+    base_url: https://api.openai.com/v1
+    model: text-embedding-3-small
+  ollama:
+    api_key: ""
+    base_url: http://localhost:11434
+    model: bge-m3
+  local:
+    model: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+    model_path: /data/models
+llm:
+  provider: openai
+  openai:
+    api_key: ""
+    base_url: https://api.openai.com/v1
+    model: gpt-4o-mini
+    chapter_token_budget: 30000
+  ollama:
+    api_key: ""
+    base_url: http://localhost:11434
+    model: llama3
+splitter:
+  chunk_size: 500
+  chunk_overlap: 50
+  strategy: token
+i18n:
+  default_locale: zh-CN
+  supported:
+    - zh-CN
+    - zh-TW
+    - en-US
+chat:
+  enabled: true
+  max_sessions: 100
+keyword:
+  max_keywords: 50
+retrieval:
+  fusion: weighted
+  vector_weight: 0.6
+  keyword_weight: 0.4
+debug:
+  llm_logging: false
+summary:
+  skip_backmatter_chapters: true

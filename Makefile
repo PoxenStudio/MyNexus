@@ -1,17 +1,12 @@
 PARENT := /Volumes/data/projects/poxenstudio/MyNexus
 
-.PHONY: dev-up dev-down dev-logs build-images build-core build-worker build-webui \
-	setup-multiarch build-images-multiarch build-core-multiarch build-worker-multiarch build-webui-multiarch
+.PHONY: dev-up dev-down dev-logs build-image build-images setup-multiarch build-image-multiarch build-images-multiarch
 
 # ---- image build config ----
 REGISTRY := poxenstudio
 VER := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo dev)
-CORE_IMAGE := $(REGISTRY)/mynexus-core-api:$(VER)
-CORE_LATEST := $(REGISTRY)/mynexus-core-api:latest
-WORKER_IMAGE := $(REGISTRY)/mynexus-worker:$(VER)
-WORKER_LATEST := $(REGISTRY)/mynexus-worker:latest
-WEBUI_IMAGE := $(REGISTRY)/mynexus-webui:$(VER)
-WEBUI_LATEST := $(REGISTRY)/mynexus-webui:latest
+IMAGE := $(REGISTRY)/mynexus:$(VER)
+IMAGE_LATEST := $(REGISTRY)/mynexus:latest
 
 BUILDER := mynexusbuilder
 ARCH := $(shell uname -m)
@@ -24,38 +19,20 @@ setup-multiarch:
 	docker buildx create --use --name $(BUILDER) || docker buildx use $(BUILDER)
 	docker buildx inspect $(BUILDER) --bootstrap
 
-# ---- single-arch local builds (docker build, loaded into local docker) ----
-build-core:
+# ---- single-arch local build (docker build, loaded into local docker) ----
+build-image:
 	docker build --pull --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
-		-f core-api/Dockerfile -t $(CORE_IMAGE) -t $(CORE_LATEST) core-api
+		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) .
 
-build-worker:
-	docker build --pull --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
-		-f worker/Dockerfile -t $(WORKER_IMAGE) -t $(WORKER_LATEST) worker
+build-images: build-image
 
-build-webui:
-	docker build --pull --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
-		-f web-ui/Dockerfile -t $(WEBUI_IMAGE) -t $(WEBUI_LATEST) web-ui
-
-build-images: build-core build-worker build-webui
-
-# ---- multi-arch builds (docker buildx, pushed to registry) ----
-build-core-multiarch:
+# ---- multi-arch build (docker buildx, pushed to registry) ----
+build-image-multiarch:
 	docker buildx build --pull --platform=$(PLATFORMS) \
 		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		-f core-api/Dockerfile -t $(CORE_IMAGE) -t $(CORE_LATEST) --push core-api
+		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --push .
 
-build-worker-multiarch:
-	docker buildx build --pull --platform=$(PLATFORMS) \
-		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		-f worker/Dockerfile -t $(WORKER_IMAGE) -t $(WORKER_LATEST) --push worker
-
-build-webui-multiarch:
-	docker buildx build --pull --platform=$(PLATFORMS) \
-		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		-f web-ui/Dockerfile -t $(WEBUI_IMAGE) -t $(WEBUI_LATEST) --push web-ui
-
-build-images-multiarch: build-core-multiarch build-worker-multiarch build-webui-multiarch
+build-images-multiarch: build-image-multiarch
 
 dev-up:
 	mkdir -p $(PARENT)/.tmp

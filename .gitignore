@@ -23,6 +23,7 @@ dist/
 
 # Local data
 /data/
+/config-runtime/
 /.tmp/
 *.db
 *.sqlite
