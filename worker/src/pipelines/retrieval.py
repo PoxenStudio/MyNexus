@@ -60,10 +60,20 @@ class RetrievalPipeline:
         score_threshold: float = 0.0,
         mode: str = "hybrid",
         fusion: str | None = None,
+        include_summaries: bool = False,
     ) -> list[dict]:
         records = self.vector_store.all(book_ids)
         if not records:
             return []
+
+        # Summary vectors ("{id}:summary") share the collection with real
+        # chunks and outrank them on overview-ish queries; QA excludes them.
+        # Filtering happens before full-corpus Python-side fusion, so no
+        # HNSW top-k slots are lost.
+        if not include_summaries:
+            records = [r for r in records if not r["id"].endswith(":summary")]
+            if not records:
+                return []
 
         vector_scores: dict[str, float] = {}
         keyword_scores: dict[str, float] = {}

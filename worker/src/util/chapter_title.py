@@ -7,10 +7,25 @@ import re
 _WHITESPACE_RE = re.compile(r"\s+")
 
 # Chapters whose (cleaned) title is exactly one of these never carry content
-# worth summarizing/embedding — an index or bibliography is just a list of
-# page refs/citations, not prose — so parsers drop them outright rather than
-# feeding them into chunking/summarization.
-_SKIPPABLE_TITLES = {"索引", "参考书目", "index", "bibliography"}
+# worth summarizing/embedding
+_SKIPPABLE_TITLES = {
+    "索引",
+    "参考书目",
+    "扉页",
+    "书名页",
+    "封面",
+    "目录",
+    "版权页",
+    "版权信息",
+    "出版信息",
+    "index",
+    "bibliography",
+    "cover",
+    "contents",
+    "titlepage",
+    "copyright",
+    "copyrightpage",
+}
 
 
 def clean_chapter_title(title: str) -> str:
