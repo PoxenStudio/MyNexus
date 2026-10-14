@@ -81,6 +81,12 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		return
 	}
 
+	if len(req.BookIDs) > 0 {
+		if err := h.chats.SetTitleFromFirstBookIfEmpty(sessionID, req.BookIDs); err != nil {
+			fmt.Printf("[chat] set title from book failed: %v\n", err)
+		}
+	}
+
 	lastUserMessage := req.Messages[len(req.Messages)-1]
 	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]")
 
@@ -147,6 +153,16 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 
 	_ = h.chats.AppendMessage(sessionID, "assistant", answer.String(), citationsJSON)
 	_ = h.chats.TouchSession(sessionID)
+
+	if len(req.BookIDs) == 0 {
+		var allCitations []dto.CitationResponse
+		if err := json.Unmarshal([]byte(citationsJSON), &allCitations); err == nil && len(allCitations) > 0 {
+			firstBookID := allCitations[0].BookID
+			if err := h.chats.SetTitleFromFirstBookIfEmpty(sessionID, []string{firstBookID}); err != nil {
+				fmt.Printf("[chat] set title from citation book failed: %v\n", err)
+			}
+		}
+	}
 }
 
 // sessionOwnedBy reports whether sessionID exists and belongs to userID.

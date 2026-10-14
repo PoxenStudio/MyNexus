@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import * as chatApi from "../api/chat";
 import * as booksApi from "../api/books";
 import AppIcon from "../components/AppIcon.vue";
+import MarkdownContent from "../components/MarkdownContent.vue";
 
 const { t } = useI18n();
 
@@ -96,8 +97,8 @@ async function onSend() {
     );
     if (!activeSessionId.value && sessionId) {
       activeSessionId.value = sessionId;
-      await loadSessions();
     }
+    if (sessionId) await loadSessions();
   } catch {
     messages.value[messages.value.length - 1].content = t("chat.error");
   } finally {
@@ -203,7 +204,8 @@ onMounted(loadSessions);
           >
             <span></span><span></span><span></span>
           </span>
-          <p v-else>{{ m.content }}</p>
+          <p v-else-if="m.role === 'user'">{{ m.content }}</p>
+          <MarkdownContent v-else :content="m.content" />
           <div v-if="m.citations?.length" class="citations">
             <details v-for="(c, ci) in m.citations" :key="c.chunk_id" class="citation-card">
               <summary>

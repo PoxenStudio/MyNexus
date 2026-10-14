@@ -115,6 +115,31 @@ func (s *ChatService) RenameSession(id, title string) error {
 	return err
 }
 
+func (s *ChatService) SetTitleFromFirstBookIfEmpty(sessionID string, bookIDs []string) error {
+	if len(bookIDs) == 0 {
+		return nil
+	}
+	var currentTitle string
+	err := s.db.QueryRow(`SELECT title FROM chat_sessions WHERE id = ?`, sessionID).Scan(&currentTitle)
+	if err != nil {
+		return err
+	}
+	if currentTitle != "" {
+		return nil
+	}
+	var title string
+	err = s.db.QueryRow(`SELECT title FROM books WHERE id = ?`, bookIDs[0]).Scan(&title)
+	if err != nil {
+		return err
+	}
+	if title == "" {
+		return nil
+	}
+	_, err = s.db.Exec(`UPDATE chat_sessions SET title = ?, updated_at = ? WHERE id = ?`,
+		title, time.Now().UTC().Format(time.RFC3339), sessionID)
+	return err
+}
+
 func (s *ChatService) TouchSession(id string) error {
 	_, err := s.db.Exec(`UPDATE chat_sessions SET updated_at = ? WHERE id = ?`,
 		time.Now().UTC().Format(time.RFC3339), id)
