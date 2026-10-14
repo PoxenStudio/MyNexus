@@ -161,7 +161,19 @@
     },
     "neverUsed": "Never used",
     "revoked": "Revoked",
-    "active": "Active"
+    "active": "Active",
+    "callSite": {
+      "chapter": "Chapter Summary",
+      "chapter_segment": "Chapter Summary Segment",
+      "chapter_reduce": "Chapter Summary Reduce",
+      "chapter_analyze": "Chapter Analysis",
+      "chapter_analyze_segment": "Chapter Analysis Segment",
+      "chapter_analyze_reduce": "Chapter Analysis Reduce",
+      "book_reduce": "Book Summary",
+      "chat": "Chat Answer",
+      "chat_decision": "Tool Decision",
+      "chat_tool": "Tool Call"
+    }
   },
   "users": {
     "title": "User Management",

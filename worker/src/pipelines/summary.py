@@ -611,6 +611,10 @@ class SummaryPipeline:
                 raise ValueError("book has no chapter content to summarize")
 
             to_generate = usable if force_restart else [ch for ch in usable if not ch.summary.strip()]
+            logger.info(
+                "summarize run: %d/%d chapter(s) to generate (force_restart=%s, skipped=%d)",
+                len(to_generate), len(usable), force_restart, len(usable) - len(to_generate),
+            )
 
             self.core_api.report_progress(task_id, 5, "summarizing_chapters")
 

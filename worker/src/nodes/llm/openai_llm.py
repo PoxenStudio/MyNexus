@@ -124,7 +124,8 @@ class OpenAILLM(BaseLLM):
             call_site=call_site,
         )
         if logger:
-            logger.log_response(json.dumps(result, ensure_ascii=False))
+            logged = {k: v for k, v in result.items() if k != "usage"}
+            logger.log_response(json.dumps(logged, ensure_ascii=False))
         return result
 
 

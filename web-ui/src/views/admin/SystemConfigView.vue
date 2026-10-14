@@ -246,7 +246,7 @@ onMounted(load);
             <input
               v-model.number="settings.llm.openai.chapter_token_budget"
               type="number"
-              min="5000"
+              min="2000"
               max="50000"
               step="1000"
             />

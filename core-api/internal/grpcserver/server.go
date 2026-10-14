@@ -9,7 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -173,20 +175,35 @@ func (s *CoreAPIServer) ReportComplete(ctx context.Context, req *mynexuspb.Compl
 	// this silently rather than failing the ingest itself, which already
 	// succeeded and shouldn't be reported as broken over this.
 	if len(chapters) > 0 {
-		s.autoSummarize(task.BookID, chapters)
+		s.autoSummarize(task.BookID)
 	}
 
 	return &mynexuspb.Ack{Ok: true}, nil
 }
 
 // autoSummarize fires the map-reduce summarization pipeline (see
-// worker/src/pipelines/summary.py) for a book that just finished ingesting —
-// mirrors book_handler.go's summarizeOne (mode=restart), duplicated here
-// rather than shared since that one drives the HTTP-facing manual
-// "总结全书"/"重新总结全书" button and has its own request/response shape.
-func (s *CoreAPIServer) autoSummarize(bookID string, chapters []service.ParsedChapter) {
+// worker/src/pipelines/summary.py) for a book that just finished ingesting.
+// Runs in "continue" mode (ForceRestart=false): chapters already carrying a
+// summary in the database are skipped by worker, which is what makes a
+// rebuild cheap — SaveChapters carries summaries over by title, so a rebuild
+// triggered by an embedding-model or chunk-size change (content unchanged
+// per chapter) only pays for the chapters that are genuinely missing one,
+// plus the one whole-book reduce call. The manual "重新总结全书" button
+// (book_handler.summarizeOne) stays on restart mode; that one is an explicit
+// request to redo every chapter.
+//
+// Chapters are read back from the database rather than reusing ReportComplete's
+// freshly parsed ones: ParsedChapter carries no Summary field, so passing
+// those through would leave every chapter's summary empty in the request and
+// defeat the skip above entirely.
+func (s *CoreAPIServer) autoSummarize(bookID string) {
 	book, err := s.books.GetBook(bookID)
 	if err != nil {
+		return
+	}
+
+	chapters, err := s.books.ListChapters(bookID)
+	if err != nil || len(chapters) == 0 {
 		return
 	}
 
@@ -196,13 +213,18 @@ func (s *CoreAPIServer) autoSummarize(bookID string, chapters []service.ParsedCh
 	}
 
 	reqChapters := make([]coordinator.SummarizeChapter, 0, len(chapters))
+	reused := 0
 	for _, ch := range chapters {
+		if strings.TrimSpace(ch.Summary) != "" {
+			reused++
+		}
 		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
-			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content,
+			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
 		})
 	}
+	log.Printf("book %s: auto-summarize (continue) over %d chapter(s), %d already summarized", bookID, len(reqChapters), reused)
 	if err := s.worker.TriggerSummarize(coordinator.SummarizeRequest{
-		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: true, Language: book.Language,
+		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: false, Language: book.Language,
 	}); err != nil {
 		_ = s.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
 	}

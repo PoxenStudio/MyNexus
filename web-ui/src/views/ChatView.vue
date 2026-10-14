@@ -247,9 +247,7 @@ onMounted(loadSessions);
 .chat-page {
   display: flex;
   gap: 1.5rem;
-  /* Fit exactly inside AppLayout's content area: viewport minus the app
-     bar, the footer, and the .content padding (1.5rem top + bottom). */
-  height: calc(100svh - var(--app-bar-height, 56px) - var(--footer-height, 40px) - 3rem);
+  height: 100%;
   min-height: 0;
 }
 .sessions {
@@ -363,7 +361,7 @@ onMounted(loadSessions);
 .message {
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  max-width: 80%;
+  max-width: 100%;
 }
 .message p {
   margin: 0.25rem 0 0;

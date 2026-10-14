@@ -43,10 +43,17 @@ const coverInitial = computed(() => (book.value?.title || book.value?.id || "?")
 const tokenUsage = ref<BookTokenUsage | null>(null);
 const tokenLoading = ref(false);
 
+function callSiteLabel(site: string): string {
+  const base = site.replace(/^summary\./, "").replace(/\.segment\.\d+$/, "").replace(/_\d+$/, "");
+  const key = `tokens.callSite.${base}`;
+  const translated = t(key);
+  return translated === key ? base : translated;
+}
+
 const callsiteChartData = computed(() => {
   if (!tokenUsage.value) return [];
   return tokenUsage.value.breakdown.map((b) => ({
-    label: b.call_site.replace(/^summary\./, ""),
+    label: callSiteLabel(b.call_site),
     value: b.total_tokens,
   }));
 });

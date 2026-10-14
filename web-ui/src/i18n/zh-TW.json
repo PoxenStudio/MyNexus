@@ -161,7 +161,19 @@
     },
     "neverUsed": "從未使用",
     "revoked": "已吊銷",
-    "active": "有效"
+    "active": "有效",
+    "callSite": {
+      "chapter": "章節摘要",
+      "chapter_segment": "章節摘要分段",
+      "chapter_reduce": "章節摘要歸併",
+      "chapter_analyze": "章節分析",
+      "chapter_analyze_segment": "章節分析分段",
+      "chapter_analyze_reduce": "章節分析歸併",
+      "book_reduce": "全書摘要",
+      "chat": "對話問答",
+      "chat_decision": "工具決策",
+      "chat_tool": "工具呼叫"
+    }
   },
   "users": {
     "title": "使用者管理",
