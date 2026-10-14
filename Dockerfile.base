@@ -1,0 +1,35 @@
+FROM python:3.12-slim
+
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="MyNexus Base" \
+      org.opencontainers.image.description="MyNexus runtime dependencies and offline NLP models" \
+      org.opencontainers.image.authors="poxenstudio <poxenstudio@gmail.com>" \
+      org.opencontainers.image.vendor="poxenstudio" \
+      org.opencontainers.image.version="${VERSION}" \
+      maintainer="poxenstudio <poxenstudio@gmail.com>"
+
+ENV TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    NLTK_DATA=/usr/share/nltk_data \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nginx supervisor tzdata ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY worker/requirements.txt /app/worker/requirements.txt
+RUN pip install --no-cache-dir -r /app/worker/requirements.txt \
+    && mkdir -p "$NLTK_DATA" /usr/share/models /data /config /run/nginx
+
+COPY docker/data/nltk/ /usr/share/nltk_data/
+COPY docker/data/models/ /usr/share/models/
+
+RUN set -eu; \
+    test -s "$NLTK_DATA/tokenizers/punkt_tab/english/abbrev_types.txt"; \
+    test -s "$NLTK_DATA/taggers/averaged_perceptron_tagger_eng/averaged_perceptron_tagger_eng.weights.json"; \
+    model_dir=/usr/share/models/models--Qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q; \
+    test -s "$model_dir/refs/main"; \
+    revision="$(cat "$model_dir/refs/main")"; \
+    test -s "$model_dir/snapshots/$revision/model_optimized.onnx"; \
+    test -s "$model_dir/snapshots/$revision/tokenizer.json"

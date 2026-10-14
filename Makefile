@@ -1,12 +1,14 @@
 PARENT := /Volumes/data/projects/poxenstudio/MyNexus
 
-.PHONY: dev-up dev-down dev-logs build-image setup-multiarch build-image-multiarch
+.PHONY: dev-up dev-down dev-logs build-base build-image setup-multiarch build-base-multiarch build-image-multiarch
 
 # ---- image build config ----
 REGISTRY := poxenstudio
 VER := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo dev)
 IMAGE := $(REGISTRY)/mynexus:$(VER)
 IMAGE_LATEST := $(REGISTRY)/mynexus:latest
+BASE_IMAGE := $(REGISTRY)/mynexus_base:$(VER)
+BASE_IMAGE_LATEST := $(REGISTRY)/mynexus_base:latest
 
 BUILDER := mynexusbuilder
 ARCH := $(shell uname -m)
@@ -19,16 +21,28 @@ setup-multiarch:
 	docker buildx create --use --name $(BUILDER) || docker buildx use $(BUILDER)
 	docker buildx inspect $(BUILDER) --bootstrap
 
-# ---- single-arch local build (docker build, loaded into local docker) ----
-build-image:
+# ---- base image (runtime dependencies and offline models) ----
+build-base:
 	docker build --pull --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
+		-f Dockerfile.base -t $(BASE_IMAGE) -t $(BASE_IMAGE_LATEST) .
+
+# ---- single-arch local build (docker build, loaded into local docker) ----
+build-image: build-base
+	docker build --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) .
 
-# ---- multi-arch build (docker buildx, loaded into local docker) ----
-build-image-multiarch:
+# ---- multi-arch base and app images (published to the configured registry) ----
+build-base-multiarch:
 	docker buildx build --pull --platform=$(PLATFORMS) \
 		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --load .
+		-f Dockerfile.base -t $(BASE_IMAGE) -t $(BASE_IMAGE_LATEST) --push .
+
+build-image-multiarch: build-base-multiarch
+	docker buildx build --pull --platform=$(PLATFORMS) \
+		--builder $(BUILDER) --build-arg VERSION=$(VER) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --push .
 
 dev-up:
 	mkdir -p $(PARENT)/.tmp

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Pre-download a fastembed local embedding model from HuggingFace into a
-# cache directory (default /data/models) that embedding.local.model_path uses.
+# Pre-download a fastembed model into docker/data/models for the base image.
+# The copied cache is available at /usr/share/models in the running container.
 # Default model name: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 set -euo pipefail
 
 MODEL="${1:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}"
-DEST="${2:-/data/models}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+DEST="${2:-$ROOT_DIR/docker/data/models}"
 HF_ENDPOINT="${HF_ENDPOINT:-https://huggingface.co}"
 
 case "$MODEL" in

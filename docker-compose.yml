@@ -1,9 +1,12 @@
 services:
   mynexus:
+    image: poxenstudio/mynexus:latest
     build:
       context: .
+      dockerfile: Dockerfile
       args:
         VERSION: ${VERSION:-dev}
+        BASE_IMAGE: ${BASE_IMAGE:-poxenstudio/mynexus_base:latest}
     ports:
       - "${MYNEXUS_PORT:-3000}:80"
     volumes:

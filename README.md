@@ -68,22 +68,24 @@ Docker Compose 的集成镜像默认使用 SQLite；切换为 Postgres 时，请
 ### 方式一：Docker Compose（推荐，生产/NAS 部署）
 
 ```bash
-# 可选：预先下载英文关键词提取所需的 NLTK 数据到 data/nltk，以便构建进镜像
+# 在宿主机下载需内置的模型资源（下载后会打入基础镜像）
 bash scripts/download-nltk-data.sh
+bash scripts/download-embedding-model.sh
 
-# 构建并启动集成镜像（首次启动会在 config-runtime/config.yaml 中生成默认配置）
+# 先构建 mynexus_base，再构建并启动集成镜像
+make build-base
 docker compose up -d --build
 
 # 更新 LLM/Embedding 服务密钥后重建容器（也可在 config-runtime/config.yaml 中配置）
 OPENAI_API_KEY=sk-xxx docker compose up -d
 ```
 
-浏览器访问 http://localhost:3000。三个服务运行在同一个容器中，nginx 对外提供前端并代理 API；Core API 和 worker 仅在容器内部通过 gRPC 通信。Compose 将宿主机 `./data` 和 `./config-runtime` 分别挂载到 `/data` 与 `/config`。默认配置使用 SQLite，数据库、向量库、上传文件和本地模型均保存在 `/data`。可通过 `MYNEXUS_DATA_DIR`、`MYNEXUS_CONFIG_DIR` 和 `MYNEXUS_PORT` 指定宿主机目录和端口。
+浏览器访问 http://localhost:3000。三个服务运行在同一个容器中，nginx 对外提供前端并代理 API；Core API 和 worker 仅在容器内部通过 gRPC 通信。Compose 将宿主机 `./data` 和 `./config-runtime` 分别挂载到 `/data` 与 `/config`。默认配置使用 SQLite，数据库、向量库和上传文件保存在 `/data`；本地 embedding 模型和 NLTK 数据预置在镜像中（`/usr/share/models`、`/usr/share/nltk_data`），不会被 `/data` 卷覆盖。可通过 `MYNEXUS_DATA_DIR`、`MYNEXUS_CONFIG_DIR` 和 `MYNEXUS_PORT` 指定宿主机目录和端口。
 
-不使用 Compose 时也可以直接运行单个镜像：
+不使用 Compose 时也可以直接运行单个镜像（需先构建 base 和 app 镜像）：
 
 ```bash
-docker build -t poxenstudio/mynexus:latest .
+make build-image
 docker run -d --name mynexus -p 3000:80 \
   -v "$PWD/data:/data" -v "$PWD/config-runtime:/config" \
   --restart unless-stopped poxenstudio/mynexus:latest
