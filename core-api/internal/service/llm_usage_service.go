@@ -59,13 +59,13 @@ func (s *LLMUsageService) SumByBook(bookID string) (total, prompt, completion, c
 // book_reduce vs ...). Rows come back ordered by total_tokens desc so the
 // "top consumers" are upfront without an extra sort on the caller side.
 type CallSiteRow struct {
-	CallSite         string
-	LLMProvider      string
-	LLMModel         string
-	Calls            int
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
+	CallSite         string `json:"call_site"`
+	LLMProvider      string `json:"llm_provider"`
+	LLMModel         string `json:"llm_model"`
+	Calls            int    `json:"calls"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	TotalTokens      int    `json:"total_tokens"`
 }
 
 func (s *LLMUsageService) CallSiteBreakdown(bookID string, limit int) ([]CallSiteRow, error) {
@@ -83,7 +83,7 @@ func (s *LLMUsageService) CallSiteBreakdown(bookID string, limit int) ([]CallSit
 		return nil, fmt.Errorf("callsite breakdown: %w", err)
 	}
 	defer rows.Close()
-	var out []CallSiteRow
+	out := []CallSiteRow{}
 	for rows.Next() {
 		var r CallSiteRow
 		if err := rows.Scan(&r.CallSite, &r.LLMProvider, &r.LLMModel, &r.Calls,
@@ -100,11 +100,11 @@ func (s *LLMUsageService) CallSiteBreakdown(bookID string, limit int) ([]CallSit
 // 双维度) and the饼图 (latest-day provider 占比). rangeDays caps the window;
 // pass 0 for no cap.
 type DailyProviderRow struct {
-	Date             string
-	LLMProvider      string
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
+	Date             string `json:"date"`
+	LLMProvider      string `json:"llm_provider"`
+	PromptTokens     int    `json:"prompt_tokens"`
+	CompletionTokens int    `json:"completion_tokens"`
+	TotalTokens      int    `json:"total_tokens"`
 }
 
 func (s *LLMUsageService) DailyByProvider(rangeDays int) ([]DailyProviderRow, error) {
@@ -124,7 +124,7 @@ func (s *LLMUsageService) DailyByProvider(rangeDays int) ([]DailyProviderRow, er
 	}
 	defer rows.Close()
 
-	var out []DailyProviderRow
+	out := []DailyProviderRow{}
 	for rows.Next() {
 		var r DailyProviderRow
 		if err := rows.Scan(&r.Date, &r.LLMProvider, &r.PromptTokens, &r.CompletionTokens, &r.TotalTokens); err != nil {

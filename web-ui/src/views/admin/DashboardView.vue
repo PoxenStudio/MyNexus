@@ -5,6 +5,7 @@ import { fetchStats, type SystemStats } from "../../api/system";
 import { fetchTokenStats, formatTokens, type TokenStats } from "../../api/token";
 import LineChart from "../../components/charts/LineChart.vue";
 import PieChart from "../../components/charts/PieChart.vue";
+import BarChart from "../../components/charts/BarChart.vue";
 import StatCard from "../../components/StatCard.vue";
 
 const { t } = useI18n();
