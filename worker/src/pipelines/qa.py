@@ -10,6 +10,7 @@ from tools.library_stats import LibraryStatsTool
 from tools.list_chapters import ListChaptersTool
 from tools.read_chapter import ReadChapterTool
 from tools.registry import ToolRegistry
+from tools.search_by_chapters import SearchByChaptersTool
 from tools.semantic_search import SemanticSearchTool
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,8 @@ _TOOL_DECISION_PROMPT = (
     "- 系统/书库状态（数量、进度）→ get_library_stats\n"
     "- 书的元信息/已生成的总结 → get_book_info\n"
     "- 章节目录（决定读哪章）→ list_chapters\n"
-    "- 章节正文/概述/人物关系/情节脉络 → read_chapter\n"
+    "- 章节正文/概述/人物关系 → read_chapter\n"
+    "- 跨章节的情节脉络/时间线/人物经历/主题演变 → search_by_chapters\n"
     "- 按语义找观点/定位段落/跨书检索 → semantic_search\n"
     "如果问题不在上述范围、或可通过对话历史直接回答，不要调用任何工具，直接留空。"
 )
@@ -58,6 +60,7 @@ class QAPipeline:
                 BookInfoTool(self.retrieval.core_api),
                 ListChaptersTool(self.retrieval.core_api),
                 ReadChapterTool(self.retrieval.core_api),
+                SearchByChaptersTool(self.retrieval),
                 SemanticSearchTool(self.retrieval),
             ]
         )

@@ -68,17 +68,93 @@ class RetrievalPipeline:
 
         # Summary vectors ("{id}:summary") share the collection with real
         # chunks and outrank them on overview-ish queries; QA excludes them.
-        # Filtering happens before full-corpus Python-side fusion, so no
-        # HNSW top-k slots are lost.
+        vector_limit = len(records)
         if not include_summaries:
             records = [r for r in records if not r["id"].endswith(":summary")]
-            if not records:
-                return []
+
+        return self._fuse(query, records, book_ids, top_k, score_threshold, mode, fusion, vector_limit)
+
+    def search_by_chapter_route(
+        self,
+        query: str,
+        book_ids: list[str] | None = None,
+        chapter_top_n: int = 8,
+        top_k: int = 10,
+        mode: str = "hybrid",
+    ) -> tuple[list[dict], list[dict]]:
+        """Two-stage retrieval for cross-chapter questions (timelines, plot
+        threads, character arcs): first aggregate chunk scores per chapter to
+        pick candidate chapters, then re-rank only chunks within them.
+
+        Routing uses chunk-level scores aggregated per chapter (top-3 sum) —
+        chapter *summaries* proved useless as the routing corpus: LLM-written
+        summaries generalize away proper nouns ("小沛" never appears in them),
+        so BM25 scores zero and vector similarity alone routes every war-ish
+        chapter to the top. Proper-noun hits cluster in the right chapters by
+        construction, and top-3 summing suppresses chapters with a single
+        lucky chunk.
+
+        Returns (chunks, routed_chapters) where routed_chapters carries
+        chapter_id, aggregate score, and the chapter summary text (when one
+        exists) for display. Empty lists mean: fall back to plain search().
+        """
+        records = self.vector_store.all(book_ids)
+        chunk_records = [r for r in records if not r["id"].endswith(":summary")]
+        if not chunk_records:
+            return [], []
+
+        all_hits = self._fuse(
+            query, chunk_records, book_ids, top_k=len(chunk_records), mode=mode, vector_limit=len(records)
+        )
+        by_chapter: dict[str, list[float]] = {}
+        for hit in all_hits:
+            if hit["score"] <= 0:
+                continue
+            by_chapter.setdefault(hit["chapter_id"], []).append(hit["score"])
+        ranked = sorted(
+            ((sum(scores[:3]), cid) for cid, scores in by_chapter.items()), reverse=True
+        )[:chapter_top_n]
+        if not ranked:
+            return [], []
+
+        summary_by_chapter = {
+            r["chapter_id"]: r["content"]
+            for r in records
+            if r["id"].endswith(":summary") and r["chapter_id"]
+        }
+        book_by_chapter = {r["chapter_id"]: r["book_id"] for r in chunk_records}
+        routed = [
+            {"chapter_id": cid, "book_id": book_by_chapter[cid],
+             "score": score, "summary": summary_by_chapter.get(cid, "")}
+            for score, cid in ranked
+        ]
+        chapter_ids = {cid for _, cid in ranked}
+        chunks = [r for r in chunk_records if r["chapter_id"] in chapter_ids]
+        return self._fuse(query, chunks, book_ids, top_k, mode=mode, vector_limit=len(records)), routed
+
+    def _fuse(
+        self,
+        query: str,
+        records: list[dict],
+        book_ids: list[str] | None,
+        top_k: int,
+        score_threshold: float = 0.0,
+        mode: str = "hybrid",
+        fusion: str | None = None,
+        vector_limit: int | None = None,
+    ) -> list[dict]:
+        """Scores and ranks one record subset (chunks, or chapter summaries
+        for routing) with the same vector+keyword fusion as search().
+        vector_limit is the corpus size the vector pass scores — must cover
+        the whole collection, not just the subset, or subset members get no
+        vector score when they rank outside the store-wide top-n."""
+        if not records:
+            return []
 
         vector_scores: dict[str, float] = {}
         keyword_scores: dict[str, float] = {}
         if mode in ("hybrid", "vector"):
-            vector_scores = self._vector_scores(query, book_ids, len(records))
+            vector_scores = self._vector_scores(query, book_ids, vector_limit or len(records))
         if mode in ("hybrid", "bm25"):
             keyword_scores = self._keyword_scores(query, records, book_ids, top_k)
 
