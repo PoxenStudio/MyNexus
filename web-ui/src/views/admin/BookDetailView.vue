@@ -639,6 +639,7 @@ onUnmounted(() => {
                 v-if="summarizeState === 'partial'"
                 class="primary"
                 :disabled="!book.chapters.length || rebuilding"
+                :title="!book.chapters.length ? t('books.noChaptersToSummarize') : t('books.continueSummarizeTooltip')"
                 @click="onSummarize('continue')"
               >
                 {{ t("books.continueSummarize") }}
@@ -646,13 +647,13 @@ onUnmounted(() => {
               <button
                 class="primary"
                 :disabled="!book.chapters.length || rebuilding"
-                :title="!book.chapters.length ? t('books.noChaptersToSummarize') : undefined"
+                :title="!book.chapters.length ? t('books.noChaptersToSummarize') : summarizeState === 'none' ? t('books.summarizeTooltip') : t('books.resummarizeTooltip')"
                 @click="onSummarize('restart')"
               >
                 {{ summarizeState === "none" ? t("books.summarize") : t("books.resummarize") }}
               </button>
             </template>
-            <button class="primary" :disabled="summarizing || rebuilding" @click="onRebuild">
+            <button class="primary" :disabled="summarizing || rebuilding" :title="t('books.rebuildTooltip')" @click="onRebuild">
               {{ rebuilding ? t("books.rebuilding") : t("books.rebuild") }}
             </button>
           </div>
