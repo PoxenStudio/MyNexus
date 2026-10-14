@@ -22,7 +22,10 @@ node_modules/
 dist/
 
 # Local data
-/data/
+/data/*
+!/data/nltk/
+/data/nltk/*
+!/data/nltk/.gitkeep
 /config-runtime/
 /.tmp/
 *.db

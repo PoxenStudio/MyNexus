@@ -37,10 +37,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY worker/requirements.txt /app/worker/requirements.txt
 RUN pip install --no-cache-dir -r /app/worker/requirements.txt \
-    && python -m nltk.downloader -d "$NLTK_DATA" punkt_tab averaged_perceptron_tagger_eng
+    && mkdir -p "$NLTK_DATA"
 
 COPY --from=core-build /out/mynexus-api /app/mynexus-api
 COPY --from=web-build /src/web-ui/dist /usr/share/nginx/html
+COPY data/nltk/ /usr/share/nltk_data/
 COPY worker/assets /app/assets
 COPY worker/src /app/worker/src
 COPY docker/default-config.yaml /usr/share/mynexus/default-config.yaml

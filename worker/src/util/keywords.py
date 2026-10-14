@@ -98,10 +98,13 @@ def _extract_zh(text: str, top_k: int) -> list[tuple[str, float]]:
 def _extract_en(text: str, top_k: int) -> list[tuple[str, float]]:
     import nltk
 
-    tokens = nltk.word_tokenize(text)
-    tagged = nltk.pos_tag(tokens)
-
     counts: dict[str, int] = {}
+    try:
+        tagged = nltk.pos_tag(nltk.word_tokenize(text))
+    except LookupError:
+        logger.warning("NLTK English models unavailable; using frequency-based keyword extraction")
+        tagged = ((word, "NN") for word in _EN_TOKEN_PATTERN.findall(text))
+
     for word, tag in tagged:
         if tag not in _EN_NOUN_TAGS:
             continue

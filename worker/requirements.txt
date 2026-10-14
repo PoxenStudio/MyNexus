@@ -1,5 +1,5 @@
-grpcio>=1.68,<2.0
-protobuf>=5.29,<7
+grpcio>=1.84.0,<2.0
+protobuf>=7.35.1,<8
 pyyaml>=6.0
 ebooklib>=0.18
 beautifulsoup4>=4.12
@@ -11,8 +11,8 @@ jieba>=0.42
 opencc-python-reimplemented>=0.1.7
 # POS tagging for English keyword extraction (pipelines/summary.py) — noun
 # filtering, same rationale as jieba's POS whitelist on the Chinese side.
-# punkt + averaged_perceptron_tagger model data must be pre-downloaded into
-# the image at build time (see Dockerfile) — not fetched at runtime.
+# English keyword extraction uses NLTK models when available and falls back
+# to frequency ranking if model data cannot be loaded.
 nltk>=3.9
 chromadb>=0.5
 # Local embedding provider (embedding.provider=local): in-process ONNX

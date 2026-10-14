@@ -3,7 +3,10 @@
 .DS_Store
 .tmp
 config
-data
+data/*
+!data/nltk/
+data/nltk/*
+!data/nltk/**
 models
 docs
 worker/data

@@ -19,11 +19,6 @@ ENV TZ=Asia/Shanghai \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Pre-download the NLTK model data English keyword extraction needs
-# (util/keywords.py's _extract_en) at build time — the worker's runtime
-# environment isn't assumed to have internet access, so this can't be
-# fetched lazily on first use like it normally would be.
-RUN python3 -m nltk.downloader -d "$NLTK_DATA" punkt_tab averaged_perceptron_tagger_eng
 # Bundled font for util/cover_generator.py's title-based fallback cover —
 # baked in so cover generation works out of the box with no deploy-time
 # step; a deployer can still override it by dropping a font at

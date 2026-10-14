@@ -68,6 +68,9 @@ Docker Compose 的集成镜像默认使用 SQLite；切换为 Postgres 时，请
 ### 方式一：Docker Compose（推荐，生产/NAS 部署）
 
 ```bash
+# 可选：预先下载英文关键词提取所需的 NLTK 数据到 data/nltk，以便构建进镜像
+bash scripts/download-nltk-data.sh
+
 # 构建并启动集成镜像（首次启动会在 config-runtime/config.yaml 中生成默认配置）
 docker compose up -d --build
 
