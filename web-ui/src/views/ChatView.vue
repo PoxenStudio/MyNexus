@@ -45,6 +45,20 @@ function citationChapterTitle(c: chatApi.Citation): string {
   return bookCache.value[c.book_id]?.chapters.find((ch) => ch.id === c.chapter_id)?.title ?? c.chapter_id;
 }
 
+const CITED_RE = /\[(\d+)\]/g;
+
+function renumberCitations(content: string): string {
+  const seen = new Map<string, number>();
+  let match: RegExpExecArray | null;
+  CITED_RE.lastIndex = 0;
+  while ((match = CITED_RE.exec(content)) !== null) {
+    const n = match[1];
+    if (!seen.has(n)) seen.set(n, seen.size + 1);
+  }
+  if (seen.size === 0) return content;
+  return content.replace(CITED_RE, (_, n: string) => `[${seen.get(n)}]`);
+}
+
 async function loadSessions() {
   loadingSessions.value = true;
   try {
@@ -91,7 +105,9 @@ async function onSend() {
         messages.value[messages.value.length - 1].content += delta;
       },
       (citations) => {
-        messages.value[messages.value.length - 1].citations = citations;
+        const msgIdx = messages.value.length - 1;
+        messages.value[msgIdx].content = renumberCitations(messages.value[msgIdx].content);
+        messages.value[msgIdx].citations = citations;
         loadCitationBooks(citations);
       },
     );

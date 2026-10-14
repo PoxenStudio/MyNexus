@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Iterator
 
 from config import WorkerConfig, load_config
@@ -15,6 +16,12 @@ from tools.search_by_chapters import SearchByChaptersTool
 from tools.semantic_search import SemanticSearchTool
 
 logger = logging.getLogger(__name__)
+
+_CITED_RE = re.compile(r"\[(\d+)\]")
+
+
+def _extract_cited_indices(answer: str) -> set[int]:
+    return {int(m.group(1)) for m in _CITED_RE.finditer(answer)}
 
 _SYSTEM_PROMPT_TEMPLATE = (
     "你是一个书籍知识库问答助手。请仅根据下面提供的参考片段回答用户问题，"
@@ -153,8 +160,15 @@ class QAPipeline:
         system_message = {"role": "system", "content": _SYSTEM_PROMPT_TEMPLATE.format(context=context or "（无相关片段）")}
         llm_messages = [system_message] + messages
 
+        answer_chunks = []
         for delta in self.llm.process(llm_messages):
+            answer_chunks.append(delta)
             yield {"type": "delta", "content": delta}
+
+        answer_text = "".join(answer_chunks)
+        used = _extract_cited_indices(answer_text)
+        filtered = [c for i, c in enumerate(citations) if (i + 1) in used] if used else citations
+        logger.info("plain RAG: %d/%d citations referenced by answer", len(filtered), len(citations))
 
         yield {
             "type": "citations",
@@ -166,7 +180,7 @@ class QAPipeline:
                     "score": c["score"],
                     "content": c["content"][:200],
                 }
-                for c in citations
+                for c in filtered
             ],
         }
 
