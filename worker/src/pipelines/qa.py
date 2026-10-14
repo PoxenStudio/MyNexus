@@ -167,8 +167,7 @@ class QAPipeline:
 
         answer_text = "".join(answer_chunks)
         used = _extract_cited_indices(answer_text)
-        filtered = [c for i, c in enumerate(citations) if (i + 1) in used] if used else citations
-        logger.info("plain RAG: %d/%d citations referenced by answer", len(filtered), len(citations))
+        logger.info("plain RAG: answer cites %d/%d top-k chunks", len(used), len(citations))
 
         yield {
             "type": "citations",
@@ -180,7 +179,7 @@ class QAPipeline:
                     "score": c["score"],
                     "content": c["content"][:200],
                 }
-                for c in filtered
+                for c in citations
             ],
         }
 

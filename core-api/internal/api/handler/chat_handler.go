@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -151,16 +153,19 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	fmt.Fprint(c.Writer, "data: [DONE]\n\n")
 	c.Writer.Flush()
 
-	_ = h.chats.AppendMessage(sessionID, "assistant", answer.String(), citationsJSON)
+	var savedCitations []dto.CitationResponse
+	_ = json.Unmarshal([]byte(citationsJSON), &savedCitations)
+	finalAnswer, finalCitations := finalizeCitations(answer.String(), savedCitations)
+	finalCitationsBytes, _ := json.Marshal(finalCitations)
+	citationsJSON = string(finalCitationsBytes)
+
+	_ = h.chats.AppendMessage(sessionID, "assistant", finalAnswer, citationsJSON)
 	_ = h.chats.TouchSession(sessionID)
 
-	if len(req.BookIDs) == 0 {
-		var allCitations []dto.CitationResponse
-		if err := json.Unmarshal([]byte(citationsJSON), &allCitations); err == nil && len(allCitations) > 0 {
-			firstBookID := allCitations[0].BookID
-			if err := h.chats.SetTitleFromFirstBookIfEmpty(sessionID, []string{firstBookID}); err != nil {
-				fmt.Printf("[chat] set title from citation book failed: %v\n", err)
-			}
+	if len(req.BookIDs) == 0 && len(finalCitations) > 0 {
+		firstBookID := finalCitations[0].BookID
+		if err := h.chats.SetTitleFromFirstBookIfEmpty(sessionID, []string{firstBookID}); err != nil {
+			fmt.Printf("[chat] set title from citation book failed: %v\n", err)
 		}
 	}
 }
@@ -249,4 +254,56 @@ func (h *ChatHandler) DeleteSession(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+var citedIndexRE = regexp.MustCompile(`\[(\d+)\]`)
+var trailingCiteLineRE = regexp.MustCompile(`(?m)^[\s\u3000]*\[\d+\](?:\s*\[\d+\])*\s*$`)
+
+func finalizeCitations(answer string, citations []dto.CitationResponse) (string, []dto.CitationResponse) {
+	matches := citedIndexRE.FindAllStringSubmatchIndex(answer, -1)
+	if len(matches) == 0 {
+		return answer, citations
+	}
+	seen := map[int]int{}
+	var order []int
+	for _, m := range matches {
+		n, err := strconv.Atoi(answer[m[2]:m[3]])
+		if err != nil {
+			continue
+		}
+		if _, ok := seen[n]; !ok {
+			seen[n] = len(order) + 1
+			order = append(order, n)
+		}
+	}
+	if len(order) == 0 {
+		return answer, citations
+	}
+
+	answer = citedIndexRE.ReplaceAllStringFunc(answer, func(s string) string {
+		n, err := strconv.Atoi(s[1 : len(s)-1])
+		if err != nil {
+			return s
+		}
+		if newIdx, ok := seen[n]; ok {
+			return fmt.Sprintf("[%d]", newIdx)
+		}
+		return s
+	})
+	answer = trailingCiteLineRE.ReplaceAllString(answer, "")
+	answer = regexp.MustCompile(`\n{3,}`).ReplaceAllString(answer, "\n\n")
+	answer = strings.TrimRight(answer, "\n \u3000")
+
+	usedPositions := make(map[int]bool, len(order))
+	for _, n := range order {
+		usedPositions[n] = true
+	}
+	filtered := make([]dto.CitationResponse, 0, len(order))
+	for i, c := range citations {
+		if usedPositions[i+1] {
+			filtered = append(filtered, c)
+		}
+	}
+
+	return answer, filtered
 }

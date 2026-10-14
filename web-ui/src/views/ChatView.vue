@@ -47,16 +47,23 @@ function citationChapterTitle(c: chatApi.Citation): string {
 
 const CITED_RE = /\[(\d+)\]/g;
 
-function renumberCitations(content: string): string {
+function finalizeAssistantMessage(m: { role: string; content: string; citations?: chatApi.Citation[] }) {
+  if (m.role !== "assistant" || !m.citations?.length) return;
   const seen = new Map<string, number>();
   let match: RegExpExecArray | null;
   CITED_RE.lastIndex = 0;
-  while ((match = CITED_RE.exec(content)) !== null) {
+  while ((match = CITED_RE.exec(m.content)) !== null) {
     const n = match[1];
     if (!seen.has(n)) seen.set(n, seen.size + 1);
   }
-  if (seen.size === 0) return content;
-  return content.replace(CITED_RE, (_, n: string) => `[${seen.get(n)}]`);
+  if (seen.size === 0) return;
+  m.content = m.content
+    .replace(CITED_RE, (_, n: string) => `[${seen.get(n)}]`)
+    .replace(/^[\s\u3000]*\[\d+\](?:\s*\[\d+\])*\s*$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+  const usedIndices = new Set(Array.from(seen.keys()).map((n) => parseInt(n, 10)));
+  m.citations = m.citations.filter((_, i) => usedIndices.has(i + 1));
 }
 
 async function loadSessions() {
@@ -106,8 +113,8 @@ async function onSend() {
       },
       (citations) => {
         const msgIdx = messages.value.length - 1;
-        messages.value[msgIdx].content = renumberCitations(messages.value[msgIdx].content);
         messages.value[msgIdx].citations = citations;
+        finalizeAssistantMessage(messages.value[msgIdx]);
         loadCitationBooks(citations);
       },
     );
