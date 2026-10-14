@@ -196,6 +196,13 @@ service CoreApiService {
   // task completed.
   rpc ReportBookSummary(BookSummaryRequest) returns (Ack);
 
+  // Token-consumption accounting: Worker reports one LLM call's usage right
+  // after it happens, so Core API can aggregate per book / day / provider
+  // for the book-detail card and the dashboard. Fire-and-forget from the
+  // Worker side — a report failure is logged but never aborts the task that
+  // was actually doing useful work (summarizing / embedding / chatting).
+  rpc ReportTokenUsage(TokenUsageRequest) returns (Ack);
+
   // Postgres-only GIN-indexed keyword search (see
   // .claude/memory/mynexus_keyword_search_gin.md) — Worker calls this
   // read-only endpoint instead of building a BM25 index in-process when
@@ -322,14 +329,22 @@ message BookSummaryRequest {
   string task_id = 1;
   string book_id = 2;
   string summary = 3;
-  // Whole-book content keywords, reduced from each chapter's summary (see
-  // pipelines/summary.py), sorted by weight descending. Not the same as
-  // BookMeta/tags (user- or MyBooks-assigned labels) — these are extracted
-  // from the text itself. Core API stores them all and truncates to the
-  // system-configured max_keywords setting at read time (see
-  // config.KeywordConfig), so raising the limit later doesn't require
-  // re-summarizing.
   repeated Keyword keywords = 4;
+}
+
+message TokenUsageRequest {
+  string task_id = 1;
+  string book_id = 2;
+  // ingest | summary | chat — which pipeline produced this call.
+  string task_type = 3;
+  string llm_provider = 4; // "openai" | "ollama"
+  string llm_model = 5;   // e.g. "deepseek-v4-flash"
+  // Pipeline-local site tag, e.g. "summary.chapter_analyze",
+  // "summary.book_reduce" — lets the dashboard slice by call site later.
+  string call_site = 6;
+  int32 prompt_tokens = 7;
+  int32 completion_tokens = 8;
+  int32 total_tokens = 9;
 }
 
 message Keyword {

@@ -5,6 +5,7 @@ search HTTP call added for the Postgres GIN work. See
 """
 
 import grpc
+import logging
 
 import mynexus_pb2
 import mynexus_pb2_grpc
@@ -88,13 +89,43 @@ class CoreApiClient:
     def report_book_summary(
         self, task_id: str, book_id: str, summary: str, keywords: list[tuple[str, float]] | None = None
     ) -> None:
-        """Reduce step: persists the whole-book summary plus its extracted
-        content keywords (see pipelines/summary.py's run()/util/keywords.py),
-        and marks the summarize task complete."""
         keyword_msgs = [mynexus_pb2.Keyword(term=term, weight=weight) for term, weight in (keywords or [])]
         self._stub.ReportBookSummary(
             mynexus_pb2.BookSummaryRequest(task_id=task_id, book_id=book_id, summary=summary, keywords=keyword_msgs)
         )
+
+    def report_token_usage(
+        self,
+        task_id: str,
+        book_id: str,
+        task_type: str,
+        llm_provider: str,
+        llm_model: str,
+        call_site: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        total_tokens: int,
+    ) -> None:
+        """Fire-and-forget accounting for one LLM call's usage — a failed
+        report is logged but never aborts the summarize/ingest task that
+        was actually doing useful work. See mynexus.proto ReportTokenUsage."""
+        try:
+            self._stub.ReportTokenUsage(
+                mynexus_pb2.TokenUsageRequest(
+                    task_id=task_id,
+                    book_id=book_id,
+                    task_type=task_type,
+                    llm_provider=llm_provider,
+                    llm_model=llm_model,
+                    call_site=call_site,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                ),
+                timeout=5,
+            )
+        except grpc.RpcError as e:
+            logging.getLogger(__name__).warning("report_token_usage failed: %v", e)
 
     def keyword_search(self, query: str, book_ids: list[str] | None, top_k: int) -> list[dict] | None:
         """Postgres-only GIN-indexed keyword search. Returns None (caller falls

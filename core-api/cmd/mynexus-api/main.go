@@ -166,7 +166,10 @@ func main() {
 	// still happen in the background afterwards — a listener that's bound
 	// but not yet Accept()-ing still queues incoming connections at the OS
 	// level, so this alone is enough to close the race.
-	grpcSrv := grpcserver.New(cfg, service.NewBookService(db, cfg.Storage.UploadDir), taskSvc, workerClient, dispatcher)
+	grpcSrv := grpcserver.New(
+		cfg, service.NewBookService(db, cfg.Storage.UploadDir), taskSvc, workerClient, dispatcher,
+		service.NewLLMUsageService(db),
+	)
 	grpcLis, err := grpcSrv.Listen()
 	if err != nil {
 		log.Fatalf("grpc server failed: %v", err)

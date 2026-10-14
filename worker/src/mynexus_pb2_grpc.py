@@ -5,7 +5,7 @@ import warnings
 
 import mynexus_pb2 as mynexus__pb2
 
-GRPC_GENERATED_VERSION = '1.68.1'
+GRPC_GENERATED_VERSION = '1.84.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -18,14 +18,14 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in mynexus_pb2_grpc.py depends on'
+        + ' but the generated code in mynexus_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class WorkerServiceStub(object):
+class WorkerServiceStub:
     """---- WorkerService: implemented by Worker, called by Core API ----
 
     """
@@ -73,7 +73,7 @@ class WorkerServiceStub(object):
                 _registered_method=True)
 
 
-class WorkerServiceServicer(object):
+class WorkerServiceServicer:
     """---- WorkerService: implemented by Worker, called by Core API ----
 
     """
@@ -203,7 +203,7 @@ def add_WorkerServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class WorkerService(object):
+class WorkerService:
     """---- WorkerService: implemented by Worker, called by Core API ----
 
     """
@@ -398,7 +398,7 @@ class WorkerService(object):
             _registered_method=True)
 
 
-class CoreApiServiceStub(object):
+class CoreApiServiceStub:
     """---- CoreApiService: implemented by Core API, called by Worker ----
 
     """
@@ -439,6 +439,11 @@ class CoreApiServiceStub(object):
                 request_serializer=mynexus__pb2.BookSummaryRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.Ack.FromString,
                 _registered_method=True)
+        self.ReportTokenUsage = channel.unary_unary(
+                '/mynexus.CoreApiService/ReportTokenUsage',
+                request_serializer=mynexus__pb2.TokenUsageRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
         self.KeywordSearch = channel.unary_unary(
                 '/mynexus.CoreApiService/KeywordSearch',
                 request_serializer=mynexus__pb2.KeywordSearchRequest.SerializeToString,
@@ -461,7 +466,7 @@ class CoreApiServiceStub(object):
                 _registered_method=True)
 
 
-class CoreApiServiceServicer(object):
+class CoreApiServiceServicer:
     """---- CoreApiService: implemented by Core API, called by Worker ----
 
     """
@@ -509,6 +514,17 @@ class CoreApiServiceServicer(object):
     def ReportBookSummary(self, request, context):
         """Reduce step: persists the whole-book summary and marks the summarize
         task completed.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReportTokenUsage(self, request, context):
+        """Token-consumption accounting: Worker reports one LLM call's usage right
+        after it happens, so Core API can aggregate per book / day / provider
+        for the book-detail card and the dashboard. Fire-and-forget from the
+        Worker side — a report failure is logged but never aborts the task that
+        was actually doing useful work (summarizing / embedding / chatting).
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -600,6 +616,11 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
                     request_deserializer=mynexus__pb2.BookSummaryRequest.FromString,
                     response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
+            'ReportTokenUsage': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReportTokenUsage,
+                    request_deserializer=mynexus__pb2.TokenUsageRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
             'KeywordSearch': grpc.unary_unary_rpc_method_handler(
                     servicer.KeywordSearch,
                     request_deserializer=mynexus__pb2.KeywordSearchRequest.FromString,
@@ -628,7 +649,7 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class CoreApiService(object):
+class CoreApiService:
     """---- CoreApiService: implemented by Core API, called by Worker ----
 
     """
@@ -784,6 +805,33 @@ class CoreApiService(object):
             target,
             '/mynexus.CoreApiService/ReportBookSummary',
             mynexus__pb2.BookSummaryRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReportTokenUsage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/ReportTokenUsage',
+            mynexus__pb2.TokenUsageRequest.SerializeToString,
             mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,

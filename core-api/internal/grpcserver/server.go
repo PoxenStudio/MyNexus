@@ -32,10 +32,11 @@ type CoreAPIServer struct {
 	worker     *coordinator.WorkerClient
 	dispatcher *dispatch.Dispatcher
 	cfg        config.Config
+	llmUsage   *service.LLMUsageService
 }
 
-func New(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient, dispatcher *dispatch.Dispatcher) *CoreAPIServer {
-	return &CoreAPIServer{cfg: cfg, books: books, tasks: tasks, worker: worker, dispatcher: dispatcher}
+func New(cfg config.Config, books *service.BookService, tasks *service.TaskService, worker *coordinator.WorkerClient, dispatcher *dispatch.Dispatcher, llmUsage *service.LLMUsageService) *CoreAPIServer {
+	return &CoreAPIServer{cfg: cfg, books: books, tasks: tasks, worker: worker, dispatcher: dispatcher, llmUsage: llmUsage}
 }
 
 // Serve blocks, listening on cfg.Server.GRPCPort — run it in a goroutine from main.go.
@@ -282,6 +283,25 @@ func (s *CoreAPIServer) ReportBookSummary(ctx context.Context, req *mynexuspb.Bo
 	}
 	if err := s.tasks.Complete(req.TaskId); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &mynexuspb.Ack{Ok: true}, nil
+}
+
+// ReportTokenUsage is the fire-and-forget accounting sink — it never fails
+// the calling Worker's pipeline (summary / ingest / chat) because a
+// book can still be perfectly useful even if one usage row couldn't be
+// written. Errors are logged but we return Ok regardless so Worker-side
+// retry logic (if any) doesn't kick in.
+func (s *CoreAPIServer) ReportTokenUsage(ctx context.Context, req *mynexuspb.TokenUsageRequest) (*mynexuspb.Ack, error) {
+	if err := s.llmUsage.Insert(
+		req.GetTaskId(), req.GetBookId(), req.GetTaskType(),
+		req.GetLlmProvider(), req.GetLlmModel(), req.GetCallSite(),
+		int(req.GetPromptTokens()), int(req.GetCompletionTokens()), int(req.GetTotalTokens()),
+	); err != nil {
+		// Best-effort: log and swallow. Token accounting failing must
+		// never abort an ingest or summarize task that was otherwise
+		// producing real progress.
+		fmt.Printf("WARN: ReportTokenUsage insert failed: %v\n", err)
 	}
 	return &mynexuspb.Ack{Ok: true}, nil
 }

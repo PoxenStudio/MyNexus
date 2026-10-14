@@ -2,7 +2,7 @@ import json
 import urllib.request
 from typing import Iterator
 
-from nodes.llm.base_llm import BaseLLM
+from nodes.llm.base_llm import BaseLLM, LLMUsage, _UsageIterator
 from util.debug_log import LLMCallLogger
 from util.http import call_provider, host_lock
 
@@ -13,52 +13,55 @@ class OllamaLLM(BaseLLM):
     def __init__(self, base_url: str, model: str, debug: bool = False) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
-        # See util/debug_log.py — dumps this call's request/response to the
-        # OS temp dir when the system settings "打开调试日志" toggle is on.
         self.debug = debug
 
     @property
     def node_name(self) -> str:
         return "ollama_llm"
 
-    def process(self, messages: list[dict]) -> Iterator[str]:
-        payload = json.dumps({"model": self.model, "messages": messages, "stream": True}).encode("utf-8")
-        req = urllib.request.Request(
-            f"{self.base_url}/api/chat",
-            data=payload,
-            method="POST",
-            headers={"Content-Type": "application/json"},
-        )
-        logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
-        chunks: list[str] = []
-        try:
-            # Held for the whole streamed response, not just the connect —
-            # see host_lock's docstring for why a partial hold wouldn't
-            # actually prevent the model-swap-mid-generation failure mode.
-            with host_lock(self.base_url), call_provider(
-                req, timeout=120, service="llm", provider="ollama", model=self.model
-            ) as resp:
-                for raw_line in resp:
-                    line = raw_line.decode("utf-8", errors="ignore").strip()
-                    if not line:
-                        continue
-                    event = json.loads(line)
-                    content = event.get("message", {}).get("content")
-                    if content:
-                        if logger:
-                            chunks.append(content)
-                        yield content
-                    if event.get("done"):
-                        break
-        except Exception as exc:
-            if logger:
-                logger.log_error(exc)
-            raise
-        else:
-            if logger:
-                logger.log_response("".join(chunks))
+    def process(self, messages: list[dict], call_site: str = "") -> _UsageIterator:
+        usage = LLMUsage(provider="ollama", model=self.model, call_site=call_site)
 
-    def call(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        def _gen() -> Iterator[str]:
+            payload = json.dumps({"model": self.model, "messages": messages, "stream": True}).encode("utf-8")
+            req = urllib.request.Request(
+                f"{self.base_url}/api/chat",
+                data=payload,
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
+            chunks: list[str] = []
+            try:
+                with host_lock(self.base_url), call_provider(
+                    req, timeout=120, service="llm", provider="ollama", model=self.model
+                ) as resp:
+                    for raw_line in resp:
+                        line = raw_line.decode("utf-8", errors="ignore").strip()
+                        if not line:
+                            continue
+                        event = json.loads(line)
+                        content = event.get("message", {}).get("content")
+                        if content:
+                            if logger:
+                                chunks.append(content)
+                            yield content
+                        if event.get("done"):
+                            usage.prompt_tokens = int(event.get("prompt_eval_count") or 0)
+                            usage.completion_tokens = int(event.get("eval_count") or 0)
+                            usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+                            break
+            except Exception as exc:
+                if logger:
+                    logger.log_error(exc)
+                raise
+            else:
+                if logger:
+                    logger.log_response("".join(chunks))
+
+        return _UsageIterator(_gen(), usage)
+
+    def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
         body: dict = {"model": self.model, "messages": messages, "stream": False}
         if tools:
             body["tools"] = tools
@@ -80,21 +83,27 @@ class OllamaLLM(BaseLLM):
                 logger.log_error(exc)
             raise
         message = data.get("message", {})
-        # Unlike OpenAI, Ollama returns `arguments` already as a JSON object,
-        # not a string to be json.loads'd — see BaseLLM.call's documented shape.
         tool_calls = [
             {"id": "", "name": tc.get("function", {}).get("name", ""), "arguments": tc.get("function", {}).get("arguments", {})}
             for tc in message.get("tool_calls") or []
         ]
         result = {"content": message.get("content"), "tool_calls": tool_calls}
+        prompt_tokens = int(data.get("prompt_eval_count") or 0)
+        completion_tokens = int(data.get("eval_count") or 0)
+        result["usage"] = LLMUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            provider="ollama",
+            model=self.model,
+            call_site=call_site,
+        )
         if logger:
             logger.log_response(json.dumps(result, ensure_ascii=False))
         return result
 
 
 if __name__ == "__main__":
-    # Standalone test: run from worker/src with
-    #   python3 -m nodes.llm.ollama_llm "say hi"
     import argparse
 
     parser = argparse.ArgumentParser(description="Stream a chat completion from Ollama.")
@@ -104,6 +113,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     llm = OllamaLLM(args.base_url, args.model)
-    for delta in llm.process([{"role": "user", "content": args.prompt}]):
+    stream = llm.process([{"role": "user", "content": args.prompt}])
+    for delta in stream:
         print(delta, end="", flush=True)
-    print()
+    print(f"\nusage={stream.usage}")

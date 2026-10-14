@@ -335,39 +335,59 @@ class SummaryPipeline:
         self.embedder = get_embedder(self.config)
         self.vector_store = get_vector_store(self.config)
 
-    def _complete(self, prompt: str, on_chars: Callable[[int], None] | None = None) -> str:
-        # llm.process() streams deltas (it's built for the interactive chat
-        # case); a batch job like this just wants the final text — but for a
-        # slow/large call, on_chars (if given) still gets a callback with the
-        # running character count every _PROGRESS_TICK_SECONDS, so the caller
-        # can surface "still working" progress instead of going silent until
-        # the whole completion lands.
+    def _complete(
+        self,
+        prompt: str,
+        call_site: str = "",
+        task_id: str = "",
+        book_id: str = "",
+        task_type: str = "summary",
+        on_chars: Callable[[int], None] | None = None,
+    ) -> str:
+        stream = self.llm.process([{"role": "user", "content": prompt}], call_site=call_site)
         chunks: list[str] = []
         last_tick = time.monotonic()
-        for delta in self.llm.process([{"role": "user", "content": prompt}]):
+        for delta in stream:
             chunks.append(delta)
             if on_chars is not None:
                 now = time.monotonic()
                 if now - last_tick >= _PROGRESS_TICK_SECONDS:
                     on_chars(sum(len(c) for c in chunks))
                     last_tick = now
-        return "".join(chunks).strip()
+        text = "".join(chunks).strip()
+        usage = stream.usage
+        if task_id and usage.total_tokens > 0:
+            logger.debug(
+                "report token usage: task=%s book=%s site=%s total=%d (prompt=%d completion=%d) provider=%s model=%s",
+                task_id, book_id, call_site, usage.total_tokens, usage.prompt_tokens, usage.completion_tokens,
+                usage.provider, usage.model,
+            )
+            try:
+                self.core_api.report_token_usage(
+                    task_id=task_id,
+                    book_id=book_id,
+                    task_type=task_type,
+                    llm_provider=usage.provider,
+                    llm_model=usage.model,
+                    call_site=usage.call_site,
+                    prompt_tokens=usage.prompt_tokens,
+                    completion_tokens=usage.completion_tokens,
+                    total_tokens=usage.total_tokens,
+                )
+            except Exception:  # noqa: BLE001 - fire-and-forget, never fail the summarize run over this
+                logger.exception("failed to report token usage for call_site=%s", call_site)
+        return text
 
     def summarize_chapter(
-        self, title: str, content: str, lang: str = "zh", on_progress: Callable[[str], None] | None = None
+        self,
+        title: str,
+        content: str,
+        lang: str = "zh",
+        on_progress: Callable[[str], None] | None = None,
+        task_id: str = "",
+        book_id: str = "",
+        task_type: str = "summary",
     ) -> str:
-        """on_progress (if given) is called with a short human-readable
-        status string — "生成中…已输出 N 字" for a single-segment chapter,
-        "第 i/total 段，已输出 N 字" then "正在合并 total 段摘要…" for a
-        multi-segment one — every _PROGRESS_TICK_SECONDS (see _complete).
-        Wraps _complete's lower-level char-count callback rather than
-        exposing it directly, since what counts as meaningful progress
-        differs between the two cases.
-
-        lang: "en" or "zh" (see _lang_bucket) — selects which prompt
-        language the summary itself is written in; the progress messages
-        stay Chinese either way since they're UI-facing status text, not
-        part of the generated summary."""
         title = title or "（未命名章节）"
         content = self._fit_budget(title, content)
         segments = split_into_segments(content)
@@ -381,9 +401,8 @@ class SummaryPipeline:
         if len(segments) == 1:
             prompt = chapter_tmpl.format(title=title, content=segments[0])
             on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
-            return self._complete(prompt, on_chars=on_chars)
+            return self._complete(prompt, call_site="summary.chapter", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars)
 
-        # Map: summarize each segment on its own.
         segment_summaries = []
         for i, segment in enumerate(segments):
             prompt = segment_tmpl.format(title=title, index=i + 1, total=len(segments), content=segment)
@@ -392,9 +411,12 @@ class SummaryPipeline:
                 if on_progress
                 else None
             )
-            segment_summaries.append(self._complete(prompt, on_chars=on_chars))
+            segment_summaries.append(
+                self._complete(
+                    prompt, call_site=f"summary.chapter_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars,
+                )
+            )
 
-        # Reduce: merge the segment summaries into one chapter summary.
         if on_progress:
             on_progress(f"正在合并 {len(segments)} 段摘要…")
         reduce_prompt = reduce_tmpl.format(
@@ -402,7 +424,7 @@ class SummaryPipeline:
             total=len(segments),
             segment_summaries="\n\n".join(f"[{i + 1}/{len(segments)}] {s}" for i, s in enumerate(segment_summaries)),
         )
-        return self._complete(reduce_prompt)
+        return self._complete(reduce_prompt, call_site="summary.chapter_reduce", task_id=task_id, book_id=book_id, task_type=task_type)
 
     def _fit_budget(self, title: str, content: str) -> str:
         """Head/tail-samples a chapter down to the configured single-chapter
@@ -421,13 +443,15 @@ class SummaryPipeline:
         return fitted
 
     def analyze_chapter(
-        self, title: str, content: str, lang: str = "zh", on_progress: Callable[[str], None] | None = None
+        self,
+        title: str,
+        content: str,
+        lang: str = "zh",
+        on_progress: Callable[[str], None] | None = None,
+        task_id: str = "",
+        book_id: str = "",
+        task_type: str = "summary",
     ) -> tuple[str, list[tuple[str, str]]]:
-        """Summary + definition extraction in one pass over the chapter text
-        (see _CHAPTER_ANALYSIS_PROMPT_TEMPLATE*), returning (summary,
-        definitions). Multi-segment chapters map the combined prompt over
-        each segment, reduce the segment summaries with the same reduce
-        templates summarize_chapter uses, and dedup definitions by name."""
         title = title or "（未命名章节）"
         content = self._fit_budget(title, content)
         segments = split_into_segments(content)
@@ -443,7 +467,9 @@ class SummaryPipeline:
         if len(segments) == 1:
             prompt = chapter_tmpl.format(title=title, content=segments[0])
             on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
-            summary, definitions = _parse_analysis_json(self._complete(prompt, on_chars=on_chars))
+            summary, definitions = _parse_analysis_json(
+                self._complete(prompt, call_site="summary.chapter_analyze", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars)
+            )
             logger.debug("chapter %r analyzed: summary %d chars, %d definitions", title, len(summary), len(definitions))
             return summary, definitions[:_DEFINITIONS_CAP_PER_CHAPTER]
 
@@ -456,7 +482,11 @@ class SummaryPipeline:
                 if on_progress
                 else None
             )
-            seg_summary, seg_definitions = _parse_analysis_json(self._complete(prompt, on_chars=on_chars))
+            seg_summary, seg_definitions = _parse_analysis_json(
+                self._complete(
+                    prompt, call_site=f"summary.chapter_analyze_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars,
+                )
+            )
             segment_summaries.append(seg_summary)
             found.extend(seg_definitions)
 
@@ -467,7 +497,7 @@ class SummaryPipeline:
             total=len(segments),
             segment_summaries="\n\n".join(f"[{i + 1}/{len(segments)}] {s}" for i, s in enumerate(segment_summaries)),
         )
-        summary = self._complete(reduce_prompt)
+        summary = self._complete(reduce_prompt, call_site="summary.chapter_analyze_reduce", task_id=task_id, book_id=book_id, task_type=task_type)
 
         merged: dict[str, tuple[str, str]] = {}
         for name, definition in found:
@@ -519,12 +549,15 @@ class SummaryPipeline:
         chapter_id="" mirrors the book-level chunk run() indexes below."""
         self._index_summary(f"{book_id}:summary", book_id, "", summary)
 
-    def summarize_book(self, chapter_summaries: list[tuple[str, str]], lang: str = "zh") -> str:
+    def summarize_book(
+        self, chapter_summaries: list[tuple[str, str]], lang: str = "zh",
+        task_id: str = "", book_id: str = "", task_type: str = "summary",
+    ) -> str:
         joined = "\n\n".join(
             f"[{i + 1}] {title or '（未命名章节）'}\n{summary}" for i, (title, summary) in enumerate(chapter_summaries)
         )
         prompt = (_BOOK_PROMPT_TEMPLATE_EN if lang == "en" else _BOOK_PROMPT_TEMPLATE).format(chapter_summaries=joined)
-        return self._complete(prompt)
+        return self._complete(prompt, call_site="summary.book_reduce", task_id=task_id, book_id=book_id, task_type=task_type)
 
     def _extract_chapter_keywords(self, content: str, lang: str) -> dict[str, float]:
         """Rolling top-K keyword extraction across one chapter's segments —
@@ -590,12 +623,12 @@ class SummaryPipeline:
                 # summary-only call — no keywords/definitions extracted from
                 # them, same as the book-level aggregation skip below.
                 if _is_keyword_skip_chapter(ch.title):
-                    summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress)
+                    summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id)
                     chapter_keywords: list[tuple[str, float]] = []
                     chapter_definitions: list[tuple[str, str]] = []
                 else:
                     summary, chapter_definitions = self.analyze_chapter(
-                        ch.title, ch.content, lang=lang, on_progress=on_progress
+                        ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id,
                     )
                     chapter_keyword_totals = self._extract_chapter_keywords(ch.content, lang)
                     chapter_keywords = sorted(chapter_keyword_totals.items(), key=lambda item: item[1], reverse=True)[
@@ -614,7 +647,7 @@ class SummaryPipeline:
                 self.core_api.report_progress(task_id, progress, "chapter_summarized", f"{i + 1}/{total}")
 
             chapter_summaries = [(ch.title, summaries_by_id[ch.id]) for ch in usable]
-            book_summary = self.summarize_book(chapter_summaries, lang=lang)
+            book_summary = self.summarize_book(chapter_summaries, lang=lang, task_id=task_id, book_id=book_id)
 
             # Keywords are extracted from every usable chapter's raw
             # *content* (not the LLM summary — see the comment above
