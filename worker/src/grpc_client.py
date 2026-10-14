@@ -57,8 +57,8 @@ class CoreApiClient:
             )
         )
 
-    def report_fail(self, task_id: str, error_msg: str) -> None:
-        self._stub.ReportFail(mynexus_pb2.FailRequest(task_id=task_id, error_msg=error_msg))
+    def report_fail(self, task_id: str, error_msg: str, canceled: bool = False) -> None:
+        self._stub.ReportFail(mynexus_pb2.FailRequest(task_id=task_id, error_msg=error_msg, canceled=canceled))
 
     def report_chapter_summary(
         self,

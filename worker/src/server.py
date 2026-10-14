@@ -27,6 +27,12 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         self.retrieval = RetrievalPipeline(cfg)
         self.qa = QAPipeline(cfg)
         self.summary = SummaryPipeline(cfg)
+        # task_id -> threading.Event for interrupting a running background
+        # task (see CancelTask). Entries are added by TriggerSummarize and
+        # removed when the run thread exits, so the dict can't leak entries
+        # for finished tasks. Only summarize runs honor the flag today.
+        self._cancel_events: dict[str, threading.Event] = {}
+        self._cancel_lock = threading.Lock()
 
     def TriggerIngest(self, request, context):
         # Fire-and-forget in a background thread — mirrors the old FastAPI
@@ -45,14 +51,34 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         # Same fire-and-forget pattern as TriggerIngest: returns immediately,
         # progress/chapter-summaries/completion/failure all come back via
         # CoreApiClient calls made from inside SummaryPipeline.run.
-        thread = threading.Thread(
-            target=self.summary.run,
-            args=(request.task_id, request.book_id, list(request.chapters)),
-            kwargs={"force_restart": request.force_restart, "language": request.language},
-            daemon=True,
-        )
+        cancel_event = threading.Event()
+        with self._cancel_lock:
+            self._cancel_events[request.task_id] = cancel_event
+
+        def _run() -> None:
+            try:
+                self.summary.run(
+                    request.task_id, request.book_id, list(request.chapters),
+                    force_restart=request.force_restart, language=request.language,
+                    cancel_event=cancel_event,
+                )
+            finally:
+                with self._cancel_lock:
+                    self._cancel_events.pop(request.task_id, None)
+
+        thread = threading.Thread(target=_run, daemon=True)
         thread.start()
         return mynexus_pb2.SummarizeAck(accepted=True)
+
+    def CancelTask(self, request, context):
+        with self._cancel_lock:
+            event = self._cancel_events.get(request.task_id)
+        if event is None:
+            logging.info("cancel requested for unknown/inactive task %s", request.task_id)
+            return mynexus_pb2.Ack(ok=False)
+        event.set()
+        logging.info("cancel flag set for task %s", request.task_id)
+        return mynexus_pb2.Ack(ok=True)
 
     def Search(self, request, context):
         results = self.retrieval.search(
