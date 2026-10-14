@@ -749,6 +749,8 @@ class SummaryPipeline:
 
             self.core_api.report_progress(task_id, 5, "summarizing_chapters")
 
+            chapter_kw_cache: dict[str, dict[str, float]] = {}
+
             # Keeps original chapter order for the reduce step: chapters not
             # in to_generate keep their existing summary untouched.
             summaries_by_id = {ch.id: ch.summary for ch in usable}
@@ -794,27 +796,13 @@ class SummaryPipeline:
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
                 progress = 5 + int(80 * (i + 1) / max(total, 1))
                 self.core_api.report_progress(task_id, progress, "chapter_summarized", f"{i + 1}/{total}")
+                chapter_kw_cache[ch.id] = dict(chapter_keywords)
 
             if cancel_event is not None and cancel_event.is_set():
                 raise CancelledError("cancelled before book-level reduce")
             chapter_summaries = [(ch.title, summaries_by_id[ch.id]) for ch in usable]
             book_summary = self.summarize_book(chapter_summaries, lang=lang, task_id=task_id, book_id=book_id, cancel_event=cancel_event)
 
-            # Keywords are extracted from every usable chapter's raw
-            # *content* (not the LLM summary — see the comment above
-            # _KEYWORDS_PER_SEGMENT_TOP_K), independent of which chapters
-            # were actually (re)generated this run, so a "continue" run
-            # against a book that already had chapter summaries always ends
-            # up with a complete book-level keyword set, not just coverage
-            # of whatever chapters happened to be regenerated. Rolling
-            # reduce at the book level mirrors _extract_chapter_keywords'
-            # segment-level one, for the same memory-bounding reason.
-            # doc_freq tracks, per term, how many chapters it showed up in
-            # at all (see util.keywords.merge_topk/filter_by_doc_frequency),
-            # so a term common across nearly every chapter — generic to
-            # *this* book even if no static stopword list names it — can be
-            # dropped after the loop instead of just riding high on summed
-            # weight.
             keyword_totals: dict[str, float] = {}
             keyword_doc_freq: dict[str, int] = {}
             num_keyword_chapters = 0
@@ -822,12 +810,19 @@ class SummaryPipeline:
                 if _is_keyword_skip_chapter(ch.title):
                     continue
                 num_keyword_chapters += 1
-                chapter_keywords = self._extract_chapter_keywords(ch.content, lang)
+                ch_kw = chapter_kw_cache.get(ch.id)
+                if ch_kw is None:
+                    if ch.keywords:
+                        ch_kw = {kw.term: kw.weight for kw in ch.keywords if kw.term.strip()}
+                    else:
+                        logger.debug("chapter %r: no LLM cache, no DB keywords -> fallback jieba", ch.title)
+                        ch_kw = dict(self._extract_chapter_keywords(ch.content, lang))
                 keyword_totals = merge_topk(
-                    keyword_totals, list(chapter_keywords.items()), _KEYWORDS_ROLLING_CAP, doc_freq=keyword_doc_freq
+                    keyword_totals, list(ch_kw.items()), _KEYWORDS_ROLLING_CAP, doc_freq=keyword_doc_freq
                 )
             keyword_totals = filter_by_doc_frequency(keyword_totals, keyword_doc_freq, num_keyword_chapters)
             keywords = sorted(keyword_totals.items(), key=lambda item: item[1], reverse=True)
+            logger.info("book keyword reduce: %d chapters -> %d terms", num_keyword_chapters, len(keywords))
 
             self.core_api.report_progress(task_id, 95, "reducing_done")
             self.core_api.report_book_summary(task_id, book_id, book_summary, keywords)

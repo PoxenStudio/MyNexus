@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -125,11 +126,12 @@ func (c *WorkerClient) TriggerIngest(req IngestRequest) error {
 }
 
 type SummarizeChapter struct {
-	ID      string
-	Title   string
-	Level   int
-	Content string
-	Summary string
+	ID       string
+	Title    string
+	Level    int
+	Content  string
+	Summary  string
+	Keywords string
 }
 
 type SummarizeRequest struct {
@@ -158,8 +160,20 @@ func (c *WorkerClient) TriggerSummarize(req SummarizeRequest) error {
 
 	chapters := make([]*mynexuspb.Chapter, 0, len(req.Chapters))
 	for _, ch := range req.Chapters {
+		var kwList []struct {
+			Term   string  `json:"term"`
+			Weight float64 `json:"weight"`
+		}
+		if ch.Keywords != "" {
+			_ = json.Unmarshal([]byte(ch.Keywords), &kwList)
+		}
+		pbKw := make([]*mynexuspb.Keyword, 0, len(kwList))
+		for _, kw := range kwList {
+			pbKw = append(pbKw, &mynexuspb.Keyword{Term: kw.Term, Weight: kw.Weight})
+		}
 		chapters = append(chapters, &mynexuspb.Chapter{
 			Id: ch.ID, Title: ch.Title, Level: int32(ch.Level), Content: ch.Content, Summary: ch.Summary,
+			Keywords: pbKw,
 		})
 	}
 

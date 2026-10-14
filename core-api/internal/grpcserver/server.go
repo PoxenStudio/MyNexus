@@ -220,6 +220,7 @@ func (s *CoreAPIServer) autoSummarize(bookID string) {
 		}
 		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
 			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
+			Keywords: ch.Keywords,
 		})
 	}
 	log.Printf("book %s: auto-summarize (continue) over %d chapter(s), %d already summarized", bookID, len(reqChapters), reused)
