@@ -60,6 +60,7 @@ _ZH_STOPWORDS = frozenset(
     优点 缺点 特色 风格 形式 材料 资料 信息 数据
     结论 发现 成果 成效 效果 效应 影响 结局
     时候 时间 地方 东西 事情 事物 方面
+    目录 序言 前言 后记 附录 引言 开篇
     """.split()
 )
 
@@ -84,8 +85,47 @@ _EN_STOPWORDS = frozenset(
 )
 
 
+def _register_foreign_names(text: str) -> None:
+    """Scan for `CJK·CJK` sequences (Chinese translation names like 西尔维娅·薇尔)
+    and register each side as a jieba dict entry so they don't get split into
+    fragments (e.g. 西尔 instead of 西尔维娅).
+
+    Length ≤4 on either side → register the full run (likely a complete name
+    fragment); longer → only register the 2 chars closest to · so we don't
+    accidentally include following non-name CJK content.
+    """
+    import jieba
+
+    CJK = re.compile(r"[\u4e00-\u9fff]")
+    seen: set[str] = set()
+
+    def _add(part: str) -> None:
+        if 2 <= len(part) <= 6 and part not in seen:
+            seen.add(part)
+            jieba.add_word(part, freq=10000, tag="nr")
+
+    i = 0
+    while i < len(text):
+        if text[i] in "·・":
+            j = i - 1
+            while j >= 0 and CJK.match(text[j]):
+                j -= 1
+            left_run = text[j + 1 : i]
+            k = i + 1
+            while k < len(text) and CJK.match(text[k]):
+                k += 1
+            right_run = text[i + 1 : k]
+            _add(left_run if len(left_run) <= 4 else left_run[-2:])
+            _add(right_run if len(right_run) <= 4 else right_run[:2])
+            i = k
+        else:
+            i += 1
+
+
 def _extract_zh(text: str, top_k: int) -> list[tuple[str, float]]:
     import jieba.analyse
+
+    _register_foreign_names(text)
 
     tags = jieba.analyse.extract_tags(text, topK=top_k, withWeight=True, allowPOS=_ZH_ALLOW_POS)
     return [
