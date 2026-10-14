@@ -203,3 +203,22 @@ class CoreApiClient:
             }
             for b in resp.books
         ]
+
+    def get_chapter_summaries(self, book_id: str) -> dict | None:
+        """Backs IngestionPipeline's post-ingest re-embed pass (see
+        pipelines/ingestion.py): the chapter summaries + whole-book summary
+        that survive a rebuild in Core API's database (SaveChapters carries
+        them over by title) but whose vector-store records were wiped by
+        Worker's own delete_by_book. Returns None on any RPC error — the
+        re-embed pass is best-effort and must never fail the ingest."""
+        try:
+            resp = self._stub.GetChapterSummaries(
+                mynexus_pb2.ChapterSummariesRequest(book_id=book_id), timeout=30
+            )
+        except grpc.RpcError:
+            logging.getLogger(__name__).warning("get_chapter_summaries RPC failed for book %s", book_id)
+            return None
+        return {
+            "chapters": [{"chapter_id": c.chapter_id, "summary": c.summary} for c in resp.chapters],
+            "book_summary": resp.book_summary,
+        }

@@ -617,12 +617,6 @@ class SummaryPipeline:
             # Keeps original chapter order for the reduce step: chapters not
             # in to_generate keep their existing summary untouched.
             summaries_by_id = {ch.id: ch.summary for ch in usable}
-            # (chapter_id, summary) pairs awaiting embedding — collected here
-            # instead of indexed immediately per chapter so every embedding
-            # call in this run happens only after every LLM call has
-            # finished (see the comment further below, where they're
-            # actually indexed).
-            pending_index: list[tuple[str, str]] = []
             total = len(to_generate)
             for i, ch in enumerate(to_generate):
                 if cancel_event is not None and cancel_event.is_set():
@@ -656,9 +650,6 @@ class SummaryPipeline:
                 self.core_api.report_chapter_summary(
                     task_id, ch.id, summary, keywords=chapter_keywords, definitions=chapter_definitions
                 )
-                # Embedding happens later, in one batch — see pending_index's
-                # declaration above and where it's drained below.
-                pending_index.append((ch.id, summary))
                 summaries_by_id[ch.id] = summary
                 # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
                 progress = 5 + int(80 * (i + 1) / max(total, 1))
@@ -712,11 +703,18 @@ class SummaryPipeline:
             # util/http.py's host_lock docstring for the related (but
             # distinct — that one's about genuine concurrent overlap, this
             # is about serial thrashing) failure mode this also helps with.
-            # Chapters skipped this run (force_restart=False, already
-            # summarized) are intentionally not re-embedded here — their
-            # existing vector from a previous run is left as-is.
-            for ch_id, summary in pending_index:
-                self._index_summary(f"{ch_id}:summary", book_id, ch_id, summary)
+            # Every *non-empty* final summary is embedded — including
+            # chapters skipped by a "continue" run — so any run that reaches
+            # this point converges the book back to "every persisted summary
+            # has its vector": a rebuild's delete_by_book or a previously
+            # canceled run can leave chapters summarized in the database
+            # with no vector at all, and those are exactly what this heals.
+            # Embedding-only (no LLM cost), idempotent via the stable
+            # "{chapter_id}:summary" ids.
+            for ch in usable:
+                summary = summaries_by_id.get(ch.id, "")
+                if summary.strip():
+                    self._index_summary(f"{ch.id}:summary", book_id, ch.id, summary)
             self._index_summary(f"{book_id}:summary", book_id, "", book_summary)
         except CancelledError as exc:
             logger.info("summarization canceled (task_id=%s book_id=%s): %s", task_id, book_id, exc)

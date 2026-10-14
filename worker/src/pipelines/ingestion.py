@@ -9,7 +9,7 @@ from nodes.parsers.epub_parser import EpubParser
 from nodes.parsers.registry import ParserRegistry
 from nodes.parsers.txt_parser import TxtParser
 from nodes.splitters.token_splitter import TokenSplitter
-from schemas.document import ParsedDocument
+from schemas.document import Chunk, ParsedDocument
 from util import cover_generator
 from util.lang_detect import detect_title_language
 
@@ -112,9 +112,55 @@ class IngestionPipeline:
                     self.core_api.report_progress(task_id, min(progress, 95), "embedding")
 
             self.core_api.report_complete(task_id, document, chunks)
+            try:
+                self._reembed_summaries(book_id)
+            except Exception:  # noqa: BLE001 - best-effort, never fail the ingest over this
+                logger.exception("post-ingest summary re-embed failed (task_id=%s book_id=%s)", task_id, book_id)
         except Exception as exc:  # noqa: BLE001
             logger.exception("ingestion failed (task_id=%s book_id=%s file_path=%s)", task_id, book_id, file_path)
             self.core_api.report_fail(task_id, str(exc))
+
+    def _reembed_summaries(self, book_id: str) -> None:
+        """Re-embeds every non-empty chapter summary plus the whole-book
+        summary, straight from Core API's database (get_chapter_summaries).
+        The delete_by_book at the top of run() wipes the
+        "{chapter_id}:summary"/"{book_id}:summary" vectors along with the
+        content chunks, while the summary texts themselves survive a rebuild
+        (SaveChapters carries them over by title) — so this restores their
+        retrievability at zero LLM cost, instead of leaving the book with
+        missing summary vectors until a summarize run finishes.
+
+        Must run after report_complete: the summaries are fetched with their
+        (new) chapter ids, which only exist in the database once ReportComplete
+        → SaveChapters has persisted this run's chapters. Best-effort: a
+        failure here leaves retrieval without those summary vectors but the
+        ingest itself already succeeded.
+        """
+        data = self.core_api.get_chapter_summaries(book_id)
+        if data is None:
+            logger.warning("summary re-embed skipped: could not fetch summaries for book %s", book_id)
+            return
+        chunks = [
+            Chunk(
+                id=f"{item['chapter_id']}:summary", book_id=book_id, chapter_id=item["chapter_id"],
+                content=item["summary"], position=-1, token_count=0,
+            )
+            for item in data["chapters"]
+            if item["summary"].strip()
+        ]
+        if data["book_summary"].strip():
+            chunks.append(
+                Chunk(id=f"{book_id}:summary", book_id=book_id, chapter_id="", content=data["book_summary"], position=-1, token_count=0)
+            )
+        if not chunks:
+            logger.info("no persisted summaries to re-embed for book %s", book_id)
+            return
+        batch_size = 32
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i : i + batch_size]
+            vectors = self.embedder.process([c.content for c in batch])
+            self.vector_store.upsert(batch, vectors)
+        logger.info("re-embedded %d summary chunk(s) for book %s", len(chunks), book_id)
 
 
 def build_status() -> dict:

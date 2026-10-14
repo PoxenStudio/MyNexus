@@ -339,6 +339,13 @@ func (s *BookService) DownloadCover(bookID, coverURL string) (string, error) {
 // SaveChapters replaces bookID's chapters. Chapter IDs are assigned by
 // Worker (not generated here) so it can tag chunks with the right chapter_id
 // in the same pipeline run — see .claude/memory/mynexus_m2_decisions.md.
+//
+// A rebuild re-splits the same file with fresh chapter IDs, so summaries
+// can't be carried over by ID — they're matched by title instead (old
+// chapters are consumed in sort_order order, one each, so duplicate titles
+// attach deterministically). Without this a rebuild loses every chapter
+// summary the user has already paid LLM tokens for, and its vector-store
+// wipe leaves nothing to re-embed from.
 func (s *BookService) SaveChapters(bookID string, chapters []ParsedChapter) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -346,13 +353,37 @@ func (s *BookService) SaveChapters(bookID string, chapters []ParsedChapter) erro
 	}
 	defer tx.Rollback()
 
+	oldRows, err := tx.Query(
+		`SELECT title, summary, keywords, definitions FROM chapters WHERE book_id = ? ORDER BY sort_order ASC`, bookID)
+	if err != nil {
+		return fmt.Errorf("read old chapters: %w", err)
+	}
+	carried := map[string][]*models.Chapter{}
+	for oldRows.Next() {
+		var c models.Chapter
+		if err := oldRows.Scan(&c.Title, &c.Summary, &c.Keywords, &c.Definitions); err != nil {
+			oldRows.Close()
+			return fmt.Errorf("scan old chapter: %w", err)
+		}
+		title := strings.TrimSpace(c.Title)
+		if title == "" {
+			continue
+		}
+		carried[title] = append(carried[title], &c)
+	}
+	if err := oldRows.Err(); err != nil {
+		oldRows.Close()
+		return fmt.Errorf("iterate old chapters: %w", err)
+	}
+	oldRows.Close()
+
 	if _, err := tx.Exec(`DELETE FROM chapters WHERE book_id = ?`, bookID); err != nil {
 		return fmt.Errorf("clear chapters: %w", err)
 	}
 
 	stmt, err := tx.Prepare(
-		`INSERT INTO chapters (id, book_id, title, level, sort_order, content, summary)
-		 VALUES (?, ?, ?, ?, ?, ?, '')`)
+		`INSERT INTO chapters (id, book_id, title, level, sort_order, content, summary, keywords, definitions)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("prepare insert chapter: %w", err)
 	}
@@ -363,7 +394,14 @@ func (s *BookService) SaveChapters(bookID string, chapters []ParsedChapter) erro
 		if id == "" {
 			id = uuid.NewString()
 		}
-		if _, err := stmt.Exec(id, bookID, c.Title, c.Level, c.SortOrder, c.Content); err != nil {
+		summary, keywords, definitions := "", "[]", "[]"
+		title := strings.TrimSpace(c.Title)
+		queue := carried[title]
+		if len(queue) > 0 {
+			summary, keywords, definitions = queue[0].Summary, queue[0].Keywords, queue[0].Definitions
+			carried[title] = queue[1:]
+		}
+		if _, err := stmt.Exec(id, bookID, c.Title, c.Level, c.SortOrder, c.Content, summary, keywords, definitions); err != nil {
 			return fmt.Errorf("insert chapter: %w", err)
 		}
 	}
@@ -461,6 +499,34 @@ func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 		chapters = append(chapters, c)
 	}
 	return chapters, rows.Err()
+}
+
+// ChapterSummaryLite backs GetChapterSummaries — just what Worker's
+// post-ingest re-embed pass needs (see grpcserver.GetChapterSummaries).
+type ChapterSummaryLite struct {
+	ID      string
+	Summary string
+}
+
+// ListChapterSummaries returns bookID's chapters that already carry a
+// non-empty summary, in sort_order order.
+func (s *BookService) ListChapterSummaries(bookID string) ([]ChapterSummaryLite, error) {
+	rows, err := s.db.Query(
+		`SELECT id, summary FROM chapters WHERE book_id = ? AND TRIM(summary) <> '' ORDER BY sort_order ASC`, bookID)
+	if err != nil {
+		return nil, fmt.Errorf("list chapter summaries: %w", err)
+	}
+	defer rows.Close()
+
+	var result []ChapterSummaryLite
+	for rows.Next() {
+		var c ChapterSummaryLite
+		if err := rows.Scan(&c.ID, &c.Summary); err != nil {
+			return nil, fmt.Errorf("scan chapter summary: %w", err)
+		}
+		result = append(result, c)
+	}
+	return result, rows.Err()
 }
 
 // UpdateChapterSummary persists one chapter's summary, its own top-N
@@ -585,12 +651,12 @@ type ParsedChapter struct {
 
 // ParsedChunk is the shape Worker sends back on task completion.
 type ParsedChunk struct {
-	ID         string
-	ChapterID  string
-	Content    string
-	Position   int
-	TokenCount int
-	VectorID   string
+	ID          string
+	ChapterID   string
+	Content     string
+	Position    int
+	TokenCount  int
+	VectorID    string
 	StartOffset int
 	EndOffset   int
 }

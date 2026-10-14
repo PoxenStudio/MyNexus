@@ -413,3 +413,29 @@ func (s *CoreAPIServer) GetBookInfo(ctx context.Context, req *mynexuspb.BookInfo
 	}
 	return &mynexuspb.BookInfoResponse{Books: items}, nil
 }
+
+// GetChapterSummaries serves Worker's post-ingest re-embed pass (see
+// pipelines/ingestion.py): chapter summaries survive a rebuild in the
+// database (SaveChapters carries them over by title), but their vector-store
+// records don't survive Worker's own delete_by_book — this returns the
+// non-empty ones plus the whole-book summary so Worker can re-embed them.
+func (s *CoreAPIServer) GetChapterSummaries(ctx context.Context, req *mynexuspb.ChapterSummariesRequest) (*mynexuspb.ChapterSummariesResponse, error) {
+	if req.BookId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "book_id is required")
+	}
+
+	chapters, err := s.books.ListChapterSummaries(req.BookId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	entries := make([]*mynexuspb.ChapterSummaryEntry, 0, len(chapters))
+	for _, c := range chapters {
+		entries = append(entries, &mynexuspb.ChapterSummaryEntry{ChapterId: c.ID, Summary: c.Summary})
+	}
+
+	bookSummary := ""
+	if book, err := s.books.GetBook(req.BookId); err == nil {
+		bookSummary = book.Summary
+	}
+	return &mynexuspb.ChapterSummariesResponse{Chapters: entries, BookSummary: bookSummary}, nil
+}

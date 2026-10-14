@@ -15,7 +15,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.35.1
-// source: mynexus.proto
+// source: proto/mynexus.proto
 
 package mynexuspb
 
@@ -490,7 +490,7 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "mynexus.proto",
+	Metadata: "proto/mynexus.proto",
 }
 
 const (
@@ -505,6 +505,7 @@ const (
 	CoreApiService_GetLibraryStats_FullMethodName      = "/mynexus.CoreApiService/GetLibraryStats"
 	CoreApiService_GetChapterContent_FullMethodName    = "/mynexus.CoreApiService/GetChapterContent"
 	CoreApiService_GetBookInfo_FullMethodName          = "/mynexus.CoreApiService/GetBookInfo"
+	CoreApiService_GetChapterSummaries_FullMethodName  = "/mynexus.CoreApiService/GetChapterSummaries"
 )
 
 // CoreApiServiceClient is the client API for CoreApiService service.
@@ -568,6 +569,14 @@ type CoreApiServiceClient interface {
 	// server-side (see the Go handler) so a vague query can't dump the
 	// whole library into one tool response.
 	GetBookInfo(ctx context.Context, in *BookInfoRequest, opts ...grpc.CallOption) (*BookInfoResponse, error)
+	// Read-only summary lookup for one book: every chapter whose persisted
+	// summary is non-empty (chapter_id + summary text), plus the whole-book
+	// summary. Called by Worker right after ReportComplete so it can restore
+	// the "{chapter_id}:summary"/"{book_id}:summary" vectors that its own
+	// delete_by_book wiped at the start of a rebuild — chapter summaries
+	// survive the re-ingest (SaveChapters carries them over by title), but
+	// their vectors don't. Read-only; no task/state side effects.
+	GetChapterSummaries(ctx context.Context, in *ChapterSummariesRequest, opts ...grpc.CallOption) (*ChapterSummariesResponse, error)
 }
 
 type coreApiServiceClient struct {
@@ -688,6 +697,16 @@ func (c *coreApiServiceClient) GetBookInfo(ctx context.Context, in *BookInfoRequ
 	return out, nil
 }
 
+func (c *coreApiServiceClient) GetChapterSummaries(ctx context.Context, in *ChapterSummariesRequest, opts ...grpc.CallOption) (*ChapterSummariesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChapterSummariesResponse)
+	err := c.cc.Invoke(ctx, CoreApiService_GetChapterSummaries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CoreApiServiceServer is the server API for CoreApiService service.
 // All implementations must embed UnimplementedCoreApiServiceServer
 // for forward compatibility.
@@ -749,6 +768,14 @@ type CoreApiServiceServer interface {
 	// server-side (see the Go handler) so a vague query can't dump the
 	// whole library into one tool response.
 	GetBookInfo(context.Context, *BookInfoRequest) (*BookInfoResponse, error)
+	// Read-only summary lookup for one book: every chapter whose persisted
+	// summary is non-empty (chapter_id + summary text), plus the whole-book
+	// summary. Called by Worker right after ReportComplete so it can restore
+	// the "{chapter_id}:summary"/"{book_id}:summary" vectors that its own
+	// delete_by_book wiped at the start of a rebuild — chapter summaries
+	// survive the re-ingest (SaveChapters carries them over by title), but
+	// their vectors don't. Read-only; no task/state side effects.
+	GetChapterSummaries(context.Context, *ChapterSummariesRequest) (*ChapterSummariesResponse, error)
 	mustEmbedUnimplementedCoreApiServiceServer()
 }
 
@@ -791,6 +818,9 @@ func (UnimplementedCoreApiServiceServer) GetChapterContent(context.Context, *Cha
 }
 func (UnimplementedCoreApiServiceServer) GetBookInfo(context.Context, *BookInfoRequest) (*BookInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBookInfo not implemented")
+}
+func (UnimplementedCoreApiServiceServer) GetChapterSummaries(context.Context, *ChapterSummariesRequest) (*ChapterSummariesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChapterSummaries not implemented")
 }
 func (UnimplementedCoreApiServiceServer) mustEmbedUnimplementedCoreApiServiceServer() {}
 func (UnimplementedCoreApiServiceServer) testEmbeddedByValue()                        {}
@@ -1011,6 +1041,24 @@ func _CoreApiService_GetBookInfo_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CoreApiService_GetChapterSummaries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChapterSummariesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoreApiServiceServer).GetChapterSummaries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoreApiService_GetChapterSummaries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoreApiServiceServer).GetChapterSummaries(ctx, req.(*ChapterSummariesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CoreApiService_ServiceDesc is the grpc.ServiceDesc for CoreApiService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1062,7 +1110,11 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetBookInfo",
 			Handler:    _CoreApiService_GetBookInfo_Handler,
 		},
+		{
+			MethodName: "GetChapterSummaries",
+			Handler:    _CoreApiService_GetChapterSummaries_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "mynexus.proto",
+	Metadata: "proto/mynexus.proto",
 }

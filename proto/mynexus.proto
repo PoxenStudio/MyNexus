@@ -253,6 +253,29 @@ service CoreApiService {
   // server-side (see the Go handler) so a vague query can't dump the
   // whole library into one tool response.
   rpc GetBookInfo(BookInfoRequest) returns (BookInfoResponse);
+
+  // Read-only summary lookup for one book: every chapter whose persisted
+  // summary is non-empty (chapter_id + summary text), plus the whole-book
+  // summary. Called by Worker right after ReportComplete so it can restore
+  // the "{chapter_id}:summary"/"{book_id}:summary" vectors that its own
+  // delete_by_book wiped at the start of a rebuild — chapter summaries
+  // survive the re-ingest (SaveChapters carries them over by title), but
+  // their vectors don't. Read-only; no task/state side effects.
+  rpc GetChapterSummaries(ChapterSummariesRequest) returns (ChapterSummariesResponse);
+}
+
+message ChapterSummariesRequest {
+  string book_id = 1;
+}
+
+message ChapterSummaryEntry {
+  string chapter_id = 1;
+  string summary = 2;
+}
+
+message ChapterSummariesResponse {
+  repeated ChapterSummaryEntry chapters = 1;
+  string book_summary = 2;
 }
 
 message ProgressRequest {

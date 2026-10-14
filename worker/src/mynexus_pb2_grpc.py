@@ -515,6 +515,11 @@ class CoreApiServiceStub:
                 request_serializer=mynexus__pb2.BookInfoRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.BookInfoResponse.FromString,
                 _registered_method=True)
+        self.GetChapterSummaries = channel.unary_unary(
+                '/mynexus.CoreApiService/GetChapterSummaries',
+                request_serializer=mynexus__pb2.ChapterSummariesRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.ChapterSummariesResponse.FromString,
+                _registered_method=True)
 
 
 class CoreApiServiceServicer:
@@ -634,6 +639,19 @@ class CoreApiServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetChapterSummaries(self, request, context):
+        """Read-only summary lookup for one book: every chapter whose persisted
+        summary is non-empty (chapter_id + summary text), plus the whole-book
+        summary. Called by Worker right after ReportComplete so it can restore
+        the "{chapter_id}:summary"/"{book_id}:summary" vectors that its own
+        delete_by_book wiped at the start of a rebuild — chapter summaries
+        survive the re-ingest (SaveChapters carries them over by title), but
+        their vectors don't. Read-only; no task/state side effects.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CoreApiServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -691,6 +709,11 @@ def add_CoreApiServiceServicer_to_server(servicer, server):
                     servicer.GetBookInfo,
                     request_deserializer=mynexus__pb2.BookInfoRequest.FromString,
                     response_serializer=mynexus__pb2.BookInfoResponse.SerializeToString,
+            ),
+            'GetChapterSummaries': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetChapterSummaries,
+                    request_deserializer=mynexus__pb2.ChapterSummariesRequest.FromString,
+                    response_serializer=mynexus__pb2.ChapterSummariesResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -992,6 +1015,33 @@ class CoreApiService:
             '/mynexus.CoreApiService/GetBookInfo',
             mynexus__pb2.BookInfoRequest.SerializeToString,
             mynexus__pb2.BookInfoResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetChapterSummaries(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.CoreApiService/GetChapterSummaries',
+            mynexus__pb2.ChapterSummariesRequest.SerializeToString,
+            mynexus__pb2.ChapterSummariesResponse.FromString,
             options,
             channel_credentials,
             insecure,
