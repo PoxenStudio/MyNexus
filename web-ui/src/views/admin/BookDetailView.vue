@@ -5,7 +5,7 @@ import { useRoute } from "vue-router";
 import { getBook, rebuildBook, summarizeBook, updateBook, updateBookSummary, type BookDetail } from "../../api/books";
 import { fetchBookTokenUsage, formatTokens, type BookTokenUsage } from "../../api/token";
 import { apiClient } from "../../api/client";
-import { getTask, listTasks, cancelTask, type Task } from "../../api/tasks";
+import { listTasks, cancelTask, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
 import BarChart from "../../components/charts/BarChart.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
@@ -232,20 +232,17 @@ async function load() {
 // triggered from the books list, or a summarize call from a previous visit —
 // so the "in progress" state survives a page reload/navigation instead of
 // only appearing when onSummarize() was clicked in this same session.
+//
+// Starts polling the book's *current* active task, not a fixed id — this is
+// what lets the rebuild-ingest → auto-summarize chain flow into the
+// summarize-progress line without a manual refresh. See pollTask() below.
 async function findActiveTask() {
   if (!book.value || pollTimer) return;
   const { items } = await listTasks({ book_id: book.value.id, size: 5 });
   const running = items.find((t) => t.status === "pending" || t.status === "processing");
   if (!running) return;
-
-  if (running.type === "summarize") {
-    summarizing.value = true;
-    summarizeTask.value = running;
-  } else {
-    activeTask.value = running;
-  }
-  pollTimer = setInterval(() => pollTask(running.id), 2000);
-  await pollTask(running.id);
+  pollTimer = setInterval(() => pollTask(), 2000);
+  await pollTask();
 }
 
 async function onSummarize(mode: "restart" | "continue") {
@@ -253,9 +250,9 @@ async function onSummarize(mode: "restart" | "continue") {
   summarizeError.value = "";
   summarizing.value = true;
   try {
-    const { task_id } = await summarizeBook(book.value.id, mode);
-    pollTimer = setInterval(() => pollTask(task_id), 2000);
-    await pollTask(task_id);
+    await summarizeBook(book.value.id, mode);
+    if (!pollTimer) pollTimer = setInterval(() => pollTask(), 2000);
+    await pollTask();
   } catch (e: any) {
     summarizing.value = false;
     summarizeError.value = e?.response?.data?.error || t("books.summarizeError");
@@ -284,53 +281,53 @@ async function doRebuild() {
   if (!book.value) return;
   rebuildError.value = "";
   try {
-    const { task_id } = await rebuildBook(book.value.id);
-    // Placeholder so the "重建中…" button/banner switch on immediately —
-    // pollTask overwrites this with the real task on its first tick, same
-    // as onSummarize does implicitly via summarizing.value.
-    const now = new Date().toISOString();
-    activeTask.value = {
-      id: task_id,
-      book_id: book.value.id,
-      type: "ingest",
-      status: "pending",
-      progress: 0,
-      error_msg: "",
-      dispatched: false,
-      stages_log: [],
-      created_at: now,
-      updated_at: now,
-    };
-    pollTimer = setInterval(() => pollTask(task_id), 2000);
-    await pollTask(task_id);
+    await rebuildBook(book.value.id);
+    pollTimer = setInterval(() => pollTask(), 2000);
+    await pollTask();
   } catch (e: any) {
     rebuildError.value = e?.response?.data?.error || t("books.rebuildError");
   }
 }
 
-async function pollTask(taskId: string) {
-  const task = await getTask(taskId);
-  if (task.type === "summarize") {
-    summarizeTask.value = task;
-  } else {
-    activeTask.value = task;
+async function pollTask() {
+  if (!book.value) return;
+  const { items } = await listTasks({ book_id: book.value.id, size: 5 });
+
+  const active = items.find((t) => t.status === "pending" || t.status === "processing");
+
+  if (active) {
+    // Pick up a freshly-appeared summarize task chained off ingest completion
+    // (or discovered on page load) — whichever non-terminal task is newest
+    // wins, so we transition seamlessly between rebuild → auto-summarize
+    // without a manual refresh.
+    if (active.type === "summarize") {
+      summarizeTask.value = active;
+      summarizing.value = true;
+      activeTask.value = null;
+    } else {
+      activeTask.value = active;
+      summarizeTask.value = null;
+    }
+    book.value = await getBook(book.value.id);
+    await loadTokenUsage();
+    return;
   }
-  // Reload the book on every tick too — e.g. chapter summaries land one at a
-  // time (the map step) well before the task itself completes (the reduce
-  // step), so this is what makes each chapter's summary appear as it's ready.
-  book.value = await getBook(route.params.id as string);
+
+  // No non-terminal task — either we never started one (first tick after
+  // the API returned), or the last one just finished. In either case,
+  // settle UI into the idle state using whichever terminal task landed last.
+  stopPolling();
+  summarizing.value = false;
+  const latest = items[0];
+  activeTask.value = null;
+  book.value = await getBook(book.value.id);
   await loadTokenUsage();
 
-  if (task.status === "completed" || task.status === "failed" || task.status === "canceled") {
-    stopPolling();
-    summarizing.value = false;
-    activeTask.value = null;
-    if (task.status === "failed") {
-      if (task.type === "summarize") {
-        summarizeError.value = task.error_msg || t("books.summarizeError");
-      } else {
-        rebuildError.value = task.error_msg || t("books.rebuildError");
-      }
+  if (latest && latest.status === "failed") {
+    if (latest.type === "summarize") {
+      summarizeError.value = latest.error_msg || t("books.summarizeError");
+    } else if (latest.type === "ingest") {
+      rebuildError.value = latest.error_msg || t("books.rebuildError");
     }
   }
 }

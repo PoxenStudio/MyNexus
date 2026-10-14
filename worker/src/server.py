@@ -159,7 +159,7 @@ def build_status() -> dict:
 
 def main():
     worker_id = f"{socket.gethostname()[:16]}-{uuid.uuid4().hex[:8]}"
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s [worker=%s]: %(message)s" % worker_id)
+    fmt = logging.Formatter(f"%(asctime)s %(levelname)s %(name)s [worker={worker_id}]: %(message)s")
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)

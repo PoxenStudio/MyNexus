@@ -3,15 +3,43 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 
 	"mynexus/core-api/internal/grpcapi/mynexuspb"
 )
+
+// wrapWorkerError turns a low-level gRPC transport error into a short,
+// user-facing message. The original error (code, connection-refused detail,
+// etc.) is intentionally dropped here — it's already been logged by the
+// caller; the front-end should only see "Worker 服务不可用" not a 150-char
+// "rpc error: code = Unavailable desc = transport: Error while dialing:
+// dial tcp 127.0.0.1:8001: connect: connection refused".
+func wrapWorkerError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if s, ok := status.FromError(err); ok {
+		switch s.Code() {
+		case codes.Unavailable, codes.ResourceExhausted:
+			return fmt.Errorf("Worker 服务不可用，请确认 worker 进程已启动")
+		case codes.DeadlineExceeded:
+			return fmt.Errorf("Worker 响应超时，请稍后重试")
+		}
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "dial tcp") || strings.Contains(msg, "no such host") {
+		return fmt.Errorf("Worker 服务不可用，请确认 worker 进程已启动")
+	}
+	return err
+}
 
 // WorkerClient wraps a single persistent gRPC connection to Worker (see
 // .claude/memory/mynexus_grpc_migration.md for why this replaced the earlier
@@ -92,10 +120,7 @@ func (c *WorkerClient) TriggerIngest(req IngestRequest) error {
 	_, err := c.client.TriggerIngest(ctx, &mynexuspb.IngestRequest{
 		TaskId: req.TaskID, BookId: req.BookID, FilePath: req.FilePath, OriginalFilename: req.OriginalFilename,
 	})
-	if err != nil {
-		return fmt.Errorf("call worker TriggerIngest: %w", err)
-	}
-	return nil
+	return wrapWorkerError(err)
 }
 
 type SummarizeChapter struct {
@@ -141,10 +166,7 @@ func (c *WorkerClient) TriggerSummarize(req SummarizeRequest) error {
 		TaskId: req.TaskID, BookId: req.BookID, Chapters: chapters, ForceRestart: req.ForceRestart,
 		Language: req.Language,
 	})
-	if err != nil {
-		return fmt.Errorf("call worker TriggerSummarize: %w", err)
-	}
-	return nil
+	return wrapWorkerError(err)
 }
 
 type SearchRequest struct {
@@ -174,7 +196,7 @@ func (c *WorkerClient) Search(req SearchRequest) ([]SearchResultRaw, error) {
 		Query: req.Query, BookIds: req.BookIDs, TopK: int32(req.TopK), ScoreThreshold: req.ScoreThreshold,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("call worker Search: %w", err)
+		return nil, wrapWorkerError(err)
 	}
 
 	results := make([]SearchResultRaw, 0, len(resp.Results))
@@ -262,7 +284,7 @@ func (c *WorkerClient) Chat(req ChatRequest) (*ChatStream, error) {
 		Messages: messages, BookIds: req.BookIDs, TopK: int32(req.TopK),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("call worker Chat: %w", err)
+		return nil, wrapWorkerError(err)
 	}
 	return &ChatStream{stream: stream}, nil
 }
@@ -283,10 +305,7 @@ func (c *WorkerClient) ReembedBookSummary(bookID, summary string) error {
 	defer cancel()
 
 	_, err := c.client.ReembedBookSummary(ctx, &mynexuspb.ReembedBookSummaryRequest{BookId: bookID, Summary: summary})
-	if err != nil {
-		return fmt.Errorf("call worker ReembedBookSummary: %w", err)
-	}
-	return nil
+	return wrapWorkerError(err)
 }
 
 func (c *WorkerClient) DeleteBook(bookID string) error {
@@ -294,10 +313,7 @@ func (c *WorkerClient) DeleteBook(bookID string) error {
 	defer cancel()
 
 	_, err := c.client.DeleteBook(ctx, &mynexuspb.DeleteBookRequest{BookId: bookID})
-	if err != nil {
-		return fmt.Errorf("call worker DeleteBook: %w", err)
-	}
-	return nil
+	return wrapWorkerError(err)
 }
 
 // CancelTask asks Worker to interrupt a running background task (see the rpc
@@ -310,7 +326,7 @@ func (c *WorkerClient) CancelTask(taskID string) (found bool, err error) {
 
 	ack, err := c.client.CancelTask(ctx, &mynexuspb.CancelTaskRequest{TaskId: taskID})
 	if err != nil {
-		return false, fmt.Errorf("call worker CancelTask: %w", err)
+		return false, wrapWorkerError(err)
 	}
 	return ack.Ok, nil
 }
@@ -324,8 +340,5 @@ func (c *WorkerClient) Shutdown() error {
 	defer cancel()
 
 	_, err := c.client.Shutdown(ctx, &mynexuspb.ShutdownRequest{})
-	if err != nil {
-		return fmt.Errorf("call worker Shutdown: %w", err)
-	}
-	return nil
+	return wrapWorkerError(err)
 }

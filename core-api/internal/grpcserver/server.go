@@ -226,7 +226,7 @@ func (s *CoreAPIServer) autoSummarize(bookID string) {
 	if err := s.worker.TriggerSummarize(coordinator.SummarizeRequest{
 		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: false, Language: book.Language,
 	}); err != nil {
-		_ = s.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
+		_ = s.tasks.Fail(task.ID, err.Error())
 	}
 }
 

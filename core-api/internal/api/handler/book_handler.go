@@ -365,8 +365,8 @@ func (h *BookHandler) summarizeOne(bookID string, forceRestart bool) (taskID str
 		TaskID: task.ID, BookID: bookID, Chapters: reqChapters, ForceRestart: forceRestart,
 		Language: book.Language,
 	}); err != nil {
-		_ = h.tasks.Fail(task.ID, "failed to reach worker: "+err.Error())
-		return "", fmt.Errorf("failed to trigger summarization: %w", err)
+		_ = h.tasks.Fail(task.ID, err.Error())
+		return "", err
 	}
 	return task.ID, nil
 }

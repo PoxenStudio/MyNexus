@@ -12,6 +12,41 @@ import mynexus_pb2_grpc
 from config import WorkerConfig
 
 
+def _friendly_error(msg: str) -> str:
+    """Map low-level network/LLM transport errors to a short user-facing message.
+
+    Strategy:
+    1. If the original message already contains domain keywords ("LLM"/"嵌入"/
+       "向量"...) worker itself has already produced a readable Chinese error
+       (see util/http.py's ServiceCallError) — keep it as-is so we don't mask
+       a precise "LLM 服务不可用" with a generic fallback.
+    2. Otherwise fall back to keyword matching against raw English stack
+       traces (requests exceptions, httpx, socket errors...) that leak through
+       when no ServiceCallError wrapper caught them.
+    3. Unmatched errors pass through unchanged.
+    """
+    if any(kw in msg for kw in ("LLM", "嵌入", "向量", "分块", "检索", "连接超时")):
+        return msg
+    lower = msg.lower()
+    if "connection refused" in lower or "failed to establish" in lower or "newconnectionerror" in lower:
+        return "LLM 服务无法连接，请确认模型服务（Ollama / OpenAI 兼容端点）已启动"
+    if "max retries exceeded" in lower or "connecterror" in lower:
+        return "LLM 服务连接失败，请检查模型服务地址是否可达"
+    if "readtimeout" in lower or "connecttimeout" in lower or "timed out" in lower:
+        return "LLM 服务响应超时，请稍后重试或检查网络"
+    if "httpx" in lower and ("connect" in lower or "network" in lower):
+        return "LLM 服务网络异常，请稍后重试"
+    if "api_connection_error" in lower or "apiconnectionerror" in lower:
+        return "LLM API 连接失败，请检查网络或 API 端点配置"
+    if "authenticationerror" in lower or "invalid api key" in lower or "401" in lower:
+        return "LLM API 密钥无效，请检查系统配置中的 API Key"
+    if "rate limit" in lower or "ratelimit" in lower or "429" in lower:
+        return "LLM API 调用频率超限，请稍后重试"
+    if "context length" in lower or ("max_tokens" in lower and "exceed" in lower):
+        return "LLM 输入超出上下文长度限制"
+    return msg
+
+
 class CoreApiClient:
     def __init__(self, config: WorkerConfig) -> None:
         # A single persistent channel, reused across every RPC — this is the
@@ -58,7 +93,9 @@ class CoreApiClient:
         )
 
     def report_fail(self, task_id: str, error_msg: str, canceled: bool = False) -> None:
-        self._stub.ReportFail(mynexus_pb2.FailRequest(task_id=task_id, error_msg=error_msg, canceled=canceled))
+        self._stub.ReportFail(
+            mynexus_pb2.FailRequest(task_id=task_id, error_msg=_friendly_error(error_msg), canceled=canceled)
+        )
 
     def report_chapter_summary(
         self,

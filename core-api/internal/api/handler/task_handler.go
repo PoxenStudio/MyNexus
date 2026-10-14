@@ -94,8 +94,8 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 		if err := h.worker.TriggerSummarize(coordinator.SummarizeRequest{
 			TaskID: id, BookID: book.ID, Chapters: reqChapters, ForceRestart: false,
 		}); err != nil {
-			_ = h.tasks.Fail(id, "failed to reach worker: "+err.Error())
-			c.JSON(http.StatusBadGateway, gin.H{"error": "failed to trigger summarization: " + err.Error()})
+			_ = h.tasks.Fail(id, err.Error())
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 			return
 		}
 	} else {
