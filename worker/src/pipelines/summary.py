@@ -256,6 +256,25 @@ _SEGMENT_ANALYSIS_PROMPT_TEMPLATE_EN = (
 # as a fallback, not the primary path.
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
 
+# Salvage patterns for a truncated response (LLM hit its output-token limit
+# mid-JSON): the summary string itself (closed or not — the trailing quote
+# is not part of the pattern, so an unterminated string still matches up to
+# end-of-text), and only *fully closed* {"name","content"} definition items
+# — a half-written trailing item is dropped rather than salvaged with a
+# cut-off definition.
+_SUMMARY_VALUE_RE = re.compile(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)', re.DOTALL)
+_DEFINITION_ITEM_RE = re.compile(
+    r'\{\s*"name"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}',
+    re.DOTALL,
+)
+
+
+def _unescape_json_string(raw: str) -> str:
+    try:
+        return json.loads(f'"{raw}"')
+    except (json.JSONDecodeError, ValueError):
+        return raw
+
 
 def _parse_analysis_json(text: str) -> tuple[str, list[tuple[str, str]]]:
     """Parses one LLM chapter-analysis response (see
@@ -287,6 +306,23 @@ def _parse_analysis_json(text: str) -> tuple[str, list[tuple[str, str]]]:
             content = str(item.get("content", "")).strip()
             if name and content:
                 definitions.append((name, content))
+        return summary, definitions
+
+    summary_match = _SUMMARY_VALUE_RE.search(text)
+    if summary_match:
+        summary = _unescape_json_string(summary_match.group(1)).strip()
+        definitions = [
+            (name, content)
+            for name, content in (
+                (_unescape_json_string(m.group(1)).strip(), _unescape_json_string(m.group(2)).strip())
+                for m in _DEFINITION_ITEM_RE.finditer(text)
+            )
+            if name and content
+        ]
+        logger.warning(
+            "analysis JSON incomplete (output truncated?), salvaged summary (%d chars) and %d definition(s) from %d chars: %r",
+            len(summary), len(definitions), len(text), text[:120],
+        )
         return summary, definitions
 
     logger.warning("failed to parse analysis JSON from LLM response, using raw text as summary: %r", text[:200])

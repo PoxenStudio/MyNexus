@@ -23,6 +23,8 @@ class OpenAILLM(BaseLLM):
     """Calls any OpenAI-compatible /chat/completions endpoint (OpenAI, DeepSeek, etc.)
     with stream=true and yields text deltas as they arrive."""
 
+    _MAX_OUTPUT_TOKENS = 8192
+
     def __init__(self, api_key: str, base_url: str, model: str, debug: bool = False) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -43,6 +45,7 @@ class OpenAILLM(BaseLLM):
                     "messages": messages,
                     "stream": True,
                     "stream_options": {"include_usage": True},
+                    "max_tokens": self._MAX_OUTPUT_TOKENS,
                 }
             ).encode("utf-8")
             req = urllib.request.Request(
@@ -90,7 +93,7 @@ class OpenAILLM(BaseLLM):
         return _UsageIterator(_gen(), usage)
 
     def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
-        body: dict = {"model": self.model, "messages": messages, "stream": False}
+        body: dict = {"model": self.model, "messages": messages, "stream": False, "max_tokens": self._MAX_OUTPUT_TOKENS}
         if tools:
             body["tools"] = tools
         payload = json.dumps(body).encode("utf-8")
