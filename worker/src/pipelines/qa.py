@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Iterator
 
 from config import WorkerConfig, load_config
@@ -10,6 +11,8 @@ from tools.list_chapters import ListChaptersTool
 from tools.read_chapter import ReadChapterTool
 from tools.registry import ToolRegistry
 from tools.semantic_search import SemanticSearchTool
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT_TEMPLATE = (
     "你是一个书籍知识库问答助手。请仅根据下面提供的参考片段回答用户问题，"
@@ -129,7 +132,8 @@ class QAPipeline:
         decision_messages = [{"role": "system", "content": _TOOL_DECISION_PROMPT}] + messages
         try:
             result = self.llm.call(decision_messages, tools=self.tools.schemas())
-        except Exception:  # noqa: BLE001 - fall through to normal RAG on any failure here
+        except Exception as exc:  # noqa: BLE001 - fall through to normal RAG on any failure here
+            logger.warning("tool-decision call failed, falling back to plain RAG: %s", exc)
             return None
         calls = result.get("tool_calls") or []
         if not calls:

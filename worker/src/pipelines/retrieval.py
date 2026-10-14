@@ -14,6 +14,8 @@ from nodes.factory import get_embedder, get_vector_store
 # request. setLogLevel silences jieba's own "Building prefix dict..."/
 # "Loading model cost ..." INFO-level logging on that first use.
 jieba.setLogLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 jieba.initialize()
 
 # Drops jieba's punctuation/whitespace tokens (kept only if they contain at
@@ -119,7 +121,8 @@ class RetrievalPipeline:
     def _vector_scores(self, query: str, book_ids: list[str] | None, limit: int) -> dict[str, float]:
         try:
             query_vector = self.embedder.process([query])[0]
-        except Exception:  # noqa: BLE001 - embedding provider may be unreachable/unconfigured
+        except Exception as exc:  # noqa: BLE001 - embedding provider may be unreachable/unconfigured
+            logger.warning("embedder call failed, degrading to keyword-only retrieval: %s", exc)
             return {}
         results = self.vector_store.search(query_vector, top_k=limit, book_ids=book_ids)
         return {r["id"]: r["score"] for r in results}

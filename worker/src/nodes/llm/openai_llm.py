@@ -108,11 +108,11 @@ class OpenAILLM(BaseLLM):
         try:
             with call_provider(req, timeout=120, service="llm", provider="openai", model=self.model) as resp:
                 data = json.loads(resp.read())
+            message = data["choices"][0]["message"]
         except Exception as exc:
             if logger:
                 logger.log_error(exc)
             raise
-        message = data["choices"][0]["message"]
         result = {"content": message.get("content"), "tool_calls": _parse_tool_calls(message)}
         u = data.get("usage") or {}
         result["usage"] = LLMUsage(
