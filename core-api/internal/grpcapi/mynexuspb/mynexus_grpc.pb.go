@@ -39,6 +39,7 @@ const (
 	WorkerService_ReembedBookSummary_FullMethodName = "/mynexus.WorkerService/ReembedBookSummary"
 	WorkerService_TriggerSummarize_FullMethodName   = "/mynexus.WorkerService/TriggerSummarize"
 	WorkerService_DeleteBook_FullMethodName         = "/mynexus.WorkerService/DeleteBook"
+	WorkerService_CancelTask_FullMethodName         = "/mynexus.WorkerService/CancelTask"
 )
 
 // WorkerServiceClient is the client API for WorkerService service.
@@ -89,6 +90,15 @@ type WorkerServiceClient interface {
 	// those otherwise still get retrieved and cited by chat with no way to
 	// resolve the id back to a real book (see .claude/memory/mynexus_orphaned_vectors.md).
 	DeleteBook(ctx context.Context, in *DeleteBookRequest, opts ...grpc.CallOption) (*Ack, error)
+	// Asks Worker to interrupt a running background task (currently only
+	// summarize runs check the flag — at chapter boundaries and inside the
+	// streaming LLM loop, so cancellation lands within seconds). Ack.ok is
+	// false when Worker has no active task with that id (e.g. it restarted and
+	// lost its in-memory state), letting Core API mark the task canceled
+	// directly instead of waiting for a report that will never come. The task
+	// reaches its terminal canceled state via ReportFail(canceled=true), not
+	// from this call itself.
+	CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*Ack, error)
 }
 
 type workerServiceClient struct {
@@ -178,6 +188,16 @@ func (c *workerServiceClient) DeleteBook(ctx context.Context, in *DeleteBookRequ
 	return out, nil
 }
 
+func (c *workerServiceClient) CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*Ack, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Ack)
+	err := c.cc.Invoke(ctx, WorkerService_CancelTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkerServiceServer is the server API for WorkerService service.
 // All implementations must embed UnimplementedWorkerServiceServer
 // for forward compatibility.
@@ -226,6 +246,15 @@ type WorkerServiceServer interface {
 	// those otherwise still get retrieved and cited by chat with no way to
 	// resolve the id back to a real book (see .claude/memory/mynexus_orphaned_vectors.md).
 	DeleteBook(context.Context, *DeleteBookRequest) (*Ack, error)
+	// Asks Worker to interrupt a running background task (currently only
+	// summarize runs check the flag — at chapter boundaries and inside the
+	// streaming LLM loop, so cancellation lands within seconds). Ack.ok is
+	// false when Worker has no active task with that id (e.g. it restarted and
+	// lost its in-memory state), letting Core API mark the task canceled
+	// directly instead of waiting for a report that will never come. The task
+	// reaches its terminal canceled state via ReportFail(canceled=true), not
+	// from this call itself.
+	CancelTask(context.Context, *CancelTaskRequest) (*Ack, error)
 	mustEmbedUnimplementedWorkerServiceServer()
 }
 
@@ -256,6 +285,9 @@ func (UnimplementedWorkerServiceServer) TriggerSummarize(context.Context, *Summa
 }
 func (UnimplementedWorkerServiceServer) DeleteBook(context.Context, *DeleteBookRequest) (*Ack, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteBook not implemented")
+}
+func (UnimplementedWorkerServiceServer) CancelTask(context.Context, *CancelTaskRequest) (*Ack, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelTask not implemented")
 }
 func (UnimplementedWorkerServiceServer) mustEmbedUnimplementedWorkerServiceServer() {}
 func (UnimplementedWorkerServiceServer) testEmbeddedByValue()                       {}
@@ -397,6 +429,24 @@ func _WorkerService_DeleteBook_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkerService_CancelTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServiceServer).CancelTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerService_CancelTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServiceServer).CancelTask(ctx, req.(*CancelTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkerService_ServiceDesc is the grpc.ServiceDesc for WorkerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -427,6 +477,10 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteBook",
 			Handler:    _WorkerService_DeleteBook_Handler,
+		},
+		{
+			MethodName: "CancelTask",
+			Handler:    _WorkerService_CancelTask_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

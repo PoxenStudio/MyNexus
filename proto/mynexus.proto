@@ -69,6 +69,20 @@ service WorkerService {
   // those otherwise still get retrieved and cited by chat with no way to
   // resolve the id back to a real book (see .claude/memory/mynexus_orphaned_vectors.md).
   rpc DeleteBook(DeleteBookRequest) returns (Ack);
+
+  // Asks Worker to interrupt a running background task (currently only
+  // summarize runs check the flag — at chapter boundaries and inside the
+  // streaming LLM loop, so cancellation lands within seconds). Ack.ok is
+  // false when Worker has no active task with that id (e.g. it restarted and
+  // lost its in-memory state), letting Core API mark the task canceled
+  // directly instead of waiting for a report that will never come. The task
+  // reaches its terminal canceled state via ReportFail(canceled=true), not
+  // from this call itself.
+  rpc CancelTask(CancelTaskRequest) returns (Ack);
+}
+
+message CancelTaskRequest {
+  string task_id = 1;
 }
 
 message ReembedBookSummaryRequest {
@@ -303,6 +317,11 @@ message CompleteRequest {
 message FailRequest {
   string task_id = 1;
   string error_msg = 2;
+  // true when the task ended by user cancellation (see CancelTask) rather
+  // than an actual failure — Core API records it with the distinct terminal
+  // status "canceled" instead of "failed", so the UI shows "已取消" without
+  // a red error.
+  bool canceled = 3;
 }
 
 message ChapterSummaryRequest {

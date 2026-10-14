@@ -71,6 +71,11 @@ class WorkerServiceStub:
                 request_serializer=mynexus__pb2.DeleteBookRequest.SerializeToString,
                 response_deserializer=mynexus__pb2.Ack.FromString,
                 _registered_method=True)
+        self.CancelTask = channel.unary_unary(
+                '/mynexus.WorkerService/CancelTask',
+                request_serializer=mynexus__pb2.CancelTaskRequest.SerializeToString,
+                response_deserializer=mynexus__pb2.Ack.FromString,
+                _registered_method=True)
 
 
 class WorkerServiceServicer:
@@ -157,6 +162,20 @@ class WorkerServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CancelTask(self, request, context):
+        """Asks Worker to interrupt a running background task (currently only
+        summarize runs check the flag — at chapter boundaries and inside the
+        streaming LLM loop, so cancellation lands within seconds). Ack.ok is
+        false when Worker has no active task with that id (e.g. it restarted and
+        lost its in-memory state), letting Core API mark the task canceled
+        directly instead of waiting for a report that will never come. The task
+        reaches its terminal canceled state via ReportFail(canceled=true), not
+        from this call itself.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -193,6 +212,11 @@ def add_WorkerServiceServicer_to_server(servicer, server):
             'DeleteBook': grpc.unary_unary_rpc_method_handler(
                     servicer.DeleteBook,
                     request_deserializer=mynexus__pb2.DeleteBookRequest.FromString,
+                    response_serializer=mynexus__pb2.Ack.SerializeToString,
+            ),
+            'CancelTask': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelTask,
+                    request_deserializer=mynexus__pb2.CancelTaskRequest.FromString,
                     response_serializer=mynexus__pb2.Ack.SerializeToString,
             ),
     }
@@ -386,6 +410,33 @@ class WorkerService:
             target,
             '/mynexus.WorkerService/DeleteBook',
             mynexus__pb2.DeleteBookRequest.SerializeToString,
+            mynexus__pb2.Ack.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelTask(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mynexus.WorkerService/CancelTask',
+            mynexus__pb2.CancelTaskRequest.SerializeToString,
             mynexus__pb2.Ack.FromString,
             options,
             channel_credentials,
