@@ -1,10 +1,13 @@
 import json
+import logging
 import urllib.request
 from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM, LLMUsage, _UsageIterator
 from util.debug_log import LLMCallLogger
 from util.http import call_provider, host_lock
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaLLM(BaseLLM):
@@ -39,8 +42,9 @@ class OllamaLLM(BaseLLM):
                 method="POST",
                 headers={"Content-Type": "application/json"},
             )
-            logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
+            llm_log = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
             chunks: list[str] = []
+            logger.debug("ollama stream start: call_site=%s model=%s num_predict=%d", call_site, self.model, self._MAX_OUTPUT_TOKENS)
             try:
                 with host_lock(self.base_url), call_provider(
                     req, timeout=120, service="llm", provider="ollama", model=self.model
@@ -52,7 +56,7 @@ class OllamaLLM(BaseLLM):
                         event = json.loads(line)
                         content = event.get("message", {}).get("content")
                         if content:
-                            if logger:
+                            if llm_log:
                                 chunks.append(content)
                             yield content
                         if event.get("done"):
@@ -62,12 +66,18 @@ class OllamaLLM(BaseLLM):
                             usage.finish_reason = event.get("done_reason", "")
                             break
             except Exception as exc:
-                if logger:
-                    logger.log_error(exc)
+                logger.exception("ollama stream error: call_site=%s chunks_collected=%d", call_site, sum(len(c) for c in chunks))
+                if llm_log:
+                    llm_log.log_error(exc)
                 raise
             else:
-                if logger:
-                    logger.log_response("".join(chunks))
+                if llm_log:
+                    llm_log.log_response("".join(chunks))
+                logger.debug(
+                    "ollama stream done: call_site=%s finish_reason=%s usage=(prompt=%d completion=%d total=%d) chunks=%d",
+                    call_site, usage.finish_reason or "-",
+                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens, len(chunks),
+                )
 
         return _UsageIterator(_gen(), usage)
 

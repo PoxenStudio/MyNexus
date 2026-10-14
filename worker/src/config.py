@@ -98,6 +98,7 @@ class WorkerConfig:
     retrieval_keyword_weight: float = 0.4
 
     log_dir: str = ""
+    log_level: str = "INFO"
 
     raw: dict = field(default_factory=dict)
 
@@ -176,6 +177,8 @@ def load_config() -> WorkerConfig:
         cfg.log_dir = "/data/logs"
     else:
         cfg.log_dir = "./data/logs"
+
+    cfg.log_level = raw.get("debug", {}).get("log_level", cfg.log_level)
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
         cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")

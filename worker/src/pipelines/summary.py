@@ -282,13 +282,14 @@ def _unescape_json_string(raw: str) -> str:
         return raw
 
 
-def _parse_analysis_json(text: str) -> tuple[str, list[tuple[str, str]]]:
+def _parse_analysis_json(text: str, chapter_title: str = "") -> tuple[str, list[tuple[str, str]]]:
     """Parses one LLM chapter-analysis response (see
     _CHAPTER_ANALYSIS_PROMPT_TEMPLATE*) into (summary, [(name, content)]).
     Tolerant of the model wrapping its JSON object in a markdown code fence
     despite being told not to; a response that won't parse at all degrades
     to the raw text as the summary with no definitions, rather than failing
     the whole summarize run."""
+    logger.debug("_parse_analysis_json input: chapter=%r len=%d head=%r", chapter_title, len(text), text[:200])
     candidates = [text.strip()]
     fence_match = _JSON_FENCE_RE.search(text)
     if fence_match:
@@ -312,6 +313,7 @@ def _parse_analysis_json(text: str) -> tuple[str, list[tuple[str, str]]]:
             content = str(item.get("content", "")).strip()
             if name and content:
                 definitions.append((name, content))
+        logger.debug("_parse_analysis_json success: chapter=%r summary=%d chars definitions=%d", chapter_title, len(summary), len(definitions))
         return summary, definitions
 
     summary_match = _SUMMARY_VALUE_RE.search(text)
@@ -326,12 +328,12 @@ def _parse_analysis_json(text: str) -> tuple[str, list[tuple[str, str]]]:
             if name and content
         ]
         logger.warning(
-            "analysis JSON incomplete (output truncated?), salvaged summary (%d chars) and %d definition(s) from %d chars: %r",
-            len(summary), len(definitions), len(text), text[:120],
+            "analysis JSON INCOMPLETE, salvage triggered: chapter=%r summary=%d chars definitions=%d raw_len=%d head=%r",
+            chapter_title, len(summary), len(definitions), len(text), text[:120],
         )
         return summary, definitions
 
-    logger.warning("failed to parse analysis JSON from LLM response, using raw text as summary: %r", text[:200])
+    logger.warning("analysis JSON unparsable (no salvageable summary): chapter=%r raw_len=%d head=%r", chapter_title, len(text), text[:200])
     return text.strip(), []
 
 
@@ -394,31 +396,49 @@ class SummaryPipeline:
         task_type: str = "summary",
         on_chars: Callable[[int], None] | None = None,
         cancel_event=None,
+        chapter_title: str = "",
     ) -> str:
+        logger.debug(
+            "_complete start: site=%s chapter=%r task=%s book=%s prompt_len=%d model=%s provider=%s",
+            call_site, chapter_title, task_id, book_id, len(prompt),
+            self.config.active_llm.model, self.config.llm_provider,
+        )
         stream = self.llm.process([{"role": "user", "content": prompt}], call_site=call_site)
         chunks: list[str] = []
         last_tick = time.monotonic()
-        for delta in stream:
-            if cancel_event is not None and cancel_event.is_set():
-                logger.info("LLM stream interrupted by cancellation: task=%s site=%s", task_id, call_site)
-                raise CancelledError(f"cancelled during {call_site or 'llm call'}")
-            chunks.append(delta)
-            if on_chars is not None:
-                now = time.monotonic()
-                if now - last_tick >= _PROGRESS_TICK_SECONDS:
-                    on_chars(sum(len(c) for c in chunks))
-                    last_tick = now
+        try:
+            for delta in stream:
+                if cancel_event is not None and cancel_event.is_set():
+                    logger.info("LLM stream interrupted by cancellation: chapter=%r task=%s site=%s", chapter_title, task_id, call_site)
+                    raise CancelledError(f"cancelled during {call_site or 'llm call'}")
+                chunks.append(delta)
+                if on_chars is not None:
+                    now = time.monotonic()
+                    if now - last_tick >= _PROGRESS_TICK_SECONDS:
+                        on_chars(sum(len(c) for c in chunks))
+                        last_tick = now
+        except Exception:
+            logger.exception(
+                "_complete stream error: site=%s chapter=%r task=%s book=%s collected_chars=%d",
+                call_site, chapter_title, task_id, book_id, sum(len(c) for c in chunks),
+            )
+            raise
         text = "".join(chunks).strip()
         usage = stream.usage
+        logger.debug(
+            "_complete done: site=%s chapter=%r task=%s text_len=%d finish_reason=%s usage=(prompt=%d completion=%d total=%d)",
+            call_site, chapter_title, task_id, len(text), usage.finish_reason or "-",
+            usage.prompt_tokens, usage.completion_tokens, usage.total_tokens,
+        )
         if usage.finish_reason and usage.finish_reason.lower() in _OUTPUT_LIMIT_FINISH_REASONS:
             logger.warning(
-                "LLM output truncated (finish_reason=%s) site=%s task=%s book=%s completion_tokens=%d",
-                usage.finish_reason, call_site, task_id, book_id, usage.completion_tokens,
+                "LLM output TRUNCATED: chapter=%r site=%s task=%s book=%s finish_reason=%s completion_tokens=%d",
+                chapter_title, call_site, task_id, book_id, usage.finish_reason, usage.completion_tokens,
             )
         if task_id and usage.total_tokens > 0:
             logger.debug(
-                "report token usage: task=%s book=%s site=%s total=%d (prompt=%d completion=%d) provider=%s model=%s",
-                task_id, book_id, call_site, usage.total_tokens, usage.prompt_tokens, usage.completion_tokens,
+                "report token usage: chapter=%r task=%s book=%s site=%s total=%d (prompt=%d completion=%d) provider=%s model=%s",
+                chapter_title, task_id, book_id, call_site, usage.total_tokens, usage.prompt_tokens, usage.completion_tokens,
                 usage.provider, usage.model,
             )
             try:
@@ -449,9 +469,11 @@ class SummaryPipeline:
         cancel_event=None,
     ) -> str:
         title = title or "（未命名章节）"
+        logger.info("summarizing chapter %r: content=%d chars (boilerplate path), task=%s book=%s", title, len(content), task_id, book_id)
         content = self._fit_budget(title, content)
         segments = split_into_segments(content)
         if not segments:
+            logger.info("chapter %r has no segments after splitting, skipping", title)
             return ""
 
         chapter_tmpl = _CHAPTER_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_PROMPT_TEMPLATE
@@ -459,10 +481,14 @@ class SummaryPipeline:
         reduce_tmpl = _CHAPTER_REDUCE_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_REDUCE_PROMPT_TEMPLATE
 
         if len(segments) == 1:
+            logger.debug("chapter %r: single segment, direct summary", title)
             prompt = chapter_tmpl.format(title=title, content=segments[0])
             on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
-            return self._complete(prompt, call_site="summary.chapter", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event)
+            result = self._complete(prompt, call_site="summary.chapter", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event, chapter_title=title)
+            logger.info("chapter %r summarized: %d chars (single segment)", title, len(result))
+            return result
 
+        logger.debug("chapter %r: split into %d segments, map-reduce path", title, len(segments))
         segment_summaries = []
         for i, segment in enumerate(segments):
             prompt = segment_tmpl.format(title=title, index=i + 1, total=len(segments), content=segment)
@@ -473,18 +499,21 @@ class SummaryPipeline:
             )
             segment_summaries.append(
                 self._complete(
-                    prompt, call_site=f"summary.chapter_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event,
+                    prompt, call_site=f"summary.chapter_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event, chapter_title=title,
                 )
             )
 
         if on_progress:
             on_progress(f"正在合并 {len(segments)} 段摘要…")
+        logger.debug("chapter %r: reducing %d segment summaries", title, len(segments))
         reduce_prompt = reduce_tmpl.format(
             title=title,
             total=len(segments),
             segment_summaries="\n\n".join(f"[{i + 1}/{len(segments)}] {s}" for i, s in enumerate(segment_summaries)),
         )
-        return self._complete(reduce_prompt, call_site="summary.chapter_reduce", task_id=task_id, book_id=book_id, task_type=task_type, cancel_event=cancel_event)
+        result = self._complete(reduce_prompt, call_site="summary.chapter_reduce", task_id=task_id, book_id=book_id, task_type=task_type, cancel_event=cancel_event, chapter_title=title)
+        logger.info("chapter %r summarized: %d chars (from %d segments)", title, len(result), len(segments))
+        return result
 
     def _fit_budget(self, title: str, content: str) -> str:
         """Head/tail-samples a chapter down to the configured single-chapter
@@ -514,26 +543,29 @@ class SummaryPipeline:
         cancel_event=None,
     ) -> tuple[str, list[tuple[str, str]]]:
         title = title or "（未命名章节）"
+        logger.info("analyzing chapter %r: content=%d chars task=%s book=%s", title, len(content), task_id, book_id)
         content = self._fit_budget(title, content)
         segments = split_into_segments(content)
         if not segments:
+            logger.info("chapter %r has no segments after splitting, skipping", title)
             return "", []
 
         chapter_tmpl = _CHAPTER_ANALYSIS_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_ANALYSIS_PROMPT_TEMPLATE
         segment_tmpl = _SEGMENT_ANALYSIS_PROMPT_TEMPLATE_EN if lang == "en" else _SEGMENT_ANALYSIS_PROMPT_TEMPLATE
         reduce_tmpl = _CHAPTER_REDUCE_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_REDUCE_PROMPT_TEMPLATE
 
-        logger.debug("analyzing chapter %r: %d chars -> %d segment(s), lang=%s", title, len(content), len(segments), lang)
+        logger.debug("chapter %r: %d chars -> %d segment(s), lang=%s segments=%s", title, len(content), len(segments), lang, [len(s) for s in segments])
 
         if len(segments) == 1:
+            logger.debug("chapter %r: single segment, direct analyze", title)
             prompt = chapter_tmpl.format(title=title, content=segments[0])
             on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
-            summary, definitions = _parse_analysis_json(
-                self._complete(prompt, call_site="summary.chapter_analyze", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event)
-            )
-            logger.debug("chapter %r analyzed: summary %d chars, %d definitions", title, len(summary), len(definitions))
+            raw = self._complete(prompt, call_site="summary.chapter_analyze", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event, chapter_title=title)
+            summary, definitions = _parse_analysis_json(raw, chapter_title=title)
+            logger.info("chapter %r analyzed: summary=%d chars definitions=%d", title, len(summary), len(definitions))
             return summary, definitions[:_DEFINITIONS_CAP_PER_CHAPTER]
 
+        logger.debug("chapter %r: split into %d segments, map-reduce analyze", title, len(segments))
         segment_summaries = []
         found: list[tuple[str, str]] = []
         for i, segment in enumerate(segments):
@@ -543,22 +575,24 @@ class SummaryPipeline:
                 if on_progress
                 else None
             )
-            seg_summary, seg_definitions = _parse_analysis_json(
-                self._complete(
-                    prompt, call_site=f"summary.chapter_analyze_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event,
-                )
+            logger.debug("chapter %r: analyzing segment %d/%d (%d chars)", title, i + 1, len(segments), len(segment))
+            seg_raw = self._complete(
+                prompt, call_site=f"summary.chapter_analyze_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event, chapter_title=title,
             )
+            seg_summary, seg_definitions = _parse_analysis_json(seg_raw, chapter_title=title)
             segment_summaries.append(seg_summary)
             found.extend(seg_definitions)
+            logger.debug("chapter %r segment %d/%d: summary=%d chars definitions=%d", title, i + 1, len(segments), len(seg_summary), len(seg_definitions))
 
         if on_progress:
             on_progress(f"正在合并 {len(segments)} 段摘要…")
+        logger.debug("chapter %r: reducing %d segment summaries", title, len(segments))
         reduce_prompt = reduce_tmpl.format(
             title=title,
             total=len(segments),
             segment_summaries="\n\n".join(f"[{i + 1}/{len(segments)}] {s}" for i, s in enumerate(segment_summaries)),
         )
-        summary = self._complete(reduce_prompt, call_site="summary.chapter_analyze_reduce", task_id=task_id, book_id=book_id, task_type=task_type, cancel_event=cancel_event)
+        summary = self._complete(reduce_prompt, call_site="summary.chapter_analyze_reduce", task_id=task_id, book_id=book_id, task_type=task_type, cancel_event=cancel_event, chapter_title=title)
 
         merged: dict[str, tuple[str, str]] = {}
         for name, definition in found:
@@ -567,10 +601,7 @@ class SummaryPipeline:
             if existing is None or len(definition) > len(existing[1]):
                 merged[key] = (name, definition)
         definitions = list(merged.values())[:_DEFINITIONS_CAP_PER_CHAPTER]
-        logger.debug(
-            "chapter %r analyzed: summary %d chars, %d definitions (from %d segments)",
-            title, len(summary), len(definitions), len(segments),
-        )
+        logger.info("chapter %r analyzed: summary=%d chars definitions=%d (from %d segments)", title, len(summary), len(definitions), len(segments))
         return summary, definitions
 
     def _index_summary(self, chunk_id: str, book_id: str, chapter_id: str, text: str) -> None:
@@ -634,7 +665,7 @@ class SummaryPipeline:
 
     def run(
         self, task_id: str, book_id: str, chapters: list, force_restart: bool = True, language: str = "",
-        cancel_event=None,
+        cancel_event=None, book_title: str = "",
     ) -> None:
         """chapters: protobuf Chapter messages (id/title/content/summary —
         see mynexus.proto's SummarizeRequest). Never raises: failures are
@@ -650,6 +681,9 @@ class SummaryPipeline:
 
         language: books.language (see util/lang_detect.py) — bucketed via
         _lang_bucket to pick the prompt language and keyword-extraction path.
+        book_title: human-readable book title for log context only (not
+        strictly required — logs work fine with just book_id, but the title
+        makes "which book" obvious in a mixed worker log file).
         """
         try:
             lang = _lang_bucket(language)
@@ -659,8 +693,8 @@ class SummaryPipeline:
 
             to_generate = usable if force_restart else [ch for ch in usable if not ch.summary.strip()]
             logger.info(
-                "summarize run: %d/%d chapter(s) to generate (force_restart=%s, skipped=%d)",
-                len(to_generate), len(usable), force_restart, len(usable) - len(to_generate),
+                "summarize START: task=%s book_id=%s book_title=%r total_chapters=%d to_generate=%d force_restart=%s lang=%s",
+                task_id, book_id, book_title or "<unknown>", len(usable), len(to_generate), force_restart, lang,
             )
 
             self.core_api.report_progress(task_id, 5, "summarizing_chapters")
@@ -682,10 +716,13 @@ class SummaryPipeline:
                 def on_progress(message: str, label: str = chapter_label, progress: int = chapter_progress) -> None:
                     self.core_api.report_progress(task_id, progress, "summarizing_chapters", f"{label} {message}")
 
-                # Boilerplate chapters (copyright page etc.) get a plain
-                # summary-only call — no keywords/definitions extracted from
-                # them, same as the book-level aggregation skip below.
-                if _is_keyword_skip_chapter(ch.title):
+                is_boilerplate = _is_keyword_skip_chapter(ch.title)
+                logger.info(
+                    "chapter %d/%d starting: id=%s title=%r content=%d chars boilerplate=%s task=%s book=%s",
+                    i + 1, total, ch.id, ch.title, len(ch.content), is_boilerplate, task_id, book_id,
+                )
+
+                if is_boilerplate:
                     summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id, cancel_event=cancel_event)
                     chapter_keywords: list[tuple[str, float]] = []
                     chapter_definitions: list[tuple[str, str]] = []
@@ -698,6 +735,10 @@ class SummaryPipeline:
                         :_CHAPTER_KEYWORDS_DISPLAY_CAP
                     ]
 
+                logger.info(
+                    "chapter %d/%d done: title=%r summary=%d chars keywords=%d definitions=%d",
+                    i + 1, total, ch.title, len(summary), len(chapter_keywords), len(chapter_definitions),
+                )
                 self.core_api.report_chapter_summary(
                     task_id, ch.id, summary, keywords=chapter_keywords, definitions=chapter_definitions
                 )
@@ -767,11 +808,22 @@ class SummaryPipeline:
                 if summary.strip():
                     self._index_summary(f"{ch.id}:summary", book_id, ch.id, summary)
             self._index_summary(f"{book_id}:summary", book_id, "", book_summary)
+            logger.info(
+                "summarize SUCCESS: task=%s book_id=%s book_title=%r book_summary=%d chars book_keywords=%d vector_indexed=%d chapters",
+                task_id, book_id, book_title or "<unknown>", len(book_summary), len(keywords),
+                sum(1 for ch in usable if summaries_by_id.get(ch.id, "").strip()),
+            )
         except CancelledError as exc:
-            logger.info("summarization canceled (task_id=%s book_id=%s): %s", task_id, book_id, exc)
+            logger.warning(
+                "summarize CANCELED: task=%s book_id=%s book_title=%r reason=%s",
+                task_id, book_id, book_title or "<unknown>", exc,
+            )
             self.core_api.report_fail(task_id, "已被用户取消", canceled=True)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("summarization failed (task_id=%s book_id=%s)", task_id, book_id)
+            logger.exception(
+                "summarize FAILED: task=%s book_id=%s book_title=%r error=%s",
+                task_id, book_id, book_title or "<unknown>", exc,
+            )
             self.core_api.report_fail(task_id, str(exc))
 
 

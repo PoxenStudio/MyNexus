@@ -1,10 +1,13 @@
 import json
+import logging
 import urllib.request
 from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM, LLMUsage, _UsageIterator
 from util.debug_log import LLMCallLogger
 from util.http import call_provider
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_tool_calls(message: dict) -> list[dict]:
@@ -58,8 +61,9 @@ class OpenAILLM(BaseLLM):
                     "Accept": "text/event-stream",
                 },
             )
-            logger = LLMCallLogger("openai", self.model, self.base_url, messages) if self.debug else None
+            llm_log = LLMCallLogger("openai", self.model, self.base_url, messages) if self.debug else None
             chunks: list[str] = []
+            logger.debug("openai stream start: call_site=%s model=%s max_tokens=%d", call_site, self.model, self._MAX_OUTPUT_TOKENS)
             try:
                 with call_provider(req, timeout=120, service="llm", provider="openai", model=self.model) as resp:
                     for raw_line in resp:
@@ -83,16 +87,22 @@ class OpenAILLM(BaseLLM):
                         delta = choice.get("delta", {})
                         content = delta.get("content")
                         if content:
-                            if logger:
+                            if llm_log:
                                 chunks.append(content)
                             yield content
             except Exception as exc:
-                if logger:
-                    logger.log_error(exc)
+                logger.exception("openai stream error: call_site=%s chunks_collected=%d", call_site, sum(len(c) for c in chunks))
+                if llm_log:
+                    llm_log.log_error(exc)
                 raise
             else:
-                if logger:
-                    logger.log_response("".join(chunks))
+                if llm_log:
+                    llm_log.log_response("".join(chunks))
+                logger.debug(
+                    "openai stream done: call_site=%s finish_reason=%s usage=(prompt=%d completion=%d total=%d) chunks=%d",
+                    call_site, usage.finish_reason or "-",
+                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens, len(chunks),
+                )
 
         return _UsageIterator(_gen(), usage)
 

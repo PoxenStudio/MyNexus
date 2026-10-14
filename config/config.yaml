@@ -65,5 +65,6 @@ retrieval:
     keyword_weight: 0.4
 debug:
     llm_logging: true
+    log_level: INFO
 summary:
     skip_backmatter_chapters: false

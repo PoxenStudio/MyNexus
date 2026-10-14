@@ -9,8 +9,10 @@ from concurrent import futures
 import logging
 from logging.handlers import RotatingFileHandler
 import os
+import socket
 import sys
 import threading
+import uuid
 
 import grpc
 
@@ -156,10 +158,8 @@ def build_status() -> dict:
 
 
 def main():
-    # Pipelines log failures (e.g. ingestion.py's exception handler) via the
-    # stdlib logging module; without a handler configured those are silently
-    # dropped instead of showing up in .tmp/worker.log.
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    worker_id = f"{socket.gethostname()[:16]}-{uuid.uuid4().hex[:8]}"
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s [worker=%s]: %(message)s" % worker_id)
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     stdout_handler = logging.StreamHandler(sys.stdout)
@@ -167,6 +167,9 @@ def main():
     root.addHandler(stdout_handler)
 
     cfg = load_config()
+    level = getattr(logging, cfg.log_level.strip().upper(), logging.INFO)
+    root.setLevel(level)
+    logging.info("worker starting: worker_id=%s pid=%d log_level=%s (config: %s)", worker_id, os.getpid(), logging.getLevelName(level), cfg.log_level)
     if cfg.log_dir:
         os.makedirs(cfg.log_dir, exist_ok=True)
         log_path = os.path.join(cfg.log_dir, "worker.log")
