@@ -79,8 +79,8 @@ def main() -> None:
 
     orig_decide = qa._decide_tool
 
-    def spy_decide(messages):
-        result = orig_decide(messages)
+    def spy_decide(messages, active_skill=None, book_ids=None):
+        result = orig_decide(messages, active_skill, book_ids)
         if result is None:
             print("[decide] no tool chosen -> plain RAG path", flush=True)
         else:

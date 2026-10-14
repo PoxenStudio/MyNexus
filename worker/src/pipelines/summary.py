@@ -85,8 +85,7 @@ def _is_keyword_skip_chapter(title: str) -> bool:
 _PROGRESS_TICK_SECONDS = 3.0
 
 # Provider-agnostic finish_reason strings that signal the model hit its output
-# token ceiling mid-response — these map to the same set ReadAny uses for its
-# truncation detection (see reading-agent.ts's OUTPUT_LIMIT_FINISH_REASONS).
+# token ceiling mid-response
 # Different providers name the event differently, so match the lowercase set.
 _OUTPUT_LIMIT_FINISH_REASONS = frozenset({"length", "max_tokens", "max_completion_tokens", "token_limit"})
 

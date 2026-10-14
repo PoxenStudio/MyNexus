@@ -12,8 +12,9 @@ class ToolRegistry:
     def __init__(self, tools: list[BaseTool] | None = None) -> None:
         self._tools = {t.name: t for t in (tools or [])}
 
-    def schemas(self) -> list[dict]:
-        return [t.to_schema() for t in self._tools.values()]
+    def schemas(self, exclude_names: set[str] | None = None) -> list[dict]:
+        excluded = exclude_names or set()
+        return [t.to_schema() for name, t in self._tools.items() if name not in excluded]
 
     def run(self, name: str, arguments: dict) -> dict:
         tool = self._tools.get(name)
