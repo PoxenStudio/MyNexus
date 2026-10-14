@@ -15,9 +15,7 @@ storage:
     vector_store: chroma
     vector_store_path: ./data/vectorstore
     upload_dir: ./data/uploads
-    # worker 日志目录；留空则按环境自动选择：本地默认 ./data/logs，
-    # Docker 容器（MYNEXUS_IN_DOCKER=1）默认 /data/logs
-    log_dir: ""
+    log_dir: "./data/logs"
 worker:
     url: localhost:8001
     max_concurrent_tasks: 1
