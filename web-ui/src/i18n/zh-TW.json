@@ -39,7 +39,17 @@
     "chunksTotal": "分塊總數",
     "sessionsTotal": "問答會話數",
     "booksByStatus": "書籍狀態分佈",
-    "tasksByStatus": "任務狀態分佈"
+    "tasksByStatus": "任務狀態分佈",
+    "tokenUsageTitle": "Token 消耗",
+    "totalTokens": "總 Token",
+    "promptTokens": "輸入 Token",
+    "completionTokens": "輸出 Token",
+    "range1": "今日",
+    "range7": "近 7 日",
+    "range30": "近 30 日",
+    "tokenDailyTitle": "按日趨勢（按 LLM 服務）",
+    "tokenTodayTitle": "今日佔比",
+    "noTokenData": "暫無 Token 消耗資料"
   },
   "status": {
     "pending": "待處理",
@@ -110,7 +120,14 @@
     "selectedCount": "已選擇 {count} 本",
     "confirmBulkDelete": "確定要刪除選中的 {count} 本書籍嗎？此操作不可撤銷。",
     "confirmBulkRebuild": "確定要對選中的 {count} 本書籍重新構建嗎？",
-    "confirmRebuild": "確定要重新構建這本書嗎？會重新解析、分塊並生成向量索引，已有的章節內容和總結會被覆蓋。"
+    "confirmRebuild": "確定要重新構建這本書嗎？會重新解析、分塊並生成向量索引，已有的章節內容和總結會被覆蓋。",
+    "tokenUsage": "Token 消耗",
+    "totalTokens": "總 Token",
+    "promptTokens": "輸入 Token",
+    "completionTokens": "輸出 Token",
+    "llmCalls": "呼叫次數",
+    "tokenBreakdown": "各步驟佔比",
+    "noTokenUsage": "暫無 Token 消耗記錄"
   },
   "tasks": {
     "title": "任務監控",

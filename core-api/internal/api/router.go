@@ -38,6 +38,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	tokenSvc := service.NewTokenService(db, cfg.Auth.TokenPrefix)
 	userSvc := service.NewUserService(db)
 	auditSvc := service.NewAuditService(db)
+	llmUsageSvc := service.NewLLMUsageService(db)
 	sessions := auth.NewSessionManager()
 
 	sys := handler.NewSystemHandler(cfg, store, workerClient, auditSvc)
@@ -49,6 +50,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	authH := handler.NewAuthHandler(userSvc, sessions, auditSvc, cfg.Storage.UploadDir)
 	auditH := handler.NewAuditHandler(auditSvc)
 	usersH := handler.NewUserHandler(userSvc, auditSvc)
+	llmUsage := handler.NewLLMUsageHandler(llmUsageSvc)
 
 	r.GET("/healthz", sys.Health)
 
@@ -89,6 +91,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.GET("/system/stats", sys.Stats)
 			adminOnly.GET("/system/config", sys.Config)
 			adminOnly.GET("/system/settings", sys.Settings)
+			adminOnly.GET("/system/token-stats", llmUsage.TokenStats)
 			adminOnly.PUT("/system/settings", sys.SaveSettings)
 			adminOnly.POST("/system/test-provider", sys.TestProvider)
 
@@ -98,6 +101,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.GET("/books", books.List)
 			adminOnly.GET("/books/:id", books.Get)
 			adminOnly.GET("/books/:id/cover", books.Cover)
+			adminOnly.GET("/books/:id/token-usage", llmUsage.BookTokenUsage)
 			adminOnly.PUT("/books/:id", books.Update)
 			adminOnly.PUT("/books/:id/summary", books.UpdateSummary)
 			adminOnly.DELETE("/books/:id", books.Delete)

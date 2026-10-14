@@ -3,9 +3,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { getBook, rebuildBook, summarizeBook, updateBook, updateBookSummary, type BookDetail } from "../../api/books";
+import { fetchBookTokenUsage, formatTokens, type BookTokenUsage } from "../../api/token";
 import { apiClient } from "../../api/client";
 import { getTask, listTasks, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
+import BarChart from "../../components/charts/BarChart.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
 import DefinitionList from "../../components/DefinitionList.vue";
 import KeywordCloud from "../../components/KeywordCloud.vue";
@@ -37,6 +39,29 @@ const coverUrl = computed(() => {
   return apiClient.defaults.baseURL + book.value.cover_url;
 });
 const coverInitial = computed(() => (book.value?.title || book.value?.id || "?").charAt(0).toUpperCase());
+
+const tokenUsage = ref<BookTokenUsage | null>(null);
+const tokenLoading = ref(false);
+
+const callsiteChartData = computed(() => {
+  if (!tokenUsage.value) return [];
+  return tokenUsage.value.breakdown.map((b) => ({
+    label: b.call_site.replace(/^summary\./, ""),
+    value: b.total_tokens,
+  }));
+});
+
+async function loadTokenUsage() {
+  if (!book.value) return;
+  tokenLoading.value = true;
+  try {
+    tokenUsage.value = await fetchBookTokenUsage(book.value.id);
+  } catch {
+    tokenUsage.value = null;
+  } finally {
+    tokenLoading.value = false;
+  }
+}
 
 // Tab title shows "详情 - <书名>" while this view is open (see App.vue),
 // falling back to the book id if a title hasn't loaded/generated yet.
@@ -187,7 +212,7 @@ async function load() {
   loading.value = true;
   try {
     book.value = await getBook(route.params.id as string);
-    await findActiveTask();
+    await Promise.all([findActiveTask(), loadTokenUsage()]);
   } finally {
     loading.value = false;
   }
@@ -271,6 +296,7 @@ async function pollTask(taskId: string) {
   // time (the map step) well before the task itself completes (the reduce
   // step), so this is what makes each chapter's summary appear as it's ready.
   book.value = await getBook(route.params.id as string);
+  await loadTokenUsage();
 
   if (task.status === "completed" || task.status === "failed") {
     stopPolling();
@@ -361,6 +387,37 @@ onUnmounted(() => {
       </div>
 
       <p v-if="activeTask" class="active-task">{{ activeTaskLabel }}</p>
+
+      <div class="token-card">
+        <h2>{{ t("books.tokenUsage") }}</h2>
+        <div v-if="tokenLoading" class="token-loading">{{ t("common.loading") }}</div>
+        <template v-else-if="tokenUsage">
+          <div v-if="tokenUsage.total_tokens > 0" class="token-stats">
+            <div class="token-stat">
+              <span class="token-stat-label">{{ t("books.totalTokens") }}</span>
+              <span class="token-stat-value">{{ formatTokens(tokenUsage.total_tokens) }}</span>
+            </div>
+            <div class="token-stat">
+              <span class="token-stat-label">{{ t("books.promptTokens") }}</span>
+              <span class="token-stat-value">{{ formatTokens(tokenUsage.prompt_tokens) }}</span>
+            </div>
+            <div class="token-stat">
+              <span class="token-stat-label">{{ t("books.completionTokens") }}</span>
+              <span class="token-stat-value">{{ formatTokens(tokenUsage.completion_tokens) }}</span>
+            </div>
+            <div class="token-stat">
+              <span class="token-stat-label">{{ t("books.llmCalls") }}</span>
+              <span class="token-stat-value">{{ tokenUsage.calls }}</span>
+            </div>
+          </div>
+          <template v-if="callsiteChartData.length > 1">
+            <h3>{{ t("books.tokenBreakdown") }}</h3>
+            <BarChart :data="callsiteChartData" />
+          </template>
+          <p v-else class="token-empty">{{ t("books.noTokenUsage") }}</p>
+        </template>
+        <p v-else class="token-empty">{{ t("books.noTokenUsage") }}</p>
+      </div>
 
       <div class="summary-section">
         <div class="summary-header">
@@ -764,5 +821,51 @@ button.primary:disabled {
   background: var(--code-bg);
   font-size: 0.85rem;
   opacity: 0.85;
+}
+.token-card {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.token-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+.token-card h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  font-weight: 500;
+}
+.token-loading,
+.token-empty {
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+.token-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
+}
+.token-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  background: var(--code-bg);
+}
+.token-stat-label {
+  font-size: 0.7rem;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.token-stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
 }
 </style>

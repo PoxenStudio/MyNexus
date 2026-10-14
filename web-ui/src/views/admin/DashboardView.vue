@@ -2,11 +2,14 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { fetchStats, type SystemStats } from "../../api/system";
+import { fetchTokenStats, formatTokens, type TokenStats } from "../../api/token";
+import LineChart from "../../components/charts/LineChart.vue";
+import PieChart from "../../components/charts/PieChart.vue";
 import StatCard from "../../components/StatCard.vue";
-import BarChart from "../../components/charts/BarChart.vue";
 
 const { t } = useI18n();
 const stats = ref<SystemStats | null>(null);
+const tokenStats = ref<TokenStats | null>(null);
 const loading = ref(true);
 
 function toChartData(record: Record<string, number>) {
@@ -19,13 +22,37 @@ function toChartData(record: Record<string, number>) {
 const booksByStatus = computed(() => (stats.value ? toChartData(stats.value.books_by_status) : []));
 const tasksByStatus = computed(() => (stats.value ? toChartData(stats.value.tasks_by_status) : []));
 
+const totalTokenRange = computed(() => {
+  if (!tokenStats.value) return { total: 0, prompt: 0, completion: 0 };
+  let total = 0, prompt = 0, completion = 0;
+  for (const r of tokenStats.value.daily) {
+    total += r.total_tokens;
+    prompt += r.prompt_tokens;
+    completion += r.completion_tokens;
+  }
+  return { total, prompt, completion };
+});
+
+const rangeOptions = computed(() => [
+  { value: 1, label: t("dashboard.range1") },
+  { value: 7, label: t("dashboard.range7") },
+  { value: 30, label: t("dashboard.range30") },
+]);
+
+const currentRange = ref(7);
+
 async function load() {
   loading.value = true;
   try {
-    stats.value = await fetchStats();
+    [stats.value, tokenStats.value] = await Promise.all([fetchStats(), fetchTokenStats(currentRange.value)]);
   } finally {
     loading.value = false;
   }
+}
+
+async function loadTokenRange(range: number) {
+  currentRange.value = range;
+  tokenStats.value = await fetchTokenStats(range);
 }
 
 onMounted(load);
@@ -33,11 +60,6 @@ onMounted(load);
 
 <template>
   <section>
-    <!-- Living core: a breathing, self-animating sphere standing in for the
-         "title" this page used to have — the product's autonomous, always-on
-         feel rather than a static heading. Diameter tracks 30% of the
-         section's own width via container query units, clamped so it never
-         gets absurdly small or large. -->
     <div class="core-stage">
       <div class="orb" :class="{ 'orb--settled': !loading }">
         <span class="orb-ring orb-ring--1" aria-hidden="true"></span>
@@ -65,6 +87,42 @@ onMounted(load);
           <h2>{{ t("dashboard.tasksByStatus") }}</h2>
           <BarChart :data="tasksByStatus" />
         </div>
+      </div>
+
+      <div class="token-section">
+        <div class="token-header">
+          <h2>{{ t("dashboard.tokenUsageTitle") }}</h2>
+          <div class="range-switch">
+            <button
+              v-for="opt in rangeOptions"
+              :key="opt.value"
+              :class="{ active: currentRange === opt.value }"
+              @click="loadTokenRange(opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="tokenStats" class="token-content">
+          <div class="token-summary">
+            <StatCard :label="t('dashboard.totalTokens')" :value="formatTokens(totalTokenRange.total)" />
+            <StatCard :label="t('dashboard.promptTokens')" :value="formatTokens(totalTokenRange.prompt)" />
+            <StatCard :label="t('dashboard.completionTokens')" :value="formatTokens(totalTokenRange.completion)" />
+          </div>
+
+          <div class="token-charts">
+            <div class="token-panel">
+              <h3>{{ t("dashboard.tokenDailyTitle") }}</h3>
+              <LineChart :data="tokenStats.daily" />
+            </div>
+            <div class="token-panel">
+              <h3>{{ t("dashboard.tokenTodayTitle") }}</h3>
+              <PieChart :data="tokenStats.today_by_provider" />
+            </div>
+          </div>
+        </div>
+        <p v-else class="status-line">{{ t("dashboard.noTokenData") }}</p>
       </div>
     </template>
   </section>
@@ -99,6 +157,70 @@ onMounted(load);
   margin: 0 0 0.75rem;
 }
 
+/* Token section ---------------------------------------------------- */
+.token-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.token-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.token-header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+.range-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.range-switch button {
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.range-switch button.active {
+  background: var(--accent);
+  color: white;
+}
+.token-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.token-charts {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(200px, 1fr);
+  gap: 1.5rem;
+}
+.token-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+.token-panel h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+  opacity: 0.7;
+  font-weight: 500;
+}
+@media (max-width: 720px) {
+  .token-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---- Living core -------------------------------------------------- */
 
 .core-stage {
@@ -110,11 +232,6 @@ onMounted(load);
 }
 
 .orb {
-  /* The orb is a light source, not text — it should glow the same vivid
-     steel-blue in both themes. --accent goes near-black (#003153) in light
-     mode for text readability, which would muddy the sphere; pin a bright
-     blue locally and derive the glow/edge from it so the orb stays vivid
-     on white backgrounds. */
   --orb-accent: #5b9bd5;
   --orb-glow: rgba(91, 155, 213, 0.3);
   --orb-edge: rgba(91, 155, 213, 0.5);
@@ -127,8 +244,6 @@ onMounted(load);
   max-height: 340px;
 }
 
-/* Sonar rings: expand outward from the core and fade, one lagging the
-   other, so the pulse reads as radiating rather than blinking. */
 .orb-ring {
   position: absolute;
   inset: 0;
@@ -151,13 +266,6 @@ onMounted(load);
   }
 }
 
-/* The sphere itself: a soft radial body that slowly breathes in scale and
-   glow, echoing MyBooks' .avatar-round breathing animation but built up
-   with extra depth (sheen sweep + nucleus) to read as "alive" rather than
-   just a pulsing circle. Lighting is directional from the upper-left: a
-   tinted highlight (not pure white) and a deeper lower-right shadow, plus
-   a contact shadow below, so the orb reads as a 3D ball instead of a
-   flat disc. */
 .orb-core {
   position: absolute;
   inset: 6%;
@@ -170,12 +278,9 @@ onMounted(load);
     color-mix(in srgb, var(--orb-accent) 45%, black 55%) 100%
   );
   box-shadow:
-    /* outer ambient glow */
     0 0 24px 4px var(--orb-glow),
     0 0 48px 12px var(--orb-glow),
-    /* ground contact shadow — anchors the orb in space */
     0 16px 30px -12px rgba(0, 0, 0, 0.5),
-    /* directional inner shading: deeper at lower-right, lifted at upper-left */
     inset -10px -12px 24px rgba(0, 0, 0, 0.45),
     inset 8px 10px 20px rgba(255, 255, 255, 0.1);
   animation: orb-breathe 3.5s ease-in-out infinite;
@@ -204,11 +309,6 @@ onMounted(load);
   }
 }
 
-/* A brighter nucleus pulsing in lockstep with the outer breathe — same
-   3.6s cadence and phase (both peak at 50%) so the highlight swells with
-   the sphere instead of drifting against it. Kept small and tinted so it
-   reads as a specular catch-light on the sphere rather than a flat white
-   patch. */
 .orb-nucleus {
   position: absolute;
   inset: 0%;
@@ -233,8 +333,6 @@ onMounted(load);
   }
 }
 
-/* Settling in once data has loaded: rings ease to a slightly calmer pace
-   rather than an abrupt style change. */
 .orb--settled .orb-ring {
   animation-duration: 3.5s;
 }

@@ -39,7 +39,17 @@
     "chunksTotal": "Total Chunks",
     "sessionsTotal": "Chat Sessions",
     "booksByStatus": "Books by Status",
-    "tasksByStatus": "Tasks by Status"
+    "tasksByStatus": "Tasks by Status",
+    "tokenUsageTitle": "Token Usage",
+    "totalTokens": "Total Tokens",
+    "promptTokens": "Input Tokens",
+    "completionTokens": "Output Tokens",
+    "range1": "Today",
+    "range7": "Last 7 days",
+    "range30": "Last 30 days",
+    "tokenDailyTitle": "Daily trend (by LLM provider)",
+    "tokenTodayTitle": "Today by provider",
+    "noTokenData": "No token usage data yet"
   },
   "status": {
     "pending": "Pending",
@@ -110,7 +120,14 @@
     "selectedCount": "{count} selected",
     "confirmBulkDelete": "Delete the selected {count} book(s)? This cannot be undone.",
     "confirmBulkRebuild": "Rebuild the selected {count} book(s)?",
-    "confirmRebuild": "Rebuild this book? It will be re-parsed, re-chunked, and re-embedded — the existing chapters and summaries will be overwritten."
+    "confirmRebuild": "Rebuild this book? It will be re-parsed, re-chunked, and re-embedded — the existing chapters and summaries will be overwritten.",
+    "tokenUsage": "Token Usage",
+    "totalTokens": "Total Tokens",
+    "promptTokens": "Input Tokens",
+    "completionTokens": "Output Tokens",
+    "llmCalls": "LLM Calls",
+    "tokenBreakdown": "Callsite breakdown",
+    "noTokenUsage": "No token usage recorded yet"
   },
   "tasks": {
     "title": "Tasks",

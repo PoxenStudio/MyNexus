@@ -54,16 +54,57 @@ func (s *LLMUsageService) SumByBook(bookID string) (total, prompt, completion, c
 	return
 }
 
+// CallSiteBreakdown returns per-call_site totals for a book — lets the
+// book-detail card break down where the tokens went (chapter_analyze vs
+// book_reduce vs ...). Rows come back ordered by total_tokens desc so the
+// "top consumers" are upfront without an extra sort on the caller side.
+type CallSiteRow struct {
+	CallSite         string
+	LLMProvider      string
+	LLMModel         string
+	Calls            int
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+}
+
+func (s *LLMUsageService) CallSiteBreakdown(bookID string, limit int) ([]CallSiteRow, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := s.db.Query(
+		`SELECT call_site, llm_provider, llm_model, COUNT(1),
+		        COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0),
+		        COALESCE(SUM(total_tokens),0)
+		 FROM token_usage WHERE book_id = ?
+		 GROUP BY call_site, llm_provider, llm_model
+		 ORDER BY total_tokens DESC LIMIT ?`, bookID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("callsite breakdown: %w", err)
+	}
+	defer rows.Close()
+	var out []CallSiteRow
+	for rows.Next() {
+		var r CallSiteRow
+		if err := rows.Scan(&r.CallSite, &r.LLMProvider, &r.LLMModel, &r.Calls,
+			&r.PromptTokens, &r.CompletionTokens, &r.TotalTokens); err != nil {
+			return nil, fmt.Errorf("scan callsite breakdown: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // DailyByProvider groups rows into one bucket per (date, llm_provider) and
 // returns them most-recent-first — backs the dashboard折线图 (date x provider
 // 双维度) and the饼图 (latest-day provider 占比). rangeDays caps the window;
 // pass 0 for no cap.
 type DailyProviderRow struct {
-	Date           string
-	LLMProvider    string
-	PromptTokens   int
+	Date             string
+	LLMProvider      string
+	PromptTokens     int
 	CompletionTokens int
-	TotalTokens    int
+	TotalTokens      int
 }
 
 func (s *LLMUsageService) DailyByProvider(rangeDays int) ([]DailyProviderRow, error) {
