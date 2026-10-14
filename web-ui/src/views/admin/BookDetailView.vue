@@ -5,7 +5,7 @@ import { useRoute } from "vue-router";
 import { getBook, rebuildBook, summarizeBook, updateBook, updateBookSummary, type BookDetail } from "../../api/books";
 import { fetchBookTokenUsage, formatTokens, type BookTokenUsage } from "../../api/token";
 import { apiClient } from "../../api/client";
-import { getTask, listTasks, type Task } from "../../api/tasks";
+import { getTask, listTasks, cancelTask, type Task } from "../../api/tasks";
 import AppIcon from "../../components/AppIcon.vue";
 import BarChart from "../../components/charts/BarChart.vue";
 import ConfirmDialog from "../../components/ConfirmDialog.vue";
@@ -149,6 +149,7 @@ async function saveSummary() {
 const summarizing = ref(false);
 const summarizeTask = ref<Task | null>(null);
 const summarizeError = ref("");
+const canceling = ref(false);
 const rebuildError = ref("");
 const rebuildConfirmOpen = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -259,6 +260,19 @@ function onRebuild() {
   rebuildConfirmOpen.value = true;
 }
 
+async function onCancelSummarize() {
+  if (!summarizeTask.value) return;
+  canceling.value = true;
+  summarizeError.value = "";
+  try {
+    await cancelTask(summarizeTask.value.id);
+  } catch (e: any) {
+    summarizeError.value = e?.response?.data?.error || t("books.summarizeError");
+  } finally {
+    canceling.value = false;
+  }
+}
+
 async function doRebuild() {
   if (!book.value) return;
   rebuildError.value = "";
@@ -300,7 +314,7 @@ async function pollTask(taskId: string) {
   book.value = await getBook(route.params.id as string);
   await loadTokenUsage();
 
-  if (task.status === "completed" || task.status === "failed") {
+  if (task.status === "completed" || task.status === "failed" || task.status === "canceled") {
     stopPolling();
     summarizing.value = false;
     activeTask.value = null;
@@ -444,8 +458,11 @@ onUnmounted(() => {
           </h2>
           <div class="summary-actions">
             <template v-if="summarizing">
-              <button class="primary" disabled>{{ t("books.summarizing") }}</button>
-            </template>
+                <button class="primary" disabled>{{ t("books.summarizing") }}</button>
+                <button type="button" class="ghost-btn" :disabled="canceling" @click="onCancelSummarize">
+                  {{ t("books.cancelSummarize") }}
+                </button>
+              </template>
             <template v-else>
               <button
                 v-if="summarizeState === 'partial'"
@@ -663,6 +680,19 @@ onUnmounted(() => {
 .summary-actions {
   display: flex;
   gap: 0.5rem;
+}
+.ghost-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.ghost-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .progress-line {
   font-size: 0.85rem;

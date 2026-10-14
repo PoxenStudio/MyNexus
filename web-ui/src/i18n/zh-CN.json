@@ -57,7 +57,8 @@
     "processing": "处理中",
     "ready": "已就绪",
     "completed": "已完成",
-    "failed": "失败"
+    "failed": "失败",
+    "canceled": "已取消"
   },
   "taskType": {
     "ingest": "导入解析",
@@ -107,6 +108,7 @@
     "resummarize": "重新总结全书",
     "regenerateBookSummary": "使用章节摘要重新生成全书总结",
     "summarizing": "生成中…",
+    "cancelSummarize": "取消",
     "summarizeProgress": "生成中… {progress}%",
     "summarizeError": "生成总结失败",
     "noSummaryYet": "暂无全书总结，点击「总结全书」生成",

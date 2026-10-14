@@ -57,7 +57,8 @@
     "processing": "處理中",
     "ready": "已就緒",
     "completed": "已完成",
-    "failed": "失敗"
+    "failed": "失敗",
+    "canceled": "已取消"
   },
   "taskType": {
     "ingest": "導入解析",
@@ -107,6 +108,7 @@
     "resummarize": "重新總結全書",
     "regenerateBookSummary": "使用章節摘要重新生成全書總結",
     "summarizing": "生成中…",
+    "cancelSummarize": "取消",
     "summarizeProgress": "生成中… {progress}%",
     "summarizeError": "生成總結失敗",
     "noSummaryYet": "暫無全書總結，點擊「總結全書」生成",

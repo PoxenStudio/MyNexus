@@ -57,7 +57,8 @@
     "processing": "Processing",
     "ready": "Ready",
     "completed": "Completed",
-    "failed": "Failed"
+    "failed": "Failed",
+    "canceled": "Canceled"
   },
   "taskType": {
     "ingest": "Ingestion",
@@ -107,6 +108,7 @@
     "resummarize": "Resummarize Book",
     "regenerateBookSummary": "Regenerate book summary from chapter summaries",
     "summarizing": "Generating…",
+    "cancelSummarize": "Cancel",
     "summarizeProgress": "Generating… {progress}%",
     "summarizeError": "Failed to generate summary",
     "noSummaryYet": "No summary yet — click \"Summarize Book\" to generate one",
