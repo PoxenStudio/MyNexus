@@ -89,7 +89,7 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		messages = append(messages, coordinator.ChatMessage{Role: m.Role, Content: m.Content})
 	}
 
-	stream, err := h.worker.Chat(coordinator.ChatRequest{Messages: messages, BookIDs: req.BookIDs, TopK: 5})
+	stream, err := h.worker.Chat(coordinator.ChatRequest{Messages: messages, BookIDs: req.BookIDs, TopK: 10})
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "chat failed: " + err.Error()})
 		return
@@ -128,10 +128,10 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 			citations := make([]dto.CitationResponse, 0, len(event.Citations))
 			for _, cit := range event.Citations {
 				citations = append(citations, dto.CitationResponse{
-				ChunkID: cit.ChunkID, ChapterID: cit.ChapterID, BookID: cit.BookID,
-				Score: cit.Score, Content: cit.Content,
-				StartOffset: cit.StartOffset, EndOffset: cit.EndOffset,
-			})
+					ChunkID: cit.ChunkID, ChapterID: cit.ChapterID, BookID: cit.BookID,
+					Score: cit.Score, Content: cit.Content,
+					StartOffset: cit.StartOffset, EndOffset: cit.EndOffset,
+				})
 			}
 			citationsBytes, _ := json.Marshal(citations)
 			citationsJSON = string(citationsBytes)

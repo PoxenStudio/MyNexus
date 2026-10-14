@@ -63,7 +63,7 @@ class QAPipeline:
         )
 
     def answer(
-        self, messages: list[dict], book_ids: list[str] | None = None, top_k: int = 5
+        self, messages: list[dict], book_ids: list[str] | None = None, top_k: int = 10
     ) -> Iterator[dict]:
         tool_results: list[dict] = []
         citations: list[dict] = []

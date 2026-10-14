@@ -105,7 +105,7 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
     def Chat(self, request, context):
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
         book_ids = list(request.book_ids) or None
-        top_k = request.top_k or 5
+        top_k = request.top_k or 10
 
         for event in self.qa.answer(messages, book_ids=book_ids, top_k=top_k):
             if event["type"] == "delta":
