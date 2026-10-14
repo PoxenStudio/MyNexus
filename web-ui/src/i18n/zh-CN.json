@@ -287,7 +287,16 @@
     "localModelPathHint": "配置后优先从该目录加载模型文件（不存在时仍会下载到该目录）；Docker 部署默认 /data/models，可在 docker-compose.yml 中修改挂载目录。",
     "chapterTokenBudget": "单章 Token 上限",
     "chapterTokenBudgetHint": "仅对 OpenAI 兼容服务生效：章节正文估算超过该 token 数时，按首尾采样压缩到上限内再送 LLM，控制全书总结的 token 消耗（5000–50000，0 为不限）。",
-    "localNoTest": "本地模式无需连通性测试，保存后直接对书籍建索引即可。"
+    "localNoTest": "本地模式无需连通性测试，保存后直接对书籍建索引即可。",
+    "tabs": {
+      "storage": "存储",
+      "worker": "Worker",
+      "embedding": "嵌入",
+      "llm": "LLM",
+      "retrieval": "检索",
+      "splitter": "分块",
+      "basic": "基础"
+    }
   },
   "chat": {
     "newSession": "新建会话",

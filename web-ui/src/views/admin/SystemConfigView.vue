@@ -20,6 +20,23 @@ const saving = ref(false);
 const saved = ref(false);
 const error = ref("");
 
+const tabs = [
+  { key: "storage", label: "settings.tabs.storage" },
+  { key: "worker", label: "settings.tabs.worker" },
+  { key: "embedding", label: "settings.tabs.embedding" },
+  { key: "llm", label: "settings.tabs.llm" },
+  { key: "retrieval", label: "settings.tabs.retrieval" },
+  { key: "splitter", label: "settings.tabs.splitter" },
+  { key: "basic", label: "settings.tabs.basic" },
+] as const;
+type TabKey = (typeof tabs)[number]["key"];
+const activeTab = ref<TabKey>("storage");
+const tabIndex = computed(() => Math.max(0, tabs.findIndex((tb) => tb.key === activeTab.value)));
+const tabStripStyle = computed(() => ({
+  "--tab-index": String(tabIndex.value),
+  "--tab-count": String(tabs.length),
+}));
+
 const originalEmbedding = ref<{ provider: string; openai_model: string; ollama_model: string; local_model: string; local_model_path: string } | null>(null);
 const embeddingChanged = computed(() => {
   if (!settings.value || !originalEmbedding.value) return false;
@@ -104,10 +121,27 @@ onMounted(load);
     <h1>{{ t("settings.systemConfig") }}</h1>
 
     <div v-if="loading">{{ t("common.loading") }}</div>
-    <form v-else-if="settings" class="config-form" @submit.prevent="onSave">
-      <p class="hint">{{ t("settings.restartHint") }}</p>
+    <template v-else-if="settings">
+      <div class="tab-container" role="tablist" :style="tabStripStyle">
+        <button
+          v-for="tb in tabs"
+          :key="tb.key"
+          type="button"
+          class="tab-label"
+          :class="{ active: activeTab === tb.key }"
+          role="tab"
+          :aria-selected="activeTab === tb.key"
+          @click="activeTab = tb.key"
+        >
+          {{ t(tb.label) }}
+        </button>
+        <span class="indicator" aria-hidden="true"></span>
+      </div>
 
-      <fieldset>
+      <form class="config-form" @submit.prevent="onSave">
+        <p class="hint">{{ t("settings.restartHint") }}</p>
+
+      <fieldset v-show="activeTab === 'storage'">
         <legend>{{ t("settings.storage") }}</legend>
         <label>
           {{ t("settings.storageDatabase") }}
@@ -141,7 +175,7 @@ onMounted(load);
         </label>
       </fieldset>
 
-      <fieldset>
+      <fieldset v-show="activeTab === 'worker'">
         <legend>{{ t("settings.worker") }}</legend>
         <label>
           {{ t("settings.workerUrl") }}
@@ -157,7 +191,7 @@ onMounted(load);
         </label>
       </fieldset>
 
-      <fieldset>
+      <fieldset v-show="activeTab === 'embedding'">
         <legend>{{ t("settings.embedding") }}</legend>
         <label>
           {{ t("settings.provider") }}
@@ -219,7 +253,7 @@ onMounted(load);
         <p v-if="embeddingChanged" class="hint warn">{{ t("settings.embeddingChangedHint") }}</p>
       </fieldset>
 
-      <fieldset>
+      <fieldset v-show="activeTab === 'llm'">
         <legend>{{ t("settings.llm") }}</legend>
         <label>
           {{ t("settings.provider") }}
@@ -273,7 +307,7 @@ onMounted(load);
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset v-show="activeTab === 'retrieval'">
         <legend>{{ t("settings.retrieval") }}</legend>
         <label>
           {{ t("settings.retrievalFusion") }}
@@ -294,7 +328,7 @@ onMounted(load);
         <p class="hint">{{ t("settings.retrievalWeightsHint") }}</p>
       </fieldset>
 
-      <fieldset>
+      <fieldset v-show="activeTab === 'splitter'">
         <legend>{{ t("settings.splitter") }}</legend>
         <label>
           {{ t("settings.chunkSize") }}
@@ -310,7 +344,7 @@ onMounted(load);
         </label>
       </fieldset>
 
-      <fieldset>
+      <fieldset v-show="activeTab === 'basic'">
         <legend>{{ t("settings.basic") }}</legend>
         <label>
           {{ t("settings.defaultLocale") }}
@@ -350,7 +384,8 @@ onMounted(load);
       <button type="submit" class="primary" :disabled="saving || saved">
         {{ saving ? t("common.loading") : t("common.save") }}
       </button>
-    </form>
+      </form>
+    </template>
   </section>
 </template>
 
@@ -360,11 +395,74 @@ onMounted(load);
   opacity: 0.75;
   margin: 0 0 1rem;
 }
+.tab-container {
+  position: relative;
+  display: flex;
+  width: 700px;
+  max-width: 100%;
+  padding: 2px;
+  border-radius: 9px;
+  background-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.tab-label {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.4rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+.tab-label.active {
+  opacity: 1;
+}
+.tab-label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  width: 56%;
+  height: 3px;
+  border-radius: 2px;
+  background: #2563eb;
+  opacity: 0.25;
+  transition: opacity 0.18s ease;
+}
+.tab-label.active::after {
+  opacity: 1;
+}
+.indicator {
+  position: absolute;
+  top: 2px;
+  left: calc(2px + (100% - 4px) / var(--tab-count) * var(--tab-index));
+  z-index: 1;
+  width: calc((100% - 4px) / var(--tab-count));
+  height: 30px;
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04);
+  transition: left 0.2s ease-out;
+}
 .config-form {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  max-width: 560px;
+  width: 700px;
+  max-width: 100%;
+  margin-top: 1.25rem;
 }
 fieldset {
   display: flex;
