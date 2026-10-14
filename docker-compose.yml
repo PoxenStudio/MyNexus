@@ -11,7 +11,6 @@ services:
       - ${MYNEXUS_CONFIG_DIR:-./config-runtime}:/config
     environment:
       MYNEXUS_CONFIG_PATH: /config/config.yaml
-      MYNEXUS_AUTH_JWT_SECRET: ${JWT_SECRET:-}
       MYNEXUS_EMBEDDING_OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       MYNEXUS_LLM_OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     restart: unless-stopped

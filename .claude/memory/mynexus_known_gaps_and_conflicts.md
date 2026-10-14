@@ -11,7 +11,6 @@ Consolidated from [[mynexus_m2_decisions]], [[mynexus_m3_decisions]], [[mynexus_
 
 1. **Worker never writes to SQLite directly**, despite 系统设计文档.md §2.3's sequence diagram showing `SPLITTER -- "Chunk 元数据回写" --> RDBMS`. Actual: Worker computes, POSTs callbacks to Core API (`/internal/tasks/{id}/...`), only Core API touches SQLite. See [[mynexus_m2_decisions]]. Documented divergence, not a bug.
 2. ~~`storage.database: postgres` is not implemented.~~ **Resolved 2026-08-05** — see [[mynexus_postgres_backend]]. Both `sqlite` and `postgres` are now real, switchable backends.
-3. **`auth.jwt_secret` config field exists but is dead code.** `config.Auth.JWTSecret` is parsed from `config.yaml`/env but never read anywhere else in `core-api` — there is no JWT signing, verification, or login endpoint. 系统设计文档.md's original assumption (JWT shared with MyBooks) was already corrected earlier this project (MyBooks actually uses Cookie/Session), but the leftover `jwt_secret` field in config was never removed even though nothing consumes it.
 4. ~~No login flow exists, `middleware.APITokenAuth` is enforced-when-present rather than mandatory.~~ **Resolved 2026-08-05** — see [[mynexus_admin_auth]]. Real session-based admin login now exists; `middleware.RequireAuth` mandates either a valid session or a valid API token on every `/api/v1` route (except login/logout themselves).
 5. **系统设计文档.md §9.2's "Accept-Language 驱动的后端错误文案" was not implemented.** Only `web-ui` has i18n (vue-i18n, 3 locales); Core API error strings are raw Go/English regardless of client locale.
 
@@ -28,4 +27,4 @@ Consolidated from [[mynexus_m2_decisions]], [[mynexus_m3_decisions]], [[mynexus_
 - **CJK tokenization for BM25 is a crude regex**, not a real segmenter (no jieba) — each CJK character counted as its own token.
 
 ## Why this matters
-When a future task touches auth, config, or the database layer, check this file first — several fields/interfaces in the codebase (`jwt_secret`, `database: postgres`) look implemented but are placeholders. Don't assume config surface area equals working functionality.
+When a future task touches auth, config, or the database layer, check this file first — several fields/interfaces in the codebase (`database: postgres`) look implemented but are placeholders. Don't assume config surface area equals working functionality.

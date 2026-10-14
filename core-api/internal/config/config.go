@@ -26,7 +26,6 @@ type ServerConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret   string `yaml:"jwt_secret"`
 	TokenPrefix string `yaml:"token_prefix"`
 }
 
@@ -246,9 +245,6 @@ func Load() Config {
 		cfg.Server.Port = v
 	} else if v := os.Getenv("PORT"); v != "" {
 		cfg.Server.Port = v
-	}
-	if v := os.Getenv("MYNEXUS_AUTH_JWT_SECRET"); v != "" {
-		cfg.Auth.JWTSecret = v
 	}
 	if v := os.Getenv("MYNEXUS_WORKER_URL"); v != "" {
 		cfg.Worker.URL = v

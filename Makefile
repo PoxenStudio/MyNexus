@@ -1,6 +1,6 @@
 PARENT := /Volumes/data/projects/poxenstudio/MyNexus
 
-.PHONY: dev-up dev-down dev-logs build-image build-images setup-multiarch build-image-multiarch build-images-multiarch
+.PHONY: dev-up dev-down dev-logs build-image setup-multiarch build-image-multiarch
 
 # ---- image build config ----
 REGISTRY := poxenstudio
@@ -24,15 +24,11 @@ build-image:
 	docker build --pull --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
 		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) .
 
-build-images: build-image
-
-# ---- multi-arch build (docker buildx, pushed to registry) ----
+# ---- multi-arch build (docker buildx, loaded into local docker) ----
 build-image-multiarch:
 	docker buildx build --pull --platform=$(PLATFORMS) \
 		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --push .
-
-build-images-multiarch: build-image-multiarch
+		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --load .
 
 dev-up:
 	mkdir -p $(PARENT)/.tmp
