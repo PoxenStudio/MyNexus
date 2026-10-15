@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -57,16 +58,49 @@ func (h *BookHandler) Import(c *gin.Context) {
 		sourceOrigin = models.SourceOriginDirectUpload
 	}
 
-	book, err := h.books.CreateBook(defaultUserID, strings.TrimPrefix(ext, "."), sourceOrigin)
+	var book *models.Book
+	var task *models.Task
+	var existing bool
+	myBooksIDValue := strings.TrimSpace(c.PostForm("mybooks_id"))
+	if myBooksIDValue != "" {
+		myBooksID, parseErr := strconv.ParseInt(myBooksIDValue, 10, 64)
+		if parseErr != nil || myBooksID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "mybooks_id must be a positive integer"})
+			return
+		}
+		book, task, existing, err = h.books.CreateBookWithMyBooksID(defaultUserID, strings.TrimPrefix(ext, "."), sourceOrigin, myBooksID)
+	} else {
+		book, err = h.books.CreateBook(defaultUserID, strings.TrimPrefix(ext, "."), sourceOrigin)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if existing {
+		if book.FilePath != "" {
+			h.dispatcher.TryDispatch()
+			c.JSON(http.StatusOK, dto.ImportResponse{TaskID: task.ID, BookID: book.ID})
+			return
+		}
+		if err := h.books.SetStatus(book.ID, models.BookStatusPending); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	// The dispatcher (below) reads the saved path back off the book row
 	// itself when it actually dispatches, rather than needing it threaded
 	// through here.
 	if _, err := h.books.SaveUploadedFile(book.ID, fileHeader); err != nil {
+		if task != nil {
+			if failErr := h.tasks.Fail(task.ID, err.Error()); failErr != nil {
+				log.Printf("book %s: failed to mark MyBooks ingest task failed: %v", book.ID, failErr)
+			}
+			if statusErr := h.books.SetStatus(book.ID, models.BookStatusFailed); statusErr != nil {
+				log.Printf("book %s: failed to mark MyBooks import failed: %v", book.ID, statusErr)
+			}
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -87,10 +121,24 @@ func (h *BookHandler) Import(c *gin.Context) {
 		}
 	}
 
-	task, err := h.tasks.CreateTask(book.ID, defaultUserID, models.TaskTypeIngest)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	if task == nil {
+		task, err = h.tasks.CreateTask(book.ID, defaultUserID, models.TaskTypeIngest)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		currentTask, taskErr := h.tasks.GetTask(task.ID)
+		if taskErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": taskErr.Error()})
+			return
+		}
+		if currentTask.Status != models.TaskStatusPending && currentTask.Status != models.TaskStatusProcessing {
+			if err := h.tasks.Retry(task.ID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+		}
 	}
 	// Queued, not necessarily dispatched yet — TryDispatch hands it to
 	// Worker right away if there's a free worker.max_concurrent_tasks slot,
@@ -101,7 +149,55 @@ func (h *BookHandler) Import(c *gin.Context) {
 	// if Worker happens to be unreachable right now.
 	h.dispatcher.TryDispatch()
 
-	c.JSON(http.StatusAccepted, dto.ImportResponse{TaskID: task.ID, BookID: book.ID})
+	status := http.StatusAccepted
+	if existing {
+		status = http.StatusOK
+	}
+	c.JSON(status, dto.ImportResponse{TaskID: task.ID, BookID: book.ID})
+}
+
+func (h *BookHandler) AnalysisByMyBooksID(c *gin.Context) {
+	myBooksID, err := strconv.ParseInt(c.Param("mybooks_id"), 10, 64)
+	if err != nil || myBooksID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mybooks_id must be a positive integer"})
+		return
+	}
+
+	book, err := h.books.GetBookByMyBooksID(myBooksID)
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "book not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ingest, err := h.tasks.GetLatestTask(book.ID, models.TaskTypeIngest)
+	if err != nil && err != sql.ErrNoRows {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var summarize *models.Task
+	if ingest != nil && ingest.Status == models.TaskStatusCompleted {
+		summarize, err = h.tasks.GetLatestTaskAfter(book.ID, models.TaskTypeSummarize, ingest.CreatedAt)
+		if err != nil && err != sql.ErrNoRows {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	hasChapters := false
+	if ingest != nil && ingest.Status == models.TaskStatusCompleted && summarize == nil {
+		hasChapters, err = h.books.HasChapters(book.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, dto.NewMyBooksAnalysisResponse(*book, ingest, summarize, hasChapters))
 }
 
 func (h *BookHandler) List(c *gin.Context) {

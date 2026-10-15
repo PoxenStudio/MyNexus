@@ -54,6 +54,12 @@ func RunMigrations(db *sql.DB, fsys embed.FS, dir string) error {
 			continue
 		}
 
+		if name == "0002_unique_mybooks_id.sql" {
+			if err := checkMyBooksIDDuplicates(db); err != nil {
+				return fmt.Errorf("apply migration %s: %w", name, err)
+			}
+		}
+
 		script, err := fsys.ReadFile(dir + "/" + name)
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", name, err)
@@ -62,6 +68,36 @@ func RunMigrations(db *sql.DB, fsys embed.FS, dir string) error {
 		if err := applyMigration(db, name, string(script)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func checkMyBooksIDDuplicates(db *sql.DB) error {
+	rows, err := db.Query(
+		`SELECT mybooks_id, COUNT(*) FROM books
+		 WHERE mybooks_id IS NOT NULL
+		 GROUP BY mybooks_id HAVING COUNT(*) > 1
+		 ORDER BY mybooks_id`,
+	)
+	if err != nil {
+		return fmt.Errorf("check duplicate mybooks_id values: %w", err)
+	}
+	defer rows.Close()
+
+	var duplicates []string
+	for rows.Next() {
+		var id int64
+		var count int
+		if err := rows.Scan(&id, &count); err != nil {
+			return fmt.Errorf("read duplicate mybooks_id values: %w", err)
+		}
+		duplicates = append(duplicates, fmt.Sprintf("%d (%d books)", id, count))
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read duplicate mybooks_id values: %w", err)
+	}
+	if len(duplicates) > 0 {
+		return fmt.Errorf("duplicate mybooks_id values require manual resolution before migration: %s", strings.Join(duplicates, ", "))
 	}
 	return nil
 }

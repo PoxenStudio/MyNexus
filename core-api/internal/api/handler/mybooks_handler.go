@@ -90,6 +90,10 @@ func (h *MyBooksHandler) Import(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if body.MyBooksID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mybooks_id must be a positive integer"})
+		return
+	}
 
 	cfg, err := loadMyBooksConfig()
 	if err != nil {
@@ -130,19 +134,33 @@ func (h *MyBooksHandler) Import(c *gin.Context) {
 	tmpFile.Close()
 	log.Printf("[mybooks] downloaded %d to %s", body.MyBooksID, tmpPath)
 
-	book, err := h.books.CreateBook(defaultUserID, body.Format, models.SourceOriginMyBooks)
+	book, task, existing, err := h.books.CreateBookWithMyBooksID(defaultUserID, body.Format, models.SourceOriginMyBooks, body.MyBooksID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	if _, err := h.books.SaveLocalFile(book.ID, tmpPath, body.Format); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "save book file: " + err.Error()})
-		return
+	if existing {
+		if book.FilePath != "" {
+			h.dispatcher.TryDispatch()
+			c.JSON(http.StatusOK, dto.MyBooksImportResponse{BookID: book.ID, TaskID: task.ID})
+			return
+		}
+		if err := h.books.SetStatus(book.ID, models.BookStatusPending); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
-	if err := h.books.SetMyBooksID(book.ID, body.MyBooksID); err != nil {
-		log.Printf("[mybooks] set mybooks_id failed (non-fatal): %v", err)
+	if _, err := h.books.SaveLocalFile(book.ID, tmpPath, body.Format); err != nil {
+		if failErr := h.tasks.Fail(task.ID, err.Error()); failErr != nil {
+			log.Printf("[mybooks] book %s: failed to mark ingest task failed: %v", book.ID, failErr)
+		}
+		if statusErr := h.books.SetStatus(book.ID, models.BookStatusFailed); statusErr != nil {
+			log.Printf("[mybooks] book %s: failed to mark import failed: %v", book.ID, statusErr)
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "save book file: " + err.Error()})
+		return
 	}
 
 	if coverURL := strings.TrimSpace(c.Query("cover_url")); coverURL != "" {
@@ -151,10 +169,16 @@ func (h *MyBooksHandler) Import(c *gin.Context) {
 		}
 	}
 
-	task, err := h.tasks.CreateTask(book.ID, defaultUserID, models.TaskTypeIngest)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	currentTask, taskErr := h.tasks.GetTask(task.ID)
+	if taskErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": taskErr.Error()})
 		return
+	}
+	if currentTask.Status != models.TaskStatusPending && currentTask.Status != models.TaskStatusProcessing {
+		if err := h.tasks.Retry(task.ID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	h.dispatcher.TryDispatch()

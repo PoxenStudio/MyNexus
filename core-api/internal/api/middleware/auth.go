@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,10 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 	return func(c *gin.Context) {
 		if sid, err := c.Cookie(auth.SessionCookieName); err == nil {
 			if userID, username, role, ok := sessions.Validate(sid); ok {
+				if isChatRequest(c.Request.URL.Path) && c.GetHeader("X-MyBooks-User-ID") != "" {
+					c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "external user identity requires the MyNexus integration token"})
+					return
+				}
 				c.Set("admin_user_id", userID)
 				c.Set("user_id", userID)
 				c.Set("role", role)
@@ -63,11 +68,25 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 					c.Set("user_id", "system")
 					c.Set("role", "admin")
 					c.Set("actor", "env:MYNEXUS_API_TOKEN")
+					if isChatRequest(c.Request.URL.Path) {
+						if externalUserID := c.GetHeader("X-MyBooks-User-ID"); externalUserID != "" {
+							id, err := strconv.ParseInt(externalUserID, 10, 64)
+							if err != nil || id <= 0 {
+								c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "X-MyBooks-User-ID must be a positive integer"})
+								return
+							}
+							c.Set("user_id", "mybooks:"+strconv.FormatInt(id, 10))
+						}
+					}
 					c.Next()
 					return
 				}
 				if strings.HasPrefix(raw, tokenPrefix) {
 					if userID, alias, valid := tokens.Authenticate(raw); valid {
+						if isChatRequest(c.Request.URL.Path) && c.GetHeader("X-MyBooks-User-ID") != "" {
+							c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "external user identity requires the MyNexus integration token"})
+							return
+						}
 						c.Set("user_id", userID)
 						c.Set("role", "admin")
 						actor := "token"
@@ -86,6 +105,10 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 	}
+}
+
+func isChatRequest(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/chat/")
 }
 
 // RequireAdmin gates routes to the "admin" role only — plain "user" accounts

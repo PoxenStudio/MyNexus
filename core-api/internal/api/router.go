@@ -105,6 +105,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.POST("/system/test-provider", sys.TestProvider)
 
 			adminOnly.POST("/books/import", books.Import)
+			adminOnly.GET("/books/by-mybooks-id/:mybooks_id", books.AnalysisByMyBooksID)
 			adminOnly.POST("/books/bulk-delete", books.BulkDelete)
 			adminOnly.POST("/books/bulk-rebuild", books.BulkRebuild)
 			adminOnly.GET("/books", books.List)

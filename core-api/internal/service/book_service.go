@@ -61,40 +61,132 @@ func (s *BookService) CreateBook(userID, sourceFormat, sourceOrigin string) (*mo
 	return book, nil
 }
 
+func (s *BookService) CreateBookWithMyBooksID(userID, sourceFormat, sourceOrigin string, mybooksID int64) (*models.Book, *models.Task, bool, error) {
+	if mybooksID <= 0 {
+		return nil, nil, false, fmt.Errorf("mybooks_id must be a positive integer")
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	book := &models.Book{
+		ID:           uuid.NewString(),
+		UserID:       userID,
+		SourceOrigin: sourceOrigin,
+		SourceFormat: sourceFormat,
+		Status:       models.BookStatusPending,
+		Tags:         "[]",
+		MyBooksID:    sql.NullInt64{Int64: mybooksID, Valid: true},
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("begin MyBooks import: %w", err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		`INSERT INTO books (id, user_id, title, author, publisher, language, publish_date, isbn,
+			source_origin, source_format, file_path, status, tags, category, mybooks_id, created_at, updated_at)
+		 VALUES (?, ?, '', '', '', '', '', '', ?, ?, '', ?, ?, '', ?, ?, ?)`,
+		book.ID, book.UserID, book.SourceOrigin, book.SourceFormat, book.Status, book.Tags,
+		mybooksID, book.CreatedAt, book.UpdatedAt,
+	)
+	if err != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			return nil, nil, false, fmt.Errorf("insert book with mybooks_id: %w; rollback: %v", err, rollbackErr)
+		}
+		existing, lookupErr := s.GetBookByMyBooksID(mybooksID)
+		if lookupErr == sql.ErrNoRows {
+			return nil, nil, false, fmt.Errorf("insert book with mybooks_id: %w", err)
+		}
+		if lookupErr != nil {
+			return nil, nil, false, fmt.Errorf("insert book with mybooks_id: %w; lookup existing book: %v", err, lookupErr)
+		}
+		task, taskErr := s.getOrCreateMyBooksIngestTask(existing, userID)
+		if taskErr != nil {
+			return nil, nil, false, taskErr
+		}
+		return existing, task, false, nil
+	}
+
+	task := newMyBooksIngestTask(book.ID, userID, now)
+	if err := insertMyBooksIngestTask(tx, task); err != nil {
+		return nil, nil, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, nil, false, fmt.Errorf("commit MyBooks import: %w", err)
+	}
+	return book, task, true, nil
+}
+
+func (s *BookService) getOrCreateMyBooksIngestTask(book *models.Book, userID string) (*models.Task, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("begin MyBooks task lookup: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`UPDATE books SET updated_at = updated_at WHERE id = ?`, book.ID); err != nil {
+		return nil, fmt.Errorf("lock MyBooks book import: %w", err)
+	}
+	row := tx.QueryRow(
+		`SELECT id, book_id, user_id, type, status, progress, error_msg, stages_log,
+			COALESCE(dispatched_at, ''), created_at, updated_at
+		 FROM tasks WHERE book_id = ? AND type = ?
+		 ORDER BY created_at DESC, id DESC LIMIT 1`,
+		book.ID, models.TaskTypeIngest,
+	)
+	task, err := scanTask(row)
+	if err == nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit MyBooks task lookup: %w", err)
+		}
+		return task, nil
+	}
+	if err != sql.ErrNoRows {
+		return nil, fmt.Errorf("find MyBooks ingest task: %w", err)
+	}
+
+	task = newMyBooksIngestTask(book.ID, userID, time.Now().UTC().Format(time.RFC3339))
+	if err := insertMyBooksIngestTask(tx, task); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit MyBooks ingest task: %w", err)
+	}
+	return task, nil
+}
+
+func newMyBooksIngestTask(bookID, userID, createdAt string) *models.Task {
+	return &models.Task{
+		ID: uuid.NewString(), BookID: bookID, UserID: userID, Type: models.TaskTypeIngest,
+		Status: models.TaskStatusPending, StagesLog: "[]", CreatedAt: createdAt, UpdatedAt: createdAt,
+	}
+}
+
+func insertMyBooksIngestTask(tx *sql.Tx, task *models.Task) error {
+	if _, err := tx.Exec(
+		`INSERT INTO tasks (id, book_id, user_id, type, status, progress, error_msg, stages_log, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, 0, '', ?, ?, ?)`,
+		task.ID, task.BookID, task.UserID, task.Type, task.Status, task.StagesLog, task.CreatedAt, task.UpdatedAt,
+	); err != nil {
+		return fmt.Errorf("insert MyBooks ingest task: %w", err)
+	}
+	return nil
+}
+
 // SaveUploadedFile persists the multipart file under uploadDir/<bookID><ext> and
 // records the resulting path on the book row. The original filename is kept
 // out of the on-disk path (it's passed to Worker separately as a title hint
 // for formats with no embedded metadata, e.g. TXT) so storage stays free of
 // user-controlled names.
 func (s *BookService) SaveUploadedFile(bookID string, header *multipart.FileHeader) (string, error) {
-	if err := os.MkdirAll(s.uploadDir, 0o755); err != nil {
-		return "", fmt.Errorf("create upload dir: %w", err)
-	}
-
-	ext := strings.ToLower(filepath.Ext(header.Filename))
-	destPath := filepath.Join(s.uploadDir, bookID+ext)
-
 	src, err := header.Open()
 	if err != nil {
 		return "", fmt.Errorf("open uploaded file: %w", err)
 	}
 	defer src.Close()
-
-	dst, err := os.Create(destPath)
-	if err != nil {
-		return "", fmt.Errorf("create dest file: %w", err)
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, src); err != nil {
-		return "", fmt.Errorf("write dest file: %w", err)
-	}
-
-	if _, err := s.db.Exec(`UPDATE books SET file_path = ?, updated_at = ? WHERE id = ?`,
-		destPath, time.Now().UTC().Format(time.RFC3339), bookID); err != nil {
-		return "", fmt.Errorf("update book file_path: %w", err)
-	}
-	return destPath, nil
+	return s.saveFile(bookID, strings.ToLower(filepath.Ext(header.Filename)), src)
 }
 
 func (s *BookService) SetStatus(bookID, status string) error {
@@ -110,30 +202,41 @@ func (s *BookService) SetMyBooksID(bookID string, mybooksID int64) error {
 }
 
 func (s *BookService) SaveLocalFile(bookID, localPath, ext string) (string, error) {
-	if err := os.MkdirAll(s.uploadDir, 0o755); err != nil {
-		return "", fmt.Errorf("create upload dir: %w", err)
-	}
-
-	destExt := strings.ToLower(ext)
-	if !strings.HasPrefix(destExt, ".") {
-		destExt = "." + destExt
-	}
-	destPath := filepath.Join(s.uploadDir, bookID+destExt)
-
 	src, err := os.Open(localPath)
 	if err != nil {
 		return "", fmt.Errorf("open local file: %w", err)
 	}
 	defer src.Close()
 
-	dst, err := os.Create(destPath)
-	if err != nil {
-		return "", fmt.Errorf("create dest file: %w", err)
+	destExt := strings.ToLower(ext)
+	if !strings.HasPrefix(destExt, ".") {
+		destExt = "." + destExt
 	}
-	defer dst.Close()
+	return s.saveFile(bookID, destExt, src)
+}
 
-	if _, err := io.Copy(dst, src); err != nil {
-		return "", fmt.Errorf("copy file: %w", err)
+func (s *BookService) saveFile(bookID, ext string, src io.Reader) (string, error) {
+	if err := os.MkdirAll(s.uploadDir, 0o755); err != nil {
+		return "", fmt.Errorf("create upload dir: %w", err)
+	}
+
+	destPath := filepath.Join(s.uploadDir, bookID+ext)
+	tmpPath := filepath.Join(s.uploadDir, bookID+"-"+uuid.NewString()+".tmp")
+	tmpFile, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+	if err != nil {
+		return "", fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmpPath)
+
+	if _, err := io.Copy(tmpFile, src); err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("write temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("close temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return "", fmt.Errorf("move file into place: %w", err)
 	}
 
 	if _, err := s.db.Exec(`UPDATE books SET file_path = ?, updated_at = ? WHERE id = ?`,
@@ -164,6 +267,22 @@ func (s *BookService) GetBook(id string) (*models.Book, error) {
 			source_origin, source_format, file_path, status, tags, category, summary, keywords, reading_guide, reference_index, cover_path, mybooks_id, created_at, updated_at
 		 FROM books WHERE id = ?`, id)
 	return scanBook(row)
+}
+
+func (s *BookService) GetBookByMyBooksID(mybooksID int64) (*models.Book, error) {
+	row := s.db.QueryRow(
+		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, reading_guide, reference_index, cover_path, mybooks_id, created_at, updated_at
+		 FROM books WHERE mybooks_id = ?`, mybooksID)
+	return scanBook(row)
+}
+
+func (s *BookService) HasChapters(bookID string) (bool, error) {
+	var count int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM chapters WHERE book_id = ?`, bookID).Scan(&count); err != nil {
+		return false, fmt.Errorf("count book chapters: %w", err)
+	}
+	return count > 0, nil
 }
 
 // CountByStatus powers the chat assistant's "get_library_stats" tool (see

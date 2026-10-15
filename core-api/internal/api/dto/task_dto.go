@@ -43,6 +43,61 @@ type TaskListResponse struct {
 	Size  int            `json:"size"`
 }
 
+type MyBooksAnalysisResponse struct {
+	MyBooksID      int64         `json:"mybooks_id"`
+	BookID         string        `json:"book_id"`
+	BookStatus     string        `json:"book_status"`
+	AnalysisStatus string        `json:"analysis_status"`
+	IngestTask     *TaskResponse `json:"ingest_task,omitempty"`
+	SummarizeTask  *TaskResponse `json:"summarize_task,omitempty"`
+	ReadingGuide   string        `json:"reading_guide"`
+	ErrorMsg       string        `json:"error_msg,omitempty"`
+}
+
+func NewMyBooksAnalysisResponse(book models.Book, ingest, summarize *models.Task, hasChapters bool) MyBooksAnalysisResponse {
+	response := MyBooksAnalysisResponse{
+		MyBooksID:    book.MyBooksID.Int64,
+		BookID:       book.ID,
+		BookStatus:   book.Status,
+		ReadingGuide: book.ReadingGuide,
+	}
+	if ingest != nil {
+		task := NewTaskResponse(*ingest)
+		response.IngestTask = &task
+	}
+	if summarize != nil {
+		task := NewTaskResponse(*summarize)
+		response.SummarizeTask = &task
+	}
+
+	switch {
+	case ingest == nil:
+		response.AnalysisStatus = models.TaskStatusPending
+	case ingest.Status == models.TaskStatusFailed || ingest.Status == models.TaskStatusCanceled:
+		response.AnalysisStatus = models.TaskStatusFailed
+	case ingest.Status == models.TaskStatusPending || ingest.Status == models.TaskStatusProcessing:
+		response.AnalysisStatus = ingest.Status
+	case ingest.Status != models.TaskStatusCompleted:
+		response.AnalysisStatus = models.TaskStatusFailed
+		response.ErrorMsg = "unknown ingest task status"
+	case summarize == nil && book.Status == models.BookStatusReady && !hasChapters:
+		response.AnalysisStatus = models.TaskStatusFailed
+		response.ErrorMsg = "book has no chapters to summarize"
+	case summarize == nil:
+		response.AnalysisStatus = models.TaskStatusProcessing
+	case summarize.Status == models.TaskStatusCompleted:
+		response.AnalysisStatus = models.TaskStatusCompleted
+	case summarize.Status == models.TaskStatusPending || summarize.Status == models.TaskStatusProcessing:
+		response.AnalysisStatus = summarize.Status
+	case summarize.Status == models.TaskStatusFailed || summarize.Status == models.TaskStatusCanceled:
+		response.AnalysisStatus = models.TaskStatusFailed
+	default:
+		response.AnalysisStatus = models.TaskStatusFailed
+		response.ErrorMsg = "unknown summarize task status"
+	}
+	return response
+}
+
 // Worker -> Core API callback payloads.
 
 type TaskProgressCallback struct {

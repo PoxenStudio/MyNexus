@@ -50,6 +50,28 @@ func (s *TaskService) GetTask(id string) (*models.Task, error) {
 	return scanTask(row)
 }
 
+func (s *TaskService) GetLatestTask(bookID, taskType string) (*models.Task, error) {
+	row := s.db.QueryRow(
+		`SELECT id, book_id, user_id, type, status, progress, error_msg, stages_log,
+			COALESCE(dispatched_at, ''), created_at, updated_at
+		 FROM tasks WHERE book_id = ? AND type = ?
+		 ORDER BY created_at DESC, id DESC LIMIT 1`,
+		bookID, taskType,
+	)
+	return scanTask(row)
+}
+
+func (s *TaskService) GetLatestTaskAfter(bookID, taskType, createdAt string) (*models.Task, error) {
+	row := s.db.QueryRow(
+		`SELECT id, book_id, user_id, type, status, progress, error_msg, stages_log,
+			COALESCE(dispatched_at, ''), created_at, updated_at
+		 FROM tasks WHERE book_id = ? AND type = ? AND created_at >= ?
+		 ORDER BY created_at DESC, id DESC LIMIT 1`,
+		bookID, taskType, createdAt,
+	)
+	return scanTask(row)
+}
+
 func (s *TaskService) ListTasks(page, size int, status, bookID string) ([]models.Task, int64, error) {
 	if page < 1 {
 		page = 1
