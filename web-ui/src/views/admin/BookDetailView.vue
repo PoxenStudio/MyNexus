@@ -681,10 +681,11 @@ onUnmounted(() => {
         </div>
 
         <details v-if="book.reading_guide" class="summary-section">
-          <summary class="summary-header">
+          <summary class="summary-section-summary">
             <h2>
               <span class="summary-dot" aria-hidden="true"></span>{{ t("books.readingGuide") }}
             </h2>
+            <AppIcon name="chevronDown" :size="18" class="summary-section-toggle" />
           </summary>
           <div class="summary-body">
             <MarkdownContent :content="book.reading_guide" class="summary-text" />
@@ -692,10 +693,11 @@ onUnmounted(() => {
         </details>
 
         <details v-if="book.reference_index" class="summary-section">
-          <summary class="summary-header">
+          <summary class="summary-section-summary">
             <h2>
               <span class="summary-dot" aria-hidden="true"></span>{{ t("books.referenceIndex") }}
             </h2>
+            <AppIcon name="chevronDown" :size="18" class="summary-section-toggle" />
           </summary>
           <div class="summary-body">
             <MarkdownContent :content="book.reference_index" class="summary-text" />
@@ -919,6 +921,24 @@ onUnmounted(() => {
   padding: 1rem 1.25rem;
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+.summary-section-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+.summary-section-summary::-webkit-details-marker {
+  display: none;
+}
+.summary-section-toggle {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+.summary-section[open] .summary-section-toggle {
+  transform: rotate(180deg);
 }
 .summary-header {
   display: flex;
