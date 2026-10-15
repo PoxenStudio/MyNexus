@@ -17,4 +17,5 @@ type SystemSettings struct {
 	Retrieval config.RetrievalConfig `json:"retrieval"`
 	Debug     config.DebugConfig     `json:"debug"`
 	Summary   config.SummaryConfig   `json:"summary"`
+	MyBooks   config.MyBooksConfig   `json:"mybooks"`
 }

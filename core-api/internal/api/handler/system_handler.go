@@ -82,6 +82,7 @@ func (h *SystemHandler) Settings(c *gin.Context) {
 		Storage: cfg.Storage, Worker: cfg.Worker, Embedding: cfg.Embedding,
 		LLM: cfg.LLM, Splitter: cfg.Splitter, I18n: cfg.I18n, Chat: cfg.Chat,
 		Keyword: cfg.Keyword, Retrieval: cfg.Retrieval, Debug: cfg.Debug, Summary: cfg.Summary,
+		MyBooks: cfg.MyBooks,
 	})
 }
 
@@ -114,6 +115,7 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	onDisk.Retrieval = body.Retrieval
 	onDisk.Debug = body.Debug
 	onDisk.Summary = body.Summary
+	onDisk.MyBooks = body.MyBooks
 
 	if err := config.SaveToFile(onDisk); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "write config: " + err.Error()})

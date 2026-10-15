@@ -20,6 +20,11 @@ import (
 // idempotent "CREATE ... IF NOT EXISTS" statements tolerate re-execution,
 // ALTER TABLE ADD COLUMN does not. New schema changes should be added as a
 // new numbered file (e.g. 0002_*.sql), not edits to an already-shipped one.
+//
+// ALTER TABLE errors that signal the desired state already exists (duplicate
+// column / table) are treated as success so the migration file can still be
+// recorded — this covers manual DB edits (e.g. sqlite3 ALTER TABLE before
+// core-api starts) that leave the schema right but schema_migrations stale.
 func RunMigrations(db *sql.DB, fsys embed.FS, dir string) error {
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		name       TEXT PRIMARY KEY,
@@ -74,6 +79,31 @@ func isApplied(db *sql.DB, name string) (bool, error) {
 	}
 }
 
+// idempotentErr returns true when the DB reports that the object we were
+// trying to create already exists — SQLite's "duplicate column name" / "table
+// already exists" or Postgres's 42701 / 42P07. Treating these as success lets
+// a manual sqlite3 ALTER TABLE (done before core-api first starts a given
+// migration) roll forward cleanly.
+func idempotentErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "duplicate column name") {
+		return true
+	}
+	if strings.Contains(msg, "duplicate table name") {
+		return true
+	}
+	if strings.Contains(msg, "already exists") {
+		return true
+	}
+	if strings.Contains(msg, "42701") || strings.Contains(msg, "42P07") {
+		return true
+	}
+	return false
+}
+
 func applyMigration(db *sql.DB, name, script string) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -86,6 +116,9 @@ func applyMigration(db *sql.DB, name, script string) error {
 	// statements in a single Exec, unlike SQLite's driver.
 	for _, stmt := range splitStatements(script) {
 		if _, err := tx.Exec(stmt); err != nil {
+			if idempotentErr(err) {
+				continue
+			}
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 	}

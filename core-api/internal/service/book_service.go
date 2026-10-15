@@ -103,6 +103,46 @@ func (s *BookService) SetStatus(bookID, status string) error {
 	return err
 }
 
+func (s *BookService) SetMyBooksID(bookID string, mybooksID int64) error {
+	_, err := s.db.Exec(`UPDATE books SET mybooks_id = ?, updated_at = ? WHERE id = ?`,
+		mybooksID, time.Now().UTC().Format(time.RFC3339), bookID)
+	return err
+}
+
+func (s *BookService) SaveLocalFile(bookID, localPath, ext string) (string, error) {
+	if err := os.MkdirAll(s.uploadDir, 0o755); err != nil {
+		return "", fmt.Errorf("create upload dir: %w", err)
+	}
+
+	destExt := strings.ToLower(ext)
+	if !strings.HasPrefix(destExt, ".") {
+		destExt = "." + destExt
+	}
+	destPath := filepath.Join(s.uploadDir, bookID+destExt)
+
+	src, err := os.Open(localPath)
+	if err != nil {
+		return "", fmt.Errorf("open local file: %w", err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create(destPath)
+	if err != nil {
+		return "", fmt.Errorf("create dest file: %w", err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", fmt.Errorf("copy file: %w", err)
+	}
+
+	if _, err := s.db.Exec(`UPDATE books SET file_path = ?, updated_at = ? WHERE id = ?`,
+		destPath, time.Now().UTC().Format(time.RFC3339), bookID); err != nil {
+		return "", fmt.Errorf("update book file_path: %w", err)
+	}
+	return destPath, nil
+}
+
 // ApplyParsedMetadata fills in title/author/language extracted by the Worker,
 // but never overwrites fields the user already edited manually.
 func (s *BookService) ApplyParsedMetadata(bookID, title, author, language string) error {
@@ -121,7 +161,7 @@ func (s *BookService) ApplyParsedMetadata(bookID, title, author, language string
 func (s *BookService) GetBook(id string) (*models.Book, error) {
 	row := s.db.QueryRow(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, mybooks_id, created_at, updated_at
 		 FROM books WHERE id = ?`, id)
 	return scanBook(row)
 }
@@ -176,7 +216,7 @@ func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book
 	listArgs := append(append([]any{}, args...), size, (page-1)*size)
 	rows, err := s.db.Query(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, mybooks_id, created_at, updated_at
 		 FROM books `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list books: %w", err)
@@ -673,7 +713,7 @@ func scanBookRows(row rowScanner) (*models.Book, error) {
 	var b models.Book
 	err := row.Scan(&b.ID, &b.UserID, &b.Title, &b.Author, &b.Publisher, &b.Language, &b.PublishDate,
 		&b.ISBN, &b.SourceOrigin, &b.SourceFormat, &b.FilePath, &b.Status, &b.Tags, &b.Category, &b.Summary,
-		&b.Keywords, &b.CoverPath, &b.CreatedAt, &b.UpdatedAt)
+		&b.Keywords, &b.CoverPath, &b.MyBooksID, &b.CreatedAt, &b.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, err
 	}

@@ -8,6 +8,7 @@ import {
   testProvider,
   type SystemSettings,
 } from "../../api/system";
+import { testMyBooksConnection } from "../../api/mybooks";
 import { useAuthStore } from "../../stores/auth";
 
 const { t } = useI18n();
@@ -28,6 +29,7 @@ const tabs = [
   { key: "retrieval", label: "settings.tabs.retrieval" },
   { key: "splitter", label: "settings.tabs.splitter" },
   { key: "basic", label: "settings.tabs.basic" },
+  { key: "connection", label: "settings.tabs.connection" },
 ] as const;
 type TabKey = (typeof tabs)[number]["key"];
 const activeTab = ref<TabKey>("storage");
@@ -50,8 +52,8 @@ const embeddingChanged = computed(() => {
   );
 });
 
-const testing = ref<"embedding" | "llm" | null>(null);
-const testResult = ref<{ target: "embedding" | "llm"; ok: boolean; message: string } | null>(null);
+const testing = ref<"embedding" | "llm" | "mybooks" | null>(null);
+const testResult = ref<{ target: "embedding" | "llm" | "mybooks"; ok: boolean; message: string } | null>(null);
 
 async function load() {
   loading.value = true;
@@ -86,6 +88,21 @@ async function runTest(target: "embedding" | "llm") {
     testResult.value = { target, ok: r.ok, message: r.ok ? t("settings.testOk") : r.error || t("settings.testFail") };
   } catch (e: any) {
     testResult.value = { target, ok: false, message: e?.response?.data?.error || t("settings.testFail") };
+  } finally {
+    testing.value = null;
+  }
+}
+
+async function runMyBooksTest() {
+  if (!settings.value) return;
+  const mb = settings.value.mybooks;
+  testing.value = "mybooks";
+  testResult.value = null;
+  try {
+    const r = await testMyBooksConnection(mb);
+    testResult.value = { target: "mybooks", ok: r.ok, message: r.ok ? t("settings.testOk") : r.error || t("settings.testFail") };
+  } catch (e: any) {
+    testResult.value = { target: "mybooks", ok: false, message: e?.response?.data?.error || t("settings.testFail") };
   } finally {
     testing.value = null;
   }
@@ -377,6 +394,31 @@ onMounted(load);
           {{ t("settings.debugLogging") }}
         </label>
         <p v-if="settings.debug.llm_logging" class="hint">{{ t("settings.debugLoggingHint") }}</p>
+      </fieldset>
+
+      <fieldset v-show="activeTab === 'connection'">
+        <legend>{{ t("settings.mybooks") }}</legend>
+        <label>
+          {{ t("settings.mybooksBaseUrl") }}
+          <input v-model="settings.mybooks.base_url" placeholder="http://your.mybooks:8081" />
+        </label>
+        <p class="hint">{{ t("settings.mybooksBaseUrlHint") }}</p>
+        <label>
+          {{ t("settings.mybooksUsername") }}
+          <input v-model="settings.mybooks.username" />
+        </label>
+        <label>
+          {{ t("settings.mybooksPassword") }}
+          <input v-model="settings.mybooks.password" type="password" autocomplete="off" />
+        </label>
+        <div class="test-row">
+          <button type="button" :disabled="testing === 'mybooks'" @click="runMyBooksTest">
+            {{ testing === "mybooks" ? t("common.loading") : t("settings.testConnection") }}
+          </button>
+          <span v-if="testResult?.target === 'mybooks'" :class="testResult.ok ? 'success' : 'error'">
+            {{ testResult.message }}
+          </span>
+        </div>
       </fieldset>
 
       <p v-if="error" class="error">{{ error }}</p>

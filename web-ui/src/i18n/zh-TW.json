@@ -141,7 +141,18 @@
     "completionTokens": "輸出 Token",
     "llmCalls": "呼叫次數",
     "tokenBreakdown": "各步驟佔比",
-    "noTokenUsage": "暫無 Token 消耗記錄"
+    "noTokenUsage": "暫無 Token 消耗記錄",
+    "importFromMyBooks": "從 MyBooks 導入",
+    "importFromMyBooksHint": "搜索你的 MyBooks 書庫並一鍵導入",
+    "mybooksDialogTitle": "從 MyBooks 導入書籍",
+    "mybooksSearchPlaceholder": "輸入書名關鍵詞搜索...",
+    "mybooksSearchButton": "搜索",
+    "mybooksNoResult": "未找到匹配書籍",
+    "mybooksNoSupportedFormat": "該書籍沒有 EPUB/TXT 格式，無法導入",
+    "mybooksImportButton": "導入 {format}",
+    "mybooksImporting": "導入中...",
+    "mybooksImportedOk": "已提交導入，可到任務監控查看進度",
+    "mybooksImportError": "導入失敗：{msg}"
   },
   "tasks": {
     "title": "任務監控",
@@ -307,8 +318,14 @@
       "llm": "LLM",
       "retrieval": "檢索",
       "splitter": "分塊",
-      "basic": "基礎"
-    }
+      "basic": "基礎",
+      "connection": "連接"
+    },
+    "mybooks": "MyBooks 書庫",
+    "mybooksBaseUrl": "MyBooks 地址",
+    "mybooksBaseUrlHint": "例如 http://your.mybooks:8081（注意端口別與 MyNexus core-api 8080 衝突）",
+    "mybooksUsername": "MyBooks 用戶名",
+    "mybooksPassword": "MyBooks 密碼"
   },
   "chat": {
     "newSession": "新建會話",

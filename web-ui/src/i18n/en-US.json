@@ -141,7 +141,18 @@
     "completionTokens": "Output Tokens",
     "llmCalls": "LLM Calls",
     "tokenBreakdown": "Callsite breakdown",
-    "noTokenUsage": "No token usage recorded yet"
+    "noTokenUsage": "No token usage recorded yet",
+    "importFromMyBooks": "Import from MyBooks",
+    "importFromMyBooksHint": "Search your MyBooks library and import one click",
+    "mybooksDialogTitle": "Import from MyBooks",
+    "mybooksSearchPlaceholder": "Enter book title to search...",
+    "mybooksSearchButton": "Search",
+    "mybooksNoResult": "No books found",
+    "mybooksNoSupportedFormat": "This book has no EPUB/TXT format available",
+    "mybooksImportButton": "Import {format}",
+    "mybooksImporting": "Importing...",
+    "mybooksImportedOk": "Import submitted, check Tasks for progress",
+    "mybooksImportError": "Import failed: {msg}"
   },
   "tasks": {
     "title": "Tasks",
@@ -307,8 +318,14 @@
       "llm": "LLM",
       "retrieval": "Retrieval",
       "splitter": "Splitter",
-      "basic": "Basic"
-    }
+      "basic": "Basic",
+      "connection": "Connections"
+    },
+    "mybooks": "MyBooks Library",
+    "mybooksBaseUrl": "MyBooks URL",
+    "mybooksBaseUrlHint": "e.g. http://your.mybooks:8081 (port must not clash with MyNexus core-api 8080)",
+    "mybooksUsername": "MyBooks Username",
+    "mybooksPassword": "MyBooks Password"
   },
   "chat": {
     "newSession": "New Session",

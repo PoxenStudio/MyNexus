@@ -172,6 +172,12 @@ type SummaryConfig struct {
 	SkipBackmatterChapters bool `yaml:"skip_backmatter_chapters" json:"skip_backmatter_chapters"`
 }
 
+type MyBooksConfig struct {
+	BaseURL  string `yaml:"base_url" json:"base_url"`
+	Username string `yaml:"username" json:"username"`
+	Password string `yaml:"password" json:"password"`
+}
+
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -186,6 +192,7 @@ type Config struct {
 	Retrieval RetrievalConfig `yaml:"retrieval"`
 	Debug     DebugConfig     `yaml:"debug"`
 	Summary   SummaryConfig   `yaml:"summary"`
+	MyBooks   MyBooksConfig   `yaml:"mybooks" json:"mybooks"`
 
 	// Port kept for backward-compatible direct access; mirrors Server.Port.
 	// yaml:"-" so SaveToFile doesn't emit a spurious top-level "port" key.

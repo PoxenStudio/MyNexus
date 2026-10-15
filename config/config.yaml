@@ -15,7 +15,6 @@ storage:
     vector_store: chroma
     vector_store_path: ./data/vectorstore
     upload_dir: ./data/uploads
-    log_dir: "./data/logs"
 worker:
     url: localhost:8001
     max_concurrent_tasks: 1
@@ -65,6 +64,9 @@ retrieval:
     keyword_weight: 0.4
 debug:
     llm_logging: true
-    log_level: INFO
 summary:
     skip_backmatter_chapters: false
+mybooks:
+    base_url: http://192.168.1.227:8082
+    username: horky
+    password: Ccusr561273

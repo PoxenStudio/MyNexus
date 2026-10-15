@@ -59,6 +59,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	usersH := handler.NewUserHandler(userSvc, auditSvc)
 	llmUsage := handler.NewLLMUsageHandler(llmUsageSvc)
 	transfers := handler.NewTransferHandler(transfersSvc)
+	mybooks := handler.NewMyBooksHandler(bookSvc, taskSvc, dispatcher)
 
 	r.GET("/healthz", sys.Health)
 
@@ -140,6 +141,10 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 			adminOnly.PUT("/users/:id/role", usersH.SetRole)
 			adminOnly.PUT("/users/:id/status", usersH.SetStatus)
 			adminOnly.PUT("/users/:id/password", usersH.ResetPassword)
+
+			adminOnly.POST("/mybooks/test", mybooks.Test)
+			adminOnly.GET("/mybooks/search", mybooks.Search)
+			adminOnly.POST("/mybooks/import", mybooks.Import)
 		}
 	}
 

@@ -10,11 +10,15 @@ import {
   uploadBook,
   type Book,
 } from "../../api/books";
+import { fetchSettings } from "../../api/system";
+import MyBooksImportDialog from "../../components/MyBooksImportDialog.vue";
 
 const { t } = useI18n();
 const books = ref<Book[]>([]);
 const loading = ref(true);
 const uploading = ref(false);
+const mybooksConfigured = ref(false);
+const mybooksDialogOpen = ref(false);
 // {current, total} while a multi-file upload is running — current is the
 // 1-based index of the file in flight, so the label reads "1/3" not "0/3"
 // the instant the batch starts. null when nothing is uploading.
@@ -35,6 +39,12 @@ async function load() {
     const res = await listBooks({ size: 100 });
     books.value = res.items;
     selected.value = new Set([...selected.value].filter((id) => books.value.some((b) => b.id === id)));
+    try {
+      const s = await fetchSettings();
+      mybooksConfigured.value = !!(s.mybooks?.base_url?.trim());
+    } catch {
+      /* ignore — config not essential for the list */
+    }
   } finally {
     loading.value = false;
   }
@@ -143,28 +153,41 @@ onMounted(load);
   <section>
     <h1>{{ t("books.title") }}</h1>
 
-    <label
-      class="upload-card"
-      :class="{ dragover: dragOver, uploading }"
-      @dragover.prevent="dragOver = true"
-      @dragleave.prevent="dragOver = false"
-      @drop.prevent="onDrop"
-    >
-      <input
-        ref="fileInput"
-        type="file"
-        accept=".epub,.txt"
-        multiple
-        class="upload-input"
-        :disabled="uploading"
-        @change="onFileSelected"
-      />
-      <span class="upload-icon">📤</span>
-      <span class="upload-title">{{ t("books.upload") }}</span>
-      <span class="upload-hint">
-        {{ uploadProgress ? t("books.uploadProgress", uploadProgress) : t("books.uploadHint") }}
-      </span>
-    </label>
+    <div class="upload-cards">
+      <label
+        class="upload-card"
+        :class="{ dragover: dragOver, uploading }"
+        @dragover.prevent="dragOver = true"
+        @dragleave.prevent="dragOver = false"
+        @drop.prevent="onDrop"
+      >
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".epub,.txt"
+          multiple
+          class="upload-input"
+          :disabled="uploading"
+          @change="onFileSelected"
+        />
+        <span class="upload-icon">📤</span>
+        <span class="upload-title">{{ t("books.upload") }}</span>
+        <span class="upload-hint">
+          {{ uploadProgress ? t("books.uploadProgress", uploadProgress) : t("books.uploadHint") }}
+        </span>
+      </label>
+
+      <button
+        v-if="mybooksConfigured"
+        type="button"
+        class="upload-card mybooks-card"
+        @click="mybooksDialogOpen = true"
+      >
+        <span class="upload-icon">📚</span>
+        <span class="upload-title">{{ t("books.importFromMyBooks") }}</span>
+        <span class="upload-hint">{{ t("books.importFromMyBooksHint") }}</span>
+      </button>
+    </div>
     <ul v-if="uploadErrors.length" class="bulk-errors">
       <li v-for="(err, i) in uploadErrors" :key="i">{{ err }}</li>
     </ul>
@@ -211,10 +234,30 @@ onMounted(load);
       </tbody>
     </table>
     <p v-else>{{ t("common.empty") }}</p>
+
+    <MyBooksImportDialog v-model="mybooksDialogOpen" @imported="load" />
   </section>
 </template>
 
 <style scoped>
+.upload-cards {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.upload-cards .upload-card {
+  flex: 1 1 240px;
+  margin: 1rem 0;
+}
+.mybooks-card {
+  border-style: solid !important;
+  border-color: var(--primary, #3b82f6) !important;
+  border-width: 1.5px;
+}
+.mybooks-card:hover {
+  background: var(--accent-bg);
+  border-color: var(--primary, #3b82f6);
+}
 .upload-card {
   display: flex;
   flex-direction: column;

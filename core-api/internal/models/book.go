@@ -1,6 +1,7 @@
 package models
 
-// Book statuses, mirroring docs/系统设计文档.md §5.2.
+import "database/sql"
+
 const (
 	BookStatusPending    = "pending"
 	BookStatusProcessing = "processing"
@@ -10,6 +11,7 @@ const (
 
 const (
 	SourceOriginDirectUpload = "DirectUpload"
+	SourceOriginMyBooks      = "MyBooks"
 )
 
 type Book struct {
@@ -42,6 +44,7 @@ type Book struct {
 	// BookService's coverDir/SetCover), empty until one is downloaded,
 	// extracted, or generated — see storage/sqlite/migrations/0008_book_cover.sql.
 	CoverPath string
+	MyBooksID sql.NullInt64
 	CreatedAt string
 	UpdatedAt string
 }

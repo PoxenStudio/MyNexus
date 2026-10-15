@@ -105,6 +105,11 @@ export interface SystemSettings {
     // ingesting/summarizing them (see worker/src/util/chapter_title.py).
     skip_backmatter_chapters: boolean;
   };
+  mybooks: {
+    base_url: string;
+    username: string;
+    password: string;
+  };
 }
 
 export async function fetchSettings(): Promise<SystemSettings> {
