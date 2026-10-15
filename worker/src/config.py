@@ -182,10 +182,36 @@ def load_config() -> WorkerConfig:
 
     if v := os.getenv("MYNEXUS_DEBUG_LLM_LOGGING"):
         cfg.debug_llm_logging = v.strip().lower() in ("1", "true", "yes", "on")
+
+    if v := os.getenv("MYNEXUS_EMBEDDING_PROVIDER"):
+        cfg.embedding_provider = v
     if v := os.getenv("MYNEXUS_EMBEDDING_OPENAI_API_KEY"):
         cfg.embedding_openai.api_key = v
+    if v := os.getenv("MYNEXUS_EMBEDDING_OPENAI_BASE_URL"):
+        cfg.embedding_openai.base_url = v
+    if v := os.getenv("MYNEXUS_EMBEDDING_OPENAI_MODEL"):
+        cfg.embedding_openai.model = v
+    if v := os.getenv("MYNEXUS_EMBEDDING_OLLAMA_BASE_URL"):
+        cfg.embedding_ollama.base_url = v
+    if v := os.getenv("MYNEXUS_EMBEDDING_OLLAMA_MODEL"):
+        cfg.embedding_ollama.model = v
+    if v := os.getenv("MYNEXUS_EMBEDDING_LOCAL_MODEL"):
+        cfg.embedding_local_model = v
+    if v := os.getenv("MYNEXUS_EMBEDDING_LOCAL_MODEL_PATH"):
+        cfg.embedding_local_model_path = v
+
+    if v := os.getenv("MYNEXUS_LLM_PROVIDER"):
+        cfg.llm_provider = v
     if v := os.getenv("MYNEXUS_LLM_OPENAI_API_KEY"):
         cfg.llm_openai.api_key = v
+    if v := os.getenv("MYNEXUS_LLM_OPENAI_BASE_URL"):
+        cfg.llm_openai.base_url = v
+    if v := os.getenv("MYNEXUS_LLM_OPENAI_MODEL"):
+        cfg.llm_openai.model = v
+    if v := os.getenv("MYNEXUS_LLM_OLLAMA_BASE_URL"):
+        cfg.llm_ollama.base_url = v
+    if v := os.getenv("MYNEXUS_LLM_OLLAMA_MODEL"):
+        cfg.llm_ollama.model = v
     # In Docker, config.yaml's static value is "localhost:9090" for local dev,
     # but the worker container needs "core-api:9090"; docker-compose.yml sets
     # this env var explicitly for the worker service.

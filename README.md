@@ -91,6 +91,86 @@ docker run -d --name mynexus -p 3000:80 \
   --restart unless-stopped poxenstudio/mynexus:latest
 ```
 
+### Docker Compose 环境变量配置
+
+所有配置均可通过 `docker-compose.yml` 的 `environment` 字段或 `.env` 文件注入，环境变量优先级高于 `config.yaml`。
+
+#### 基础连接
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MYNEXUS_PORT` | `3000` | 宿主机映射端口 |
+| `MYNEXUS_DATA_DIR` | `./data` | 宿主机数据目录（数据库/向量库/日志） |
+| `MYNEXUS_CONFIG_DIR` | `./config-runtime` | 宿主机配置目录 |
+| `MYNEXUS_API_TOKEN` | 空 | 全局静态 API Token，用于 Docker-to-Docker 集成访问系统所有接口，等同于 admin 权限 |
+
+#### Embedding（向量化）配置
+
+默认使用本地模型，无需额外配置。如需切换至云端或 Ollama：
+
+**本地模型（默认）**
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MYNEXUS_EMBEDDING_PROVIDER` | `local` | 保持默认即可 |
+| `MYNEXUS_EMBEDDING_LOCAL_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | HuggingFace 模型名 |
+| `MYNEXUS_EMBEDDING_LOCAL_MODEL_PATH` | 空 | 本地模型文件目录，留空则自动下载 |
+
+**OpenAI 兼容接口**
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MYNEXUS_EMBEDDING_PROVIDER` | — | 设为 `openai` |
+| `MYNEXUS_EMBEDDING_OPENAI_API_KEY` | 空 | API Key |
+| `MYNEXUS_EMBEDDING_OPENAI_BASE_URL` | `https://api.openai.com/v1` | API 端点，兼容 OpenAI 的第三方服务可替换 |
+| `MYNEXUS_EMBEDDING_OPENAI_MODEL` | `text-embedding-3-small` | 模型名称 |
+
+**Ollama 本地服务**
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MYNEXUS_EMBEDDING_PROVIDER` | — | 设为 `ollama` |
+| `MYNEXUS_EMBEDDING_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
+| `MYNEXUS_EMBEDDING_OLLAMA_MODEL` | `nomic-embed-text` | 模型名称 |
+
+#### LLM（大语言模型）配置
+
+**OpenAI 兼容接口**
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MYNEXUS_LLM_PROVIDER` | `openai` | 保持默认即可 |
+| `MYNEXUS_LLM_OPENAI_API_KEY` | 空 | API Key |
+| `MYNEXUS_LLM_OPENAI_BASE_URL` | `https://api.openai.com/v1` | API 端点，兼容 OpenAI 的第三方服务可替换 |
+| `MYNEXUS_LLM_OPENAI_MODEL` | `gpt-4o-mini` | 模型名称 |
+
+**Ollama 本地服务**
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MYNEXUS_LLM_PROVIDER` | — | 设为 `ollama` |
+| `MYNEXUS_LLM_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
+| `MYNEXUS_LLM_OLLAMA_MODEL` | `llama3` | 模型名称 |
+
+#### 示例
+
+使用 OpenAI 兼容第三方 API 同时做 Embedding 和 LLM：
+
+```yaml
+# docker-compose.yml
+services:
+  mynexus:
+    environment:
+      MYNEXUS_EMBEDDING_PROVIDER: openai
+      MYNEXUS_EMBEDDING_OPENAI_API_KEY: ${MY_API_KEY}
+      MYNEXUS_EMBEDDING_OPENAI_BASE_URL: https://api.deepseek.com/v1
+      MYNEXUS_EMBEDDING_OPENAI_MODEL: text-embedding-v2
+      MYNEXUS_LLM_PROVIDER: openai
+      MYNEXUS_LLM_OPENAI_API_KEY: ${MY_API_KEY}
+      MYNEXUS_LLM_OPENAI_BASE_URL: https://api.deepseek.com/v1
+      MYNEXUS_LLM_OPENAI_MODEL: deepseek-chat
+```
+
 ### 方式二：本地开发（Makefile）
 
 无需 Docker，直接在本机以三个独立进程启动，适合开发调试：

@@ -38,16 +38,18 @@ func RequireExportToken() gin.HandlerFunc {
 // is present" behavior now that a real login flow exists (see
 // .claude/memory/mynexus_known_gaps_and_conflicts.md's now-resolved
 // "auth is enforced-when-present, not required" gap).
+//
+// If MYNEXUS_API_TOKEN is set, it acts as a global static token that grants
+// admin access to every endpoint — handy for Docker-to-Docker integration
+// where you want a single known token instead of provisioning one per user.
 func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, tokenPrefix string) gin.HandlerFunc {
+	staticToken := os.Getenv("MYNEXUS_API_TOKEN")
 	return func(c *gin.Context) {
 		if sid, err := c.Cookie(auth.SessionCookieName); err == nil {
 			if userID, username, role, ok := sessions.Validate(sid); ok {
 				c.Set("admin_user_id", userID)
 				c.Set("user_id", userID)
 				c.Set("role", role)
-				// "actor" labels audit log entries with a human-readable name
-				// (see AuditService) — the user's own username for browser
-				// sessions, "token:<alias>" for API Token access below.
 				c.Set("actor", username)
 				c.Next()
 				return
@@ -55,20 +57,27 @@ func RequireAuth(sessions *auth.SessionManager, tokens *service.TokenService, to
 		}
 
 		if header := c.GetHeader("Authorization"); header != "" {
-			if raw, ok := strings.CutPrefix(header, "Bearer "); ok && strings.HasPrefix(raw, tokenPrefix) {
-				if userID, alias, valid := tokens.Authenticate(raw); valid {
-					c.Set("user_id", userID)
-					// API tokens are an admin/automation concern (see the
-					// Tokens admin page) — treat token-authenticated
-					// requests as admin-equivalent for RequireAdmin.
+			raw, ok := strings.CutPrefix(header, "Bearer ")
+			if ok {
+				if staticToken != "" && subtle.ConstantTimeCompare([]byte(raw), []byte(staticToken)) == 1 {
+					c.Set("user_id", "system")
 					c.Set("role", "admin")
-					actor := "token"
-					if alias != "" {
-						actor = "token:" + alias
-					}
-					c.Set("actor", actor)
+					c.Set("actor", "env:MYNEXUS_API_TOKEN")
 					c.Next()
 					return
+				}
+				if strings.HasPrefix(raw, tokenPrefix) {
+					if userID, alias, valid := tokens.Authenticate(raw); valid {
+						c.Set("user_id", userID)
+						c.Set("role", "admin")
+						actor := "token"
+						if alias != "" {
+							actor = "token:" + alias
+						}
+						c.Set("actor", actor)
+						c.Next()
+						return
+					}
 				}
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or revoked API token"})
 				return
