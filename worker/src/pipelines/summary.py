@@ -136,32 +136,40 @@ _BOOK_PROMPT_TEMPLATE = (
 # strict JSON object so _parse_analysis_json can parse it without any prose
 # wrapped around it.
 _CHAPTER_ANALYSIS_PROMPT_TEMPLATE = (
-    "请阅读下面的章节内容，完成三个任务：\n"
+    "请阅读下面的章节内容，完成四个任务：\n"
     "1. 用中文对本章内容做摘要，控制在400字以内，不要加“摘要：”之类的前缀，也不要复述章节标题；\n"
     "2. 找出其中作者明确给出定义或解释的重要术语、概念或专有名词，只使用原文里实际给出的解释，"
     "不要用你自己的知识补充或改写定义，如果原文没有对某个词给出解释性说明，就不要列入；\n"
     "3. 提取本章最核心的内容关键词：每个关键词是本章真实出现、有实质意义的人名、地名、专有名词、"
     "核心主题词或关键概念，2-4字最佳，按重要性从高到低排序，最多10个。排除纯通用词（如“进行”“事情”“时候”“目录”等）。\n"
+    "4. 识别本章中作者引用或提到的外部著作（其他书籍、文章、论文、经典文献、政策文件等）。"
+    "线索包括：方括号标注 [1][6][19]、上标数字、脚注段落、嵌入式书名（《XXX》）、"
+    "或“参见”“见”后跟的著作名。区分作者自己的其他著作（算引用）vs 作者本人被描述（不算）。"
+    "每条只取著作名本身，不要带方括号/数字/作者名。没有就输出空数组 []。\n"
     "将结果输出为一个 JSON 对象，形如 {{\"summary\": \"摘要正文\", \"definitions\": "
-    "[{{\"name\": \"术语\", \"content\": \"原文给出的定义或解释\"}}], \"keywords\": [\"关键词1\", \"关键词2\"]}}；"
-    "如果没有符合条件的术语，definitions 输出空数组 []；关键词列出实际数量，最多10个。"
+    "[{{\"name\": \"术语\", \"content\": \"原文给出的定义或解释\"}}], \"keywords\": [\"关键词1\", \"关键词2\"], "
+    "\"references\": [\"引用对象1\", \"引用对象2\"]}}；"
+    "definitions 没有就空数组；references 按出现频次排序，同一著作在本章多次出现只列一次。"
     "只输出这个 JSON 对象本身，不要有任何其他文字，也不要用 markdown 代码块包裹。这是书籍章节摘要任务，"
     "不是对话，不要以“感谢你提供的详细信息”“您描述了”之类回应用户消息的语气写摘要，直接从摘要内容本身写起。\n\n"
     "章节标题：{title}\n\n正文：\n{content}"
 )
 
 _SEGMENT_ANALYSIS_PROMPT_TEMPLATE = (
-    "请阅读下面的内容，完成三个任务：\n"
+    "请阅读下面的内容，完成四个任务：\n"
     "1. 用中文对这部分内容做摘要，控制在400字以内，不要加“摘要：”之类的前缀；\n"
     "2. 找出其中作者明确给出定义或解释的重要术语、概念或专有名词，只使用原文里实际给出的解释，"
     "不要用你自己的知识补充或改写定义，如果原文没有对某个词给出解释性说明，就不要列入；\n"
     "3. 提取这部分内容最核心的关键词：每个关键词真实出现、有实质意义的人名、地名、专有名词、"
     "核心主题词或关键概念，2-4字最佳，按重要性从高到低排序，最多8个。排除纯通用词。\n"
+    "4. 识别这部分中作者引用或提到的外部著作，线索同全章分析：方括号标注、上标数字、脚注、"
+    "嵌入式书名（《XXX》）、或“参见”“见”后跟的著作名。每条只取著作名本身，没有就空数组 []。\n"
     "这段内容是《{title}》这一章节的第 {index}/{total} 部分（不是全章，只总结、只找这部分实际"
     "出现的内容，不要补充你认为章节其他部分可能包含的内容）。\n"
     "将结果输出为一个 JSON 对象，形如 {{\"summary\": \"摘要正文\", \"definitions\": "
-    "[{{\"name\": \"术语\", \"content\": \"原文给出的定义或解释\"}}], \"keywords\": [\"关键词1\", \"关键词2\"]}}；"
-    "如果没有符合条件的术语，definitions 输出空数组 []；关键词列出实际数量。"
+    "[{{\"name\": \"术语\", \"content\": \"原文给出的定义或解释\"}}], \"keywords\": [\"关键词1\", \"关键词2\"], "
+    "\"references\": [\"引用对象1\", \"引用对象2\"]}}；"
+    "如果没有符合条件的术语，definitions 输出空数组 []；references 按频次排序，同一著作多次出现只列一次。"
     "只输出这个 JSON 对象本身，不要有任何其他文字，也不要用 markdown 代码块包裹。这是书籍章节摘要任务，"
     "不是对话，摘要直接从内容本身写起。\n\n"
     "{content}"
@@ -220,9 +228,56 @@ _BOOK_PROMPT_TEMPLATE_EN = (
 )
 
 # --- Post-summary extras (reading guide + reference index) ---------------
-# These run after summarize_book() and keyword reduce, before
-# report_book_summary — so they don't hold up the main summary if the LLM
-# call fails (we catch ServiceCallError and store empty strings on failure).
+
+# LLM often opens with "# 阅读指南" / "# Reference Index" — strip that first
+# H1 line so the card title (rendered by the detail page's <summary>) is the
+# only heading the user sees. Strips leading whitespace too so accidental
+# blank first lines from the provider don't leak through either.
+def _strip_leading_h1(text: str) -> str:
+    if not text:
+        return text
+    lines = text.split("\n")
+    idx = 0
+    while idx < len(lines) and lines[idx].strip() == "":
+        idx += 1
+    if idx < len(lines) and re.match(r"^#\s+\S", lines[idx]):
+        idx += 1
+    if idx < len(lines) and lines[idx].strip() == "":
+        idx += 1
+    return "\n".join(lines[idx:]).strip()
+
+
+# Cap for reference-index — keep compact; LLM-extracted lists tend to run
+# longer than what the chapter actually references meaningfully, so an upper
+# bound also acts as a de-facto quality filter on borderline entries.
+_REFERENCE_INDEX_CAP = 30
+
+
+def _build_reference_index_markdown(refs_totals: dict) -> str:
+    """Aggregates per-chapter reference lists (collected by analyze_chapter
+    into refs_totals) into a single Markdown table sorted by count descending.
+
+    refs_totals: {normalized_title: {"count": int, "display": str,
+                                      "chapters": [str, ...]}}
+    (same shape run() builds at map time). Returns an empty string when the
+    book has no references at all — caller respects that by skipping the DB
+    write rather than storing an empty table."""
+    if not refs_totals:
+        return ""
+    rows = sorted(refs_totals.values(), key=lambda e: (-e["count"], e["display"].lower()))
+    rows = rows[:_REFERENCE_INDEX_CAP]
+    lines = [
+        "| 引用对象 | 出现次数 | 出现章节 |",
+        "|----------|----------|----------|",
+    ]
+    for entry in rows:
+        chapters = ", ".join(entry["chapters"][:3])
+        if len(entry["chapters"]) > 3:
+            chapters += f" 等 {len(entry['chapters'])} 章"
+        title = entry["display"].replace("|", "\\|")
+        lines.append(f"| {title} | {entry['count']} | {chapters} |")
+    return "\n".join(lines)
+
 
 _READING_GUIDE_PROMPT = (
     "根据下面这本书的全书总结和各章节摘要，生成一份阅读指南。"
@@ -251,70 +306,55 @@ _READING_GUIDE_PROMPT_EN = (
     "[Whole-book summary]\n{book_summary}\n\n[Per-chapter summaries]\n{chapter_summaries}"
 )
 
-_REFERENCE_INDEX_PROMPT = (
-    "阅读下面这本书的各章节摘要，识别作者在书中引用或提到的外部著作"
-    "（书名、文章名、论文、经典文献等），按出现频次从高到低排序，"
-    "最多列出30条。每条包含：引用对象名称（用书名号）、出现次数、"
-    "以及哪个章节提到了它。\n\n"
-    "只统计材料中明确出现过的引用；不要靠作者名或通假推断材料里没有的条目。"
-    "如果某条引用出现多次，合并计数，只列一次。"
-    "如果全书几乎没有外部引用，如实说明，不要硬凑。\n\n"
-    "直接输出 Markdown 表格：| 引用对象 | 出现次数 | 出现章节 |，按出现次数从高到低排序。\n\n"
-    "【各章节摘要】\n{chapter_summaries}"
-)
-
-_REFERENCE_INDEX_PROMPT_EN = (
-    "Read the per-chapter summaries below, identify external works (books, "
-    "articles, papers, classic texts) that the author cites or mentions, "
-    "sort by frequency descending, and list up to 30 entries. For each: "
-    "the referenced work name, how many times it appears, and which chapters "
-    "mention it.\n\n"
-    "Count only what is actually in the material — do not infer via author "
-    "names, pseudonyms, or guesses. Merge multiple mentions of the same work "
-    "into one row. If the book barely cites anything, say so honestly instead "
-    "of padding.\n\n"
-    "Output a Markdown table: | Reference | Count | Chapters |, sorted by "
-    "count descending.\n\n[Per-chapter summaries]\n{chapter_summaries}"
-)
-
 _CHAPTER_ANALYSIS_PROMPT_TEMPLATE_EN = (
-    "Read the following chapter and do two things:\n"
+    "Read the following chapter and do four things:\n"
     "1. Summarize the chapter in English, in no more than 400 words — no "
     "prefix like \"Summary:\", and don't just restate the chapter title;\n"
     "2. Identify important terms, concepts, or proper nouns that the author "
     "explicitly defines or explains, using only the explanation actually "
     "given in the text — don't supplement or rewrite it from your own "
-    "knowledge, and if the text doesn't explain a word, don't list it.\n"
+    "knowledge, and if the text doesn't explain a word, don't list it;\n"
+    "3. Extract up to 10 core keywords of this chapter: each must actually "
+    "appear, be meaningful (person, place, proper noun, key concept, "
+    "2-4 tokens best), exclude generic words (\"the\", \"and\", \"when\");\n"
+    "4. Identify external works the author cites or mentions (other books, "
+    "articles, papers, classic texts, policy documents). Clues: bracketed "
+    "citations [1][6][19], superscript numbers, footnotes, embedded work "
+    "titles, or 'See'/'cf.' followed by a work. Count the author's other "
+    "works (reference) vs author described themselves (NOT reference). Each "
+    "entry is just the work title, no brackets/numbers/author names. "
+    "Empty array [] if none.\n"
     "Output the result as one JSON object shaped like {{\"summary\": \"the "
     "summary text\", \"definitions\": [{{\"name\": \"term\", \"content\": "
-    "\"the definition given in the text\"}}]}}; use an empty array [] for "
-    "definitions if there are no qualifying terms. Output only that JSON "
-    "object, nothing else, and don't wrap it in a markdown code block. This "
-    "is a book-chapter summarization task, not a conversation — don't write "
-    "the summary in the tone of a conversational reply like \"Thank you for "
-    "providing the detailed information\"; start directly with the summary "
-    "content itself.\n\n"
+    "\"the definition given in the text\"}}], \"keywords\": [\"kw1\", \"kw2\"], "
+    "\"references\": [\"Work One\", \"Work Two\"]}}; use empty arrays [] "
+    "where nothing qualifies. Output only that JSON object, nothing else, "
+    "no markdown code block wrapper. This is a book-chapter summarization "
+    "task, not a conversation.\n\n"
     "Chapter title: {title}\n\nContent:\n{content}"
 )
 
 _SEGMENT_ANALYSIS_PROMPT_TEMPLATE_EN = (
-    "Read the following text and do two things:\n"
+    "Read the following text and do four things:\n"
     "1. Summarize this text in English, in no more than 400 words — no "
     "prefix like \"Summary:\";\n"
     "2. Identify important terms, concepts, or proper nouns that the author "
     "explicitly defines or explains, using only the explanation actually "
     "given in the text — don't supplement or rewrite it from your own "
-    "knowledge, and if the text doesn't explain a word, don't list it.\n"
+    "knowledge, and if the text doesn't explain a word, don't list it;\n"
+    "3. Extract up to 8 core keywords (same rules as whole-chapter analysis);\n"
+    "4. Identify external works cited/mentioned in this segment — same clues "
+    "as whole-chapter analysis. Each entry is just the work title, no "
+    "brackets/numbers/author names. Empty array [] if none.\n"
     "This is part {index}/{total} of the chapter \"{title}\" (not the whole "
     "chapter — only summarize and find terms in what actually appears in "
     "this part, don't guess at what the rest of the chapter might contain).\n"
     "Output the result as one JSON object shaped like {{\"summary\": \"the "
     "summary text\", \"definitions\": [{{\"name\": \"term\", \"content\": "
-    "\"the definition given in the text\"}}]}}; use an empty array [] for "
-    "definitions if there are no qualifying terms. Output only that JSON "
-    "object, nothing else, and don't wrap it in a markdown code block. This "
-    "is a book-chapter summarization task, not a conversation — start the "
-    "summary directly with the content itself.\n\n"
+    "\"the definition given in the text\"}}], \"keywords\": [\"kw1\", \"kw2\"], "
+    "\"references\": [\"Work One\"]}}; use empty arrays [] where nothing "
+    "qualifies. Output only that JSON object, nothing else, no markdown "
+    "code block wrapper.\n\n"
     "{content}"
 )
 
@@ -373,13 +413,14 @@ def _salvage_keywords(raw: str) -> list[str]:
 
 def _parse_analysis_json(
     text: str, chapter_title: str = "",
-) -> tuple[str, list[tuple[str, str]], list[str]]:
+) -> tuple[str, list[tuple[str, str]], list[str], list[str]]:
     """Parses one LLM chapter-analysis response (see
-    _CHAPTER_ANALYSIS_PROMPT_TEMPLATE*) into (summary, [(name, content)], [keywords]).
+    _CHAPTER_ANALYSIS_PROMPT_TEMPLATE*) into
+    (summary, [(name, content)], [keywords], [references]).
     Tolerant of the model wrapping its JSON object in a markdown code fence
     despite being told not to; a response that won't parse at all degrades
-    to the raw text as the summary with no definitions/keywords, rather than
-    failing the whole summarize run."""
+    to the raw text as the summary with no definitions/keywords/references,
+    rather than failing the whole summarize run."""
     logger.debug("_parse_analysis_json input: chapter=%r len=%d head=%r", chapter_title, len(text), text[:200])
     candidates = [text.strip()]
     fence_match = _JSON_FENCE_RE.search(text)
@@ -405,11 +446,15 @@ def _parse_analysis_json(
             if name and content:
                 definitions.append((name, content))
         keywords = [str(k).strip() for k in (data.get("keywords") or []) if str(k).strip()]
+        references = [
+            r.strip() for r in (data.get("references") or [])
+            if isinstance(r, str) and r.strip()
+        ]
         logger.debug(
-            "_parse_analysis_json success: chapter=%r summary=%d chars definitions=%d keywords=%d",
-            chapter_title, len(summary), len(definitions), len(keywords),
+            "_parse_analysis_json success: chapter=%r summary=%d chars definitions=%d keywords=%d references=%d",
+            chapter_title, len(summary), len(definitions), len(keywords), len(references),
         )
-        return summary, definitions, keywords
+        return summary, definitions, keywords, references
 
     summary_match = _SUMMARY_VALUE_RE.search(text)
     if summary_match:
@@ -427,10 +472,10 @@ def _parse_analysis_json(
             "analysis JSON INCOMPLETE, salvage triggered: chapter=%r summary=%d chars definitions=%d keywords=%d raw_len=%d head=%r",
             chapter_title, len(summary), len(definitions), len(keywords), len(text), text[:120],
         )
-        return summary, definitions, keywords
+        return summary, definitions, keywords, []
 
     logger.warning("analysis JSON unparsable (no salvageable summary): chapter=%r raw_len=%d head=%r", chapter_title, len(text), text[:200])
-    return text.strip(), [], []
+    return text.strip(), [], [], []
 
 
 def _lang_bucket(language: str) -> str:
@@ -637,14 +682,14 @@ class SummaryPipeline:
         book_id: str = "",
         task_type: str = "summary",
         cancel_event=None,
-    ) -> tuple[str, list[tuple[str, str]], list[str]]:
+    ) -> tuple[str, list[tuple[str, str]], list[str], list[str]]:
         title = title or "（未命名章节）"
         logger.info("analyzing chapter %r: content=%d chars task=%s book=%s", title, len(content), task_id, book_id)
         content = self._fit_budget(title, content)
         segments = split_into_segments(content)
         if not segments:
             logger.info("chapter %r has no segments after splitting, skipping", title)
-            return "", [], []
+            return "", [], [], []
 
         chapter_tmpl = _CHAPTER_ANALYSIS_PROMPT_TEMPLATE_EN if lang == "en" else _CHAPTER_ANALYSIS_PROMPT_TEMPLATE
         segment_tmpl = _SEGMENT_ANALYSIS_PROMPT_TEMPLATE_EN if lang == "en" else _SEGMENT_ANALYSIS_PROMPT_TEMPLATE
@@ -657,14 +702,15 @@ class SummaryPipeline:
             prompt = chapter_tmpl.format(title=title, content=segments[0])
             on_chars = (lambda chars: on_progress(f"生成中…已输出 {chars} 字")) if on_progress else None
             raw = self._complete(prompt, call_site="summary.chapter_analyze", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event, chapter_title=title)
-            summary, definitions, keywords = _parse_analysis_json(raw, chapter_title=title)
-            logger.info("chapter %r analyzed: summary=%d chars definitions=%d keywords=%d", title, len(summary), len(definitions), len(keywords))
-            return summary, definitions[:_DEFINITIONS_CAP_PER_CHAPTER], keywords
+            summary, definitions, keywords, references = _parse_analysis_json(raw, chapter_title=title)
+            logger.info("chapter %r analyzed: summary=%d chars definitions=%d keywords=%d references=%d", title, len(summary), len(definitions), len(keywords), len(references))
+            return summary, definitions[:_DEFINITIONS_CAP_PER_CHAPTER], keywords, references
 
         logger.debug("chapter %r: split into %d segments, map-reduce analyze", title, len(segments))
         segment_summaries = []
         found: list[tuple[str, str]] = []
         seg_keywords: list[str] = []
+        seg_references: list[str] = []
         for i, segment in enumerate(segments):
             prompt = segment_tmpl.format(title=title, index=i + 1, total=len(segments), content=segment)
             on_chars = (
@@ -676,11 +722,12 @@ class SummaryPipeline:
             seg_raw = self._complete(
                 prompt, call_site=f"summary.chapter_analyze_segment.{i}", task_id=task_id, book_id=book_id, task_type=task_type, on_chars=on_chars, cancel_event=cancel_event, chapter_title=title,
             )
-            seg_summary, seg_definitions, seg_kw = _parse_analysis_json(seg_raw, chapter_title=title)
+            seg_summary, seg_definitions, seg_kw, seg_refs = _parse_analysis_json(seg_raw, chapter_title=title)
             segment_summaries.append(seg_summary)
             found.extend(seg_definitions)
             seg_keywords.extend(seg_kw)
-            logger.debug("chapter %r segment %d/%d: summary=%d chars definitions=%d keywords=%d", title, i + 1, len(segments), len(seg_summary), len(seg_definitions), len(seg_kw))
+            seg_references.extend(seg_refs)
+            logger.debug("chapter %r segment %d/%d: summary=%d chars definitions=%d keywords=%d references=%d", title, i + 1, len(segments), len(seg_summary), len(seg_definitions), len(seg_kw), len(seg_refs))
 
         if on_progress:
             on_progress(f"正在合并 {len(segments)} 段摘要…")
@@ -700,7 +747,6 @@ class SummaryPipeline:
                 merged[key] = (name, definition)
         definitions = list(merged.values())[:_DEFINITIONS_CAP_PER_CHAPTER]
 
-        # 关键词：各段并集，保序去重
         seen_kw: set[str] = set()
         keywords: list[str] = []
         for kw in seg_keywords:
@@ -709,8 +755,16 @@ class SummaryPipeline:
                 seen_kw.add(norm)
                 keywords.append(kw.strip())
 
-        logger.info("chapter %r analyzed: summary=%d chars definitions=%d keywords=%d (from %d segments)", title, len(summary), len(definitions), len(keywords), len(segments))
-        return summary, definitions, keywords
+        seen_ref: set[str] = set()
+        chapter_references: list[str] = []
+        for ref in seg_references:
+            norm = ref.strip().lower()
+            if norm and norm not in seen_ref:
+                seen_ref.add(norm)
+                chapter_references.append(ref.strip())
+
+        logger.info("chapter %r analyzed: summary=%d chars definitions=%d keywords=%d references=%d (from %d segments)", title, len(summary), len(definitions), len(keywords), len(chapter_references), len(segments))
+        return summary, definitions, keywords, chapter_references
 
     def _index_summary(self, chunk_id: str, book_id: str, chapter_id: str, text: str) -> None:
         """Embeds one summary (chapter- or book-level) and upserts it as a
@@ -768,7 +822,7 @@ class SummaryPipeline:
             _READING_GUIDE_PROMPT_EN if lang == "en" else _READING_GUIDE_PROMPT
         ).format(chapter_summaries=chapter_summaries_joined, book_summary=book_summary)
         try:
-            return self._complete(
+            raw = self._complete(
                 prompt, call_site="summary.reading_guide",
                 task_id=task_id, book_id=book_id, task_type="summary",
                 cancel_event=cancel_event,
@@ -776,23 +830,7 @@ class SummaryPipeline:
         except Exception:
             logger.exception("reading guide generation failed (task=%s book=%s)", task_id, book_id)
             return ""
-
-    def _generate_reference_index(
-        self, chapter_summaries_joined: str, lang: str = "zh",
-        task_id: str = "", book_id: str = "", cancel_event=None,
-    ) -> str:
-        prompt = (
-            _REFERENCE_INDEX_PROMPT_EN if lang == "en" else _REFERENCE_INDEX_PROMPT
-        ).format(chapter_summaries=chapter_summaries_joined)
-        try:
-            return self._complete(
-                prompt, call_site="summary.reference_index",
-                task_id=task_id, book_id=book_id, task_type="summary",
-                cancel_event=cancel_event,
-            )
-        except Exception:
-            logger.exception("reference index generation failed (task=%s book=%s)", task_id, book_id)
-            return ""
+        return _strip_leading_h1(raw)
 
     def _extract_chapter_keywords(self, content: str, lang: str) -> dict[str, float]:
         """Rolling top-K keyword extraction across one chapter's segments —
@@ -842,6 +880,7 @@ class SummaryPipeline:
             self.core_api.report_progress(task_id, 5, "summarizing_chapters")
 
             chapter_kw_cache: dict[str, dict[str, float]] = {}
+            chapter_refs_totals: dict[str, dict] = {}
 
             # Keeps original chapter order for the reduce step: chapters not
             # in to_generate keep their existing summary untouched.
@@ -870,25 +909,35 @@ class SummaryPipeline:
                     summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id, cancel_event=cancel_event)
                     chapter_keywords: list[tuple[str, float]] = []
                     chapter_definitions: list[tuple[str, str]] = []
+                    chapter_refs: list[str] = []
                 else:
-                    summary, chapter_definitions, chapter_kw = self.analyze_chapter(
+                    summary, chapter_definitions, chapter_kw, chapter_refs = self.analyze_chapter(
                         ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id, cancel_event=cancel_event,
                     )
-                    # LLM 已按重要性排好序，位置越前权重越高
                     chapter_keywords = [(kw, 1.0 / max(idx + 1, 1)) for idx, kw in enumerate(chapter_kw[:_CHAPTER_KEYWORDS_DISPLAY_CAP])]
 
                 logger.info(
-                    "chapter %d/%d done: title=%r summary=%d chars keywords=%d definitions=%d",
-                    i + 1, total, ch.title, len(summary), len(chapter_keywords), len(chapter_definitions),
+                    "chapter %d/%d done: title=%r summary=%d chars keywords=%d definitions=%d references=%d",
+                    i + 1, total, ch.title, len(summary), len(chapter_keywords), len(chapter_definitions), len(chapter_refs),
                 )
                 self.core_api.report_chapter_summary(
                     task_id, ch.id, summary, keywords=chapter_keywords, definitions=chapter_definitions
                 )
                 summaries_by_id[ch.id] = summary
-                # Map phase is 5..85%; reduce covers the remaining stretch to 100%.
                 progress = 5 + int(80 * (i + 1) / max(total, 1))
                 self.core_api.report_progress(task_id, progress, "chapter_summarized", f"{i + 1}/{total}")
                 chapter_kw_cache[ch.id] = dict(chapter_keywords)
+                for ref in chapter_refs:
+                    rnorm = ref.strip().lower()
+                    if not rnorm:
+                        continue
+                    entry = chapter_refs_totals.get(rnorm)
+                    if entry is None:
+                        entry = {"count": 0, "display": ref.strip(), "chapters": []}
+                        chapter_refs_totals[rnorm] = entry
+                    entry["count"] += 1
+                    if title not in entry["chapters"]:
+                        entry["chapters"].append(title)
 
             if cancel_event is not None and cancel_event.is_set():
                 raise CancelledError("cancelled before book-level reduce")
@@ -925,10 +974,17 @@ class SummaryPipeline:
                 chapter_summaries_joined, book_summary, lang=lang,
                 task_id=task_id, book_id=book_id, cancel_event=cancel_event,
             )
-            reference_index = self._generate_reference_index(
-                chapter_summaries_joined, lang=lang,
-                task_id=task_id, book_id=book_id, cancel_event=cancel_event,
+            # Reference index: assembled locally from per-chapter LLM-
+            # extracted references (each chapter analysis already asked the
+            # LLM to pull embedded work titles / citations, so we skip an
+            # extra LLM call here — one LLM invocation per chapter is all
+            # it takes).
+            reference_index = _build_reference_index_markdown(chapter_refs_totals)
+            logger.info(
+                "reference index built locally: %d unique works (from chapter analyses)",
+                len(chapter_refs_totals),
             )
+
             if reading_guide:
                 logger.info("reading guide generated: %d chars", len(reading_guide))
             if reference_index:
@@ -1003,8 +1059,8 @@ if __name__ == "__main__":
             s = pipeline.summarize_chapter(chapter.title, chapter.content, lang=lang)
             print(f"[{chapter.title}]\n{s}\n")
         else:
-            s, defs, kw = pipeline.analyze_chapter(chapter.title, chapter.content, lang=lang)
-            print(f"[{chapter.title}]\n{s}\ndefinitions={len(defs)} keywords={kw}\n")
+            s, defs, kw, refs = pipeline.analyze_chapter(chapter.title, chapter.content, lang=lang)
+            print(f"[{chapter.title}]\n{s}\ndefinitions={len(defs)} keywords={kw} references={refs}\n")
         summaries.append((chapter.title, s))
     print("=== BOOK SUMMARY ===")
     print(pipeline.summarize_book(summaries, lang=lang))
