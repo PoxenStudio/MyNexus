@@ -15,7 +15,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.35.1
-// source: proto/mynexus.proto
+// source: mynexus.proto
 
 package mynexuspb
 
@@ -684,7 +684,7 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/mynexus.proto",
+	Metadata: "mynexus.proto",
 }
 
 const (
@@ -1310,5 +1310,5 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/mynexus.proto",
+	Metadata: "mynexus.proto",
 }

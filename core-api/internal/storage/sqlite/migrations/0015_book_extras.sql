@@ -1,0 +1,2 @@
+ALTER TABLE books ADD COLUMN reading_guide TEXT NOT NULL DEFAULT '';
+ALTER TABLE books ADD COLUMN reference_index TEXT NOT NULL DEFAULT '';

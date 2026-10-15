@@ -124,11 +124,15 @@ class CoreApiClient:
         )
 
     def report_book_summary(
-        self, task_id: str, book_id: str, summary: str, keywords: list[tuple[str, float]] | None = None
+        self, task_id: str, book_id: str, summary: str, keywords: list[tuple[str, float]] | None = None,
+        reading_guide: str = "", reference_index: str = "",
     ) -> None:
         keyword_msgs = [mynexus_pb2.Keyword(term=term, weight=weight) for term, weight in (keywords or [])]
         self._stub.ReportBookSummary(
-            mynexus_pb2.BookSummaryRequest(task_id=task_id, book_id=book_id, summary=summary, keywords=keyword_msgs)
+            mynexus_pb2.BookSummaryRequest(
+                task_id=task_id, book_id=book_id, summary=summary, keywords=keyword_msgs,
+                reading_guide=reading_guide, reference_index=reference_index,
+            )
         )
 
     def report_token_usage(

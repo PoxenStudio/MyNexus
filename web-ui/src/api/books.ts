@@ -24,6 +24,11 @@ export interface Book {
   tags: string[];
   category: string;
   summary: string;
+  // Post-summary extras generated after the whole-book summary succeeds —
+  // see worker/src/pipelines/summary.py's _generate_reading_guide /
+  // _generate_reference_index. Empty until the summarize pipeline runs.
+  reading_guide?: string;
+  reference_index?: string;
   // Whole-book content keywords extracted from chapter summaries (see
   // worker/src/pipelines/summary.py) — distinct from tags (user-/MyBooks-
   // assigned labels). Sorted by weight descending, already truncated to the

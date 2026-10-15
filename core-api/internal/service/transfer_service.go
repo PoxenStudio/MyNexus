@@ -735,8 +735,9 @@ func (s *TransferService) runImport(job *TransferJob) error {
 			_ = tx.Rollback()
 		}
 	}()
-	if _, err := tx.Exec(`UPDATE books SET summary = ?, keywords = ?, updated_at = ? WHERE id = ?`,
+	if _, err := tx.Exec(`UPDATE books SET summary = ?, keywords = ?, reading_guide = ?, reference_index = ?, updated_at = ? WHERE id = ?`,
 		opened.book.Summary, string(validJSONOr(string(opened.book.Keywords), "[]")),
+		opened.book.ReadingGuide, opened.book.ReferenceIndex,
 		time.Now().UTC().Format(time.RFC3339Nano), job.BookID); err != nil {
 		_ = s.worker.DeleteBook(stagingBookID)
 		return fmt.Errorf("update imported book summary: %w", err)

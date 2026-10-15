@@ -16,21 +16,23 @@ type KeywordResponse struct {
 }
 
 type BookResponse struct {
-	ID           string            `json:"id"`
-	UserID       string            `json:"user_id"`
-	Title        string            `json:"title"`
-	Author       string            `json:"author"`
-	Publisher    string            `json:"publisher"`
-	Language     string            `json:"language"`
-	PublishDate  string            `json:"publish_date"`
-	ISBN         string            `json:"isbn"`
-	SourceOrigin string            `json:"source_origin"`
-	SourceFormat string            `json:"source_format"`
-	Status       string            `json:"status"`
-	Tags         []string          `json:"tags"`
-	Category     string            `json:"category"`
-	Summary      string            `json:"summary"`
-	Keywords     []KeywordResponse `json:"keywords"`
+	ID             string            `json:"id"`
+	UserID         string            `json:"user_id"`
+	Title          string            `json:"title"`
+	Author         string            `json:"author"`
+	Publisher      string            `json:"publisher"`
+	Language       string            `json:"language"`
+	PublishDate    string            `json:"publish_date"`
+	ISBN           string            `json:"isbn"`
+	SourceOrigin   string            `json:"source_origin"`
+	SourceFormat   string            `json:"source_format"`
+	Status         string            `json:"status"`
+	Tags           []string          `json:"tags"`
+	Category       string            `json:"category"`
+	Summary        string            `json:"summary"`
+	ReadingGuide   string            `json:"reading_guide"`
+	ReferenceIndex string            `json:"reference_index"`
+	Keywords       []KeywordResponse `json:"keywords"`
 	// CoverURL is "" if the book has no cover yet (not yet ingested, or
 	// ingestion produced nothing usable — see grpcserver.ReportComplete),
 	// otherwise "/books/{id}/cover" (relative to apiClient's base URL, which
@@ -72,8 +74,9 @@ func NewBookResponse(b models.Book, maxKeywords int) BookResponse {
 
 	return BookResponse{
 		ID: b.ID, UserID: b.UserID, Title: b.Title, Author: b.Author, Publisher: b.Publisher,
-		Language: b.Language, PublishDate: b.PublishDate, ISBN: b.ISBN, SourceOrigin: b.SourceOrigin,
-		SourceFormat: b.SourceFormat, Status: b.Status, Tags: tags, Category: b.Category, Summary: b.Summary,
+		Language: b.Language, PublishDate: b.PublishDate, ISBN: b.ISBN,
+		SourceOrigin: b.SourceOrigin, SourceFormat: b.SourceFormat, Status: b.Status, Tags: tags, Category: b.Category, Summary: b.Summary,
+		ReadingGuide: b.ReadingGuide, ReferenceIndex: b.ReferenceIndex,
 		Keywords: keywords, CoverURL: coverURL, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
 	}
 }
@@ -165,14 +168,14 @@ type ImportResponse struct {
 }
 
 type ChunkResponse struct {
-	ID         string `json:"id"`
-	ChapterID  string `json:"chapter_id"`
-	Content    string `json:"content"`
-	TokenCount int    `json:"token_count"`
-	Position   int    `json:"position"`
-	VectorID   string `json:"vector_id"`
-	StartOffset int   `json:"start_offset,omitempty"`
-	EndOffset   int   `json:"end_offset,omitempty"`
+	ID          string `json:"id"`
+	ChapterID   string `json:"chapter_id"`
+	Content     string `json:"content"`
+	TokenCount  int    `json:"token_count"`
+	Position    int    `json:"position"`
+	VectorID    string `json:"vector_id"`
+	StartOffset int    `json:"start_offset,omitempty"`
+	EndOffset   int    `json:"end_offset,omitempty"`
 }
 
 func NewChunkResponse(c models.Chunk) ChunkResponse {

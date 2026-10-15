@@ -416,6 +416,8 @@ message BookSummaryRequest {
   string book_id = 2;
   string summary = 3;
   repeated Keyword keywords = 4;
+  string reading_guide = 5;
+  string reference_index = 6;
 }
 
 message TokenUsageRequest {

@@ -134,7 +134,7 @@ SKILLS = (
     Skill(
         id="reference-index",
         name="引用书目汇总",
-        description="从书籍原文中识别并统计被引用的书籍、文章、人物或概念，列出出现频次最高的条目。",
+        description="从书籍原文中识别并统计被引用的书籍或文章，列出出现频次最高的条目。",
         parameters={
             "type": "object",
             "properties": {

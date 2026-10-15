@@ -30,11 +30,13 @@ const (
 )
 
 type archiveBook struct {
-	SourceBookID string          `json:"source_book_id"`
-	Title        string          `json:"title"`
-	Summary      string          `json:"summary"`
-	Keywords     json.RawMessage `json:"keywords"`
-	Fingerprint  string          `json:"fingerprint"`
+	SourceBookID   string          `json:"source_book_id"`
+	Title          string          `json:"title"`
+	Summary        string          `json:"summary"`
+	ReadingGuide   string          `json:"reading_guide"`
+	ReferenceIndex string          `json:"reference_index"`
+	Keywords       json.RawMessage `json:"keywords"`
+	Fingerprint    string          `json:"fingerprint"`
 }
 
 type archiveChapter struct {
@@ -140,10 +142,12 @@ func writeBookArchive(
 	}
 
 	bookInfo := archiveBook{
-		SourceBookID: book.ID,
-		Title:        book.Title,
-		Summary:      book.Summary,
-		Keywords:     validJSONOr(book.Keywords, "[]"),
+		SourceBookID:   book.ID,
+		Title:          book.Title,
+		Summary:        book.Summary,
+		ReadingGuide:   book.ReadingGuide,
+		ReferenceIndex: book.ReferenceIndex,
+		Keywords:       validJSONOr(book.Keywords, "[]"),
 	}
 	bookInfo.Fingerprint = bookFingerprint(bookInfo.Title, chapters)
 	bookEncoder, bookHash, err := openHashedEntry("book.json")

@@ -105,6 +105,8 @@
     "languageSaveError": "Failed to save language",
     "summarySaveError": "Failed to save the book summary",
     "bookSummary": "Book Summary",
+    "readingGuide": "Reading Guide",
+    "referenceIndex": "Reference Index",
     "summarize": "Summarize Book",
     "continueSummarize": "Continue Summarizing",
     "resummarize": "Resummarize Book",

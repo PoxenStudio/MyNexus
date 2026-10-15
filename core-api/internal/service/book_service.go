@@ -161,7 +161,7 @@ func (s *BookService) ApplyParsedMetadata(bookID, title, author, language string
 func (s *BookService) GetBook(id string) (*models.Book, error) {
 	row := s.db.QueryRow(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, mybooks_id, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, reading_guide, reference_index, cover_path, mybooks_id, created_at, updated_at
 		 FROM books WHERE id = ?`, id)
 	return scanBook(row)
 }
@@ -216,7 +216,7 @@ func (s *BookService) ListBooks(page, size int, status, q string) ([]models.Book
 	listArgs := append(append([]any{}, args...), size, (page-1)*size)
 	rows, err := s.db.Query(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,
-			source_origin, source_format, file_path, status, tags, category, summary, keywords, cover_path, mybooks_id, created_at, updated_at
+			source_origin, source_format, file_path, status, tags, category, summary, keywords, reading_guide, reference_index, cover_path, mybooks_id, created_at, updated_at
 		 FROM books `+where+` ORDER BY created_at DESC LIMIT ? OFFSET ?`, listArgs...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list books: %w", err)
@@ -588,9 +588,10 @@ func (s *BookService) UpdateChapterSummary(chapterID, summary, keywordsJSON, def
 // keywords (JSON-encoded []dto.Keyword-shaped array, already sorted by
 // weight descending — see worker/src/pipelines/summary.py) — the reduce
 // step, run once after every chapter has a summary.
-func (s *BookService) SetBookSummary(bookID, summary, keywordsJSON string) error {
-	_, err := s.db.Exec(`UPDATE books SET summary = ?, keywords = ?, updated_at = ? WHERE id = ?`,
-		summary, keywordsJSON, time.Now().UTC().Format(time.RFC3339), bookID)
+func (s *BookService) SetBookSummary(bookID, summary, keywordsJSON, readingGuide, referenceIndex string) error {
+	_, err := s.db.Exec(
+		`UPDATE books SET summary = ?, keywords = ?, reading_guide = ?, reference_index = ?, updated_at = ? WHERE id = ?`,
+		summary, keywordsJSON, readingGuide, referenceIndex, time.Now().UTC().Format(time.RFC3339), bookID)
 	return err
 }
 
@@ -713,7 +714,7 @@ func scanBookRows(row rowScanner) (*models.Book, error) {
 	var b models.Book
 	err := row.Scan(&b.ID, &b.UserID, &b.Title, &b.Author, &b.Publisher, &b.Language, &b.PublishDate,
 		&b.ISBN, &b.SourceOrigin, &b.SourceFormat, &b.FilePath, &b.Status, &b.Tags, &b.Category, &b.Summary,
-		&b.Keywords, &b.CoverPath, &b.MyBooksID, &b.CreatedAt, &b.UpdatedAt)
+		&b.Keywords, &b.ReadingGuide, &b.ReferenceIndex, &b.CoverPath, &b.MyBooksID, &b.CreatedAt, &b.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, err
 	}

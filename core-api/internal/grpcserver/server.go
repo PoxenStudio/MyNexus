@@ -334,7 +334,10 @@ func (s *CoreAPIServer) ReportBookSummary(ctx context.Context, req *mynexuspb.Bo
 		return nil, status.Errorf(codes.Internal, "marshal keywords: %v", err)
 	}
 
-	if err := s.books.SetBookSummary(req.BookId, req.Summary, string(keywordsJSON)); err != nil {
+	if err := s.books.SetBookSummary(
+		req.BookId, req.Summary, string(keywordsJSON),
+		req.GetReadingGuide(), req.GetReferenceIndex(),
+	); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	if err := s.tasks.Complete(req.TaskId); err != nil {

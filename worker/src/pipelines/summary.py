@@ -219,6 +219,64 @@ _BOOK_PROMPT_TEMPLATE_EN = (
     "directly with the summary content itself.\n\n{chapter_summaries}"
 )
 
+# --- Post-summary extras (reading guide + reference index) ---------------
+# These run after summarize_book() and keyword reduce, before
+# report_book_summary — so they don't hold up the main summary if the LLM
+# call fails (we catch ServiceCallError and store empty strings on failure).
+
+_READING_GUIDE_PROMPT = (
+    "根据下面这本书的全书总结和各章节摘要，生成一份阅读指南。"
+    "先简要说明这本书讲了什么（1-2段，约200字），然后从以下三个角度给出建议：\n\n"
+    "1. 预习建议：阅读前应该先了解什么背景知识、重点关注哪些章节；\n"
+    "2. 复习建议：读完后如何回顾核心内容，列出几个可自查的理解检查题；\n"
+    "3. 讨论主题：提出3-5个可辩论或小组讨论的开放性问题。\n\n"
+    "指南应锚定提供的材料，不要假设读者已知材料未提及的情节或观点。"
+    "直接输出 Markdown 正文，不要以“好的，我来为你生成阅读指南”之类的回应开头。\n\n"
+    "【全书总结】\n{book_summary}\n\n【各章节摘要】\n{chapter_summaries}"
+)
+
+_READING_GUIDE_PROMPT_EN = (
+    "Based on the provided whole-book summary and per-chapter summaries, "
+    "produce a reading guide in English. Start with a 1-2 paragraph "
+    "overview of what the book is about, then give recommendations on three "
+    "angles:\n\n"
+    "1. Before reading: what background knowledge to prep and which chapters "
+    "to focus on;\n"
+    "2. After reading: how to review the core content, with a few "
+    "self-check comprehension questions;\n"
+    "3. For discussion: 3-5 open, debatable questions for group conversation.\n\n"
+    "Stay grounded in the material provided — don't assume the reader knows "
+    "facts that aren't mentioned. Output Markdown directly, no conversational "
+    "preamble.\n\n"
+    "[Whole-book summary]\n{book_summary}\n\n[Per-chapter summaries]\n{chapter_summaries}"
+)
+
+_REFERENCE_INDEX_PROMPT = (
+    "阅读下面这本书的各章节摘要，识别作者在书中引用或提到的外部著作"
+    "（书名、文章名、论文、经典文献等），按出现频次从高到低排序，"
+    "最多列出30条。每条包含：引用对象名称（用书名号）、出现次数、"
+    "以及哪个章节提到了它。\n\n"
+    "只统计材料中明确出现过的引用；不要靠作者名或通假推断材料里没有的条目。"
+    "如果某条引用出现多次，合并计数，只列一次。"
+    "如果全书几乎没有外部引用，如实说明，不要硬凑。\n\n"
+    "直接输出 Markdown 表格：| 引用对象 | 出现次数 | 出现章节 |，按出现次数从高到低排序。\n\n"
+    "【各章节摘要】\n{chapter_summaries}"
+)
+
+_REFERENCE_INDEX_PROMPT_EN = (
+    "Read the per-chapter summaries below, identify external works (books, "
+    "articles, papers, classic texts) that the author cites or mentions, "
+    "sort by frequency descending, and list up to 30 entries. For each: "
+    "the referenced work name, how many times it appears, and which chapters "
+    "mention it.\n\n"
+    "Count only what is actually in the material — do not infer via author "
+    "names, pseudonyms, or guesses. Merge multiple mentions of the same work "
+    "into one row. If the book barely cites anything, say so honestly instead "
+    "of padding.\n\n"
+    "Output a Markdown table: | Reference | Count | Chapters |, sorted by "
+    "count descending.\n\n[Per-chapter summaries]\n{chapter_summaries}"
+)
+
 _CHAPTER_ANALYSIS_PROMPT_TEMPLATE_EN = (
     "Read the following chapter and do two things:\n"
     "1. Summarize the chapter in English, in no more than 400 words — no "
@@ -702,6 +760,40 @@ class SummaryPipeline:
         prompt = (_BOOK_PROMPT_TEMPLATE_EN if lang == "en" else _BOOK_PROMPT_TEMPLATE).format(chapter_summaries=joined)
         return self._complete(prompt, call_site="summary.book_reduce", task_id=task_id, book_id=book_id, task_type=task_type, cancel_event=cancel_event)
 
+    def _generate_reading_guide(
+        self, chapter_summaries_joined: str, book_summary: str, lang: str = "zh",
+        task_id: str = "", book_id: str = "", cancel_event=None,
+    ) -> str:
+        prompt = (
+            _READING_GUIDE_PROMPT_EN if lang == "en" else _READING_GUIDE_PROMPT
+        ).format(chapter_summaries=chapter_summaries_joined, book_summary=book_summary)
+        try:
+            return self._complete(
+                prompt, call_site="summary.reading_guide",
+                task_id=task_id, book_id=book_id, task_type="summary",
+                cancel_event=cancel_event,
+            )
+        except Exception:
+            logger.exception("reading guide generation failed (task=%s book=%s)", task_id, book_id)
+            return ""
+
+    def _generate_reference_index(
+        self, chapter_summaries_joined: str, lang: str = "zh",
+        task_id: str = "", book_id: str = "", cancel_event=None,
+    ) -> str:
+        prompt = (
+            _REFERENCE_INDEX_PROMPT_EN if lang == "en" else _REFERENCE_INDEX_PROMPT
+        ).format(chapter_summaries=chapter_summaries_joined)
+        try:
+            return self._complete(
+                prompt, call_site="summary.reference_index",
+                task_id=task_id, book_id=book_id, task_type="summary",
+                cancel_event=cancel_event,
+            )
+        except Exception:
+            logger.exception("reference index generation failed (task=%s book=%s)", task_id, book_id)
+            return ""
+
     def _extract_chapter_keywords(self, content: str, lang: str) -> dict[str, float]:
         """Rolling top-K keyword extraction across one chapter's segments —
         see the module-level comment above _KEYWORDS_PER_SEGMENT_TOP_K for
@@ -824,8 +916,29 @@ class SummaryPipeline:
             keywords = sorted(keyword_totals.items(), key=lambda item: item[1], reverse=True)
             logger.info("book keyword reduce: %d chapters -> %d terms", num_keyword_chapters, len(keywords))
 
+            self.core_api.report_progress(task_id, 92, "post_summary_extras")
+            chapter_summaries_joined = "\n\n".join(
+                f"[{i + 1}] {title or '（未命名章节）'}\n{summary}"
+                for i, (title, summary) in enumerate(chapter_summaries)
+            )
+            reading_guide = self._generate_reading_guide(
+                chapter_summaries_joined, book_summary, lang=lang,
+                task_id=task_id, book_id=book_id, cancel_event=cancel_event,
+            )
+            reference_index = self._generate_reference_index(
+                chapter_summaries_joined, lang=lang,
+                task_id=task_id, book_id=book_id, cancel_event=cancel_event,
+            )
+            if reading_guide:
+                logger.info("reading guide generated: %d chars", len(reading_guide))
+            if reference_index:
+                logger.info("reference index generated: %d chars", len(reference_index))
+
             self.core_api.report_progress(task_id, 95, "reducing_done")
-            self.core_api.report_book_summary(task_id, book_id, book_summary, keywords)
+            self.core_api.report_book_summary(
+                task_id, book_id, book_summary, keywords,
+                reading_guide=reading_guide, reference_index=reference_index,
+            )
 
             # All embedding calls for this run happen here, after every LLM
             # call above (chapter summaries, chapter definitions, and the

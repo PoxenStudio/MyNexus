@@ -679,7 +679,17 @@ onUnmounted(() => {
         <div v-else-if="book.summary" class="summary-body">
           <MarkdownContent :content="book.summary" class="summary-text" />
         </div>
-        <p v-else-if="!summarizing" class="empty">{{ t("books.noSummaryYet") }}</p>
+
+        <div v-if="book.reading_guide" class="summary-body">
+          <h3 class="extra-title">{{ t("books.readingGuide") }}</h3>
+          <MarkdownContent :content="book.reading_guide" class="summary-text" />
+        </div>
+
+        <div v-if="book.reference_index" class="summary-body">
+          <h3 class="extra-title">{{ t("books.referenceIndex") }}</h3>
+          <MarkdownContent :content="book.reference_index" class="summary-text" />
+        </div>
+        <p v-if="!book.summary && !summarizing" class="empty">{{ t("books.noSummaryYet") }}</p>
       </div>
 
       <h2>{{ t("books.chapters") }}</h2>
@@ -936,6 +946,12 @@ onUnmounted(() => {
 }
 .summary-text {
   font-size: 17.6px;
+}
+.extra-title {
+  font-size: 1rem;
+  margin: 0.5rem 0 0.35rem;
+  color: var(--text-h);
+  font-weight: 600;
 }
 .summary-edit {
   margin: 0.75rem 0 0;
