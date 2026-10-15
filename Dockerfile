@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=poxenstudio/mynexus_base:latest
 
-FROM golang:1.25-alpine AS core-build
+FROM docker.1ms.run/golang:1.25-alpine AS core-build
 ENV GOPROXY=https://goproxy.cn,direct
 WORKDIR /src/core-api
 COPY core-api/go.mod core-api/go.sum ./
@@ -9,7 +9,7 @@ COPY core-api/cmd ./cmd
 COPY core-api/internal ./internal
 RUN CGO_ENABLED=0 go build -o /out/mynexus-api ./cmd/mynexus-api
 
-FROM node:20-alpine AS web-build
+FROM docker.1ms.run/node:20-alpine AS web-build
 WORKDIR /src/web-ui
 COPY web-ui/package.json web-ui/package-lock.json ./
 RUN npm ci
