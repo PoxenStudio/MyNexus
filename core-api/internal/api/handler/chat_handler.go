@@ -257,7 +257,7 @@ func (h *ChatHandler) DeleteSession(c *gin.Context) {
 }
 
 var citedIndexRE = regexp.MustCompile(`\[(\d+)\]`)
-var trailingCiteLineRE = regexp.MustCompile(`(?m)^[\s\u3000]*\[\d+\](?:\s*\[\d+\])*\s*$`)
+var trailingCiteLineRE = regexp.MustCompile("(?m)^[\\s\u3000]*\\[\\d+\\](?:\\s*\\[\\d+\\])*\\s*$")
 
 func finalizeCitations(answer string, citations []dto.CitationResponse) (string, []dto.CitationResponse) {
 	matches := citedIndexRE.FindAllStringSubmatchIndex(answer, -1)
