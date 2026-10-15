@@ -255,16 +255,16 @@ _REFERENCE_INDEX_CAP = 30
 
 def _build_reference_index_markdown(refs_totals: dict) -> str:
     """Aggregates per-chapter reference lists (collected by analyze_chapter
-    into refs_totals) into a single Markdown table sorted by count descending.
+    into refs_totals) into a single Markdown table sorted by chapter order
+    (the book's natural reading sequence — see run()'s usable iteration).
 
     refs_totals: {normalized_title: {"count": int, "display": str,
-                                      "chapters": [str, ...]}}
-    (same shape run() builds at map time). Returns an empty string when the
-    book has no references at all — caller respects that by skipping the DB
-    write rather than storing an empty table."""
+                                      "chapters": [str, ...],
+                                      "first_pos": int}}
+    Returns an empty string when the book has no references at all."""
     if not refs_totals:
         return ""
-    rows = sorted(refs_totals.values(), key=lambda e: (-e["count"], e["display"].lower()))
+    rows = sorted(refs_totals.values(), key=lambda e: (e["first_pos"], e["display"].lower()))
     rows = rows[:_REFERENCE_INDEX_CAP]
     lines = [
         "| 引用对象 | 出现次数 | 出现章节 |",
@@ -890,21 +890,14 @@ class SummaryPipeline:
 
             chapter_kw_cache: dict[str, dict[str, float]] = {}
             chapter_refs_totals: dict[str, dict] = {}
-            # Seed chapter_refs_totals with references already persisted in
-            # the DB (every chapter carries its references list when the
-            # core-api hands us SummarizeRequest.chapters). In "continue"
-            # mode (to_generate only covers empty-summary chapters) this
-            # lets us rebuild the full book-level reference_index without
-            # re-LLM-ing chapters we skipped — exactly the scenario the
-            # "references-on-chapters" persistence was added for.
-            for ch in usable:
+            for pos, ch in enumerate(usable):
                 for ref in getattr(ch, "references", []) or []:
                     rnorm = ref.strip().lower()
                     if not rnorm:
                         continue
                     entry = chapter_refs_totals.get(rnorm)
                     if entry is None:
-                        entry = {"count": 0, "display": ref.strip(), "chapters": []}
+                        entry = {"count": 0, "display": ref.strip(), "chapters": [], "first_pos": pos}
                         chapter_refs_totals[rnorm] = entry
                     entry["count"] += 1
                     if ch.title not in entry["chapters"]:
@@ -914,9 +907,8 @@ class SummaryPipeline:
                 len(chapter_refs_totals),
             )
 
-            # Keeps original chapter order for the reduce step: chapters not
-            # in to_generate keep their existing summary untouched.
             summaries_by_id = {ch.id: ch.summary for ch in usable}
+            ch_pos = {ch.id: pos for pos, ch in enumerate(usable)}
             total = len(to_generate)
             for i, ch in enumerate(to_generate):
                 if cancel_event is not None and cancel_event.is_set():
@@ -976,7 +968,7 @@ class SummaryPipeline:
                         continue
                     entry = chapter_refs_totals.get(rnorm)
                     if entry is None:
-                        entry = {"count": 0, "display": ref.strip(), "chapters": []}
+                        entry = {"count": 0, "display": ref.strip(), "chapters": [], "first_pos": ch_pos.get(ch.id, 0)}
                         chapter_refs_totals[rnorm] = entry
                     entry["count"] += 1
                     if ch.title not in entry["chapters"]:
