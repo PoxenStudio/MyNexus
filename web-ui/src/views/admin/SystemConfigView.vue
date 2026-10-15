@@ -115,14 +115,9 @@ async function onSave() {
   try {
     await saveSettings(settings.value);
     saved.value = true;
-    // core-api restarts after this call (see api/system.ts) — its in-memory
-    // session table is gone with it, so the current session cookie stops
-    // being valid. Send the admin back to /login instead of waiting for the
-    // next request to fail with a confusing 401.
-    setTimeout(() => {
-      auth.username = null;
-      router.push({ name: "login" });
-    }, 2500);
+    // Worker restarts to pick up the new config (see backend handler) —
+    // core-api stays up, so the current session keeps working. No logout
+    // needed; the saved flag just shows a success chip.
   } catch (e: any) {
     error.value = e?.response?.data?.error || t("settings.error");
   } finally {

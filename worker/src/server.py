@@ -230,9 +230,13 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         # Ack first, then exit shortly after on a separate thread so the
         # response actually reaches Core API before the process dies — see
         # the rpc comment in mynexus.proto for why this exists and what it
-        # depends on (an external supervisor to restart the process).
-        logging.info("shutdown requested via gRPC, exiting in 0.5s")
-        threading.Timer(0.5, lambda: os._exit(0)).start()
+        # depends on (an external supervisor to restart the process). Exit
+        # code 1 on purpose: docker-compose's `restart: unless-stopped` and
+        # supervisord's `autorestart=true` both treat exit 0 as "voluntary
+        # shutdown, don't bring it back", but this is a config-reload
+        # cycle, so we want them to restart us.
+        logging.info("shutdown requested via gRPC, exiting in 0.5s (exit code 1 for supervisor restart)")
+        threading.Timer(0.5, lambda: os._exit(1)).start()
         return mynexus_pb2.Ack(ok=True)
 
 

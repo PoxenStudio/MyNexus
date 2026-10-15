@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -88,9 +87,14 @@ func (h *SystemHandler) Settings(c *gin.Context) {
 
 // SaveSettings rewrites config.yaml with the submitted sections, leaving
 // server/auth exactly as currently on disk (re-read fresh, not from h.cfg,
-// so an env-injected secret never gets baked into the file), then restarts
-// both services: Worker via a best-effort gRPC Shutdown call, and this
-// process via os.Exit after the response is flushed.
+// so an env-injected secret never gets baked into the file), then asks
+// Worker to exit via a best-effort gRPC Shutdown call — supervisor in Docker
+// and the dev script both autorestart it, so it comes back up with the new
+// config. Core API itself stays up; the only settings that need a full
+// core-api restart are storage.database / storage.sqlite.path /
+// storage.postgres.dsn / server.port / server.grpc_port / chat.enabled /
+// storage.upload_dir (none of which the settings page lets you change
+// without a server restart anyway).
 func (h *SystemHandler) SaveSettings(c *gin.Context) {
 	var body dto.SystemSettings
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -128,17 +132,11 @@ func (h *SystemHandler) SaveSettings(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"restarting": true})
 
-	// Best-effort: Worker may be down already, or may not come back up on its
-	// own in a supervisor-less dev run — either way this request has already
-	// succeeded from the caller's point of view.
+	// Best-effort: Worker may be down already. In Docker the supervisor's
+	// autorestart=true brings it back; in local `make dev-up` mode the
+	// foreground python process exits — that one does NOT auto-recover,
+	// same as before (see .claude/memory/mynexus_supervisor.md).
 	go func() { _ = h.worker.Shutdown() }()
-
-	// Give the response above time to actually reach the client before this
-	// process exits.
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		os.Exit(0)
-	}()
 }
 
 func (h *SystemHandler) TestProvider(c *gin.Context) {
