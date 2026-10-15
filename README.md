@@ -4,6 +4,9 @@
 
 ![Main UI](docs/mainui.png)
 
+书籍上传处理
+![list](docs/book_list.jpg)
+
 书籍的总结
 
 ![Book](docs/book_header.jpg)
