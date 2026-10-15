@@ -131,6 +131,32 @@ SKILLS = (
             "优先复用已有摘要，再用原文检索结果补充；问题应锚定材料，不要假设读者已知材料未提供的情节或观点。"
         ),
     ),
+    Skill(
+        id="reference-index",
+        name="引用书目汇总",
+        description="从书籍原文中识别并统计被引用的书籍、文章、人物或概念，列出出现频次最高的条目。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "max_items": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 50,
+                    "default": 30,
+                    "description": "最多返回多少条高频引用条目。",
+                },
+                "book_ids": {"type": "array", "items": {"type": "string"}},
+            },
+            "additionalProperties": False,
+        },
+        prompt=(
+            "从提供的书籍原文片段中识别被引用或被提到的外部著作（书名、文章名、论文等），"
+            "按出现频次从高到低排序，列出最多 max_items 条。每条包含：引用对象名称、"
+            "出现次数、以及一两个代表性的原文出处（章节+摘录短句）。"
+            "只统计材料中明确出现过的引用；不要靠作者名或通假推断未出现的条目。"
+            "若材料只覆盖一本书的部分章节，在开头说明统计范围和遗漏风险。"
+        ),
+    ),
 )
 
 
