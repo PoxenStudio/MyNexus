@@ -5,6 +5,7 @@ from typing import Iterator
 
 from config import WorkerConfig, load_config
 from nodes.factory import get_llm
+from pipelines.fulltext import confirm_in_chapters
 from pipelines.retrieval import RetrievalPipeline
 from skills.catalog import builtin_skill_tools
 from tools.book_info import BookInfoTool
@@ -24,11 +25,33 @@ _CITED_RE = re.compile(r"\[(\d+)\]")
 def _extract_cited_indices(answer: str) -> set[int]:
     return {int(m.group(1)) for m in _CITED_RE.finditer(answer)}
 
-_SYSTEM_PROMPT_TEMPLATE = (
-    "你是一个书籍知识库问答助手。请仅根据下面提供的参考片段回答用户问题，"
-    "并在回答中用 [编号] 标注引用来源；如果参考片段中没有答案，请如实说明未找到相关内容。\n\n"
-    "参考片段：\n{context}"
+_ANSWER_RULES = (
+    "回答规则：\n"
+    "1. 书中事实（情节、人物言行、引句、章回内容）必须依据参考材料，并用 [编号] 标注来源；"
+    "禁止编造引句或书中未出现的细节。\n"
+    "2. 对材料的解释允许使用你的通用知识，例如古地名/古称对应今天的何地、字词释义、"
+    "历史背景、名物常识；使用通用知识的部分不要标注 [编号]，并与书中依据区分清楚。\n"
+    "3. 若材料已出现问题所问的对象但未直接给出答案（例如只出现古地名而未写今址），"
+    "应结合通用知识把问题答完整，不得仅以“片段未说明”作答。\n"
+    "4. 只有参考材料与通用知识都无法支撑时（如问某具体情节而书中确无相关内容），"
+    "才如实说明未找到。\n"
 )
+
+_SYSTEM_PROMPT_TEMPLATE = (
+    "你是一个书籍知识库问答助手。下面提供了与问题相关的参考材料，请据此回答用户问题。\n"
+    + _ANSWER_RULES
+    + "\n参考材料：\n{context}"
+)
+
+
+def _build_plain_context(chunks: list[dict], fulltext_snippets: list[dict]) -> str:
+    parts = [f"[{i + 1}] {c['content']}" for i, c in enumerate(chunks)]
+    idx = len(chunks)
+    for snip in fulltext_snippets:
+        idx += 1
+        parts.append(f"[{idx}]（《{snip['title']}》全文定位）{snip['text']}")
+    return "\n\n".join(parts)
+
 
 # Only used for the tool-call decision step (see _decide_tool) — kept
 # separate from _SYSTEM_PROMPT_TEMPLATE since that one always carries
@@ -163,6 +186,59 @@ class QAPipeline:
             )
             return
 
+        # Full-text confirmation for chunk-level tool evidence too
+        # (semantic_search/search_by_chapters): like ReadAny's fallbackSearch,
+        # locate the question's salient terms in the complete chapter text.
+        # Skip when read_chapter already pulled full chapters.
+        question = messages[-1]["content"] if messages else ""
+        called_tools = {r["tool"] for r in tool_results}
+        if (
+            question
+            and not active_skill
+            and (called_tools & {"semantic_search", "search_by_chapters"})
+            and "read_chapter" not in called_tools
+        ):
+            candidates: list[dict] = []
+            seen_ft: set[str] = set()
+            for c in citations:
+                cid = c.get("chapter_id")
+                if not cid or cid in seen_ft:
+                    continue
+                seen_ft.add(cid)
+                candidates.append({"book_id": c["book_id"], "chapter_id": cid})
+                if len(candidates) >= 8:
+                    break
+            if candidates:
+                try:
+                    ft = confirm_in_chapters(self.retrieval.core_api, question, candidates)
+                except Exception:
+                    ft = []
+                    logger.exception("fulltext confirmation failed in tool path")
+                if ft:
+                    logger.info("tool path fulltext confirmed: %d snippets", len(ft))
+                    tool_results.append(
+                        {
+                            "tool": "fulltext_confirm",
+                            "arguments": {"query": question},
+                            "result": {
+                                "snippets": [
+                                    {"chapter": s["title"], "terms": s["terms"], "text": s["text"]}
+                                    for s in ft
+                                ]
+                            },
+                        }
+                    )
+                    citations.extend(
+                        {
+                            "chunk_id": "",
+                            "chapter_id": s["chapter_id"],
+                            "book_id": s["book_id"],
+                            "score": 1.0,
+                            "content": f"《{s['title']}》全文定位：{'、'.join(s['terms'])}",
+                        }
+                        for s in ft
+                    )
+
         if active_skill and not citations:
             question = messages[-1]["content"] if messages else ""
             results = self.retrieval.search(question, book_ids=book_ids, top_k=top_k)
@@ -189,9 +265,55 @@ class QAPipeline:
             return
 
         question = messages[-1]["content"] if messages else ""
-        citations = self.retrieval.search(question, book_ids=book_ids, top_k=top_k)
+        chunks = self.retrieval.search(question, book_ids=book_ids, top_k=top_k)
+        # Drop chunks from cover/扉页/目录-style near-empty chapters that
+        # occasionally survive semantic ranking.
+        chunks = [c for c in chunks if len((c.get("content") or "").strip()) >= 30]
 
-        context = "\n\n".join(f"[{i + 1}] {c['content']}" for i, c in enumerate(citations))
+        # Full-text confirmation over complete chapter text (like ReadAny's
+        # fallbackSearch): chunks are fixed-size windows, so rare proper nouns
+        # can land on boundaries or lose surrounding context. Candidate
+        # chapters come from chunk hits in score order — no extra broad scan.
+        candidate_chapters: list[dict] = []
+        seen_chapters: set[str] = set()
+        for c in chunks:
+            if not c.get("chapter_id") or c["chapter_id"] in seen_chapters:
+                continue
+            seen_chapters.add(c["chapter_id"])
+            candidate_chapters.append({"book_id": c["book_id"], "chapter_id": c["chapter_id"]})
+            if len(candidate_chapters) >= 8:
+                break
+        fulltext_snippets: list[dict] = []
+        if candidate_chapters:
+            try:
+                fulltext_snippets = confirm_in_chapters(
+                    self.retrieval.core_api, question, candidate_chapters
+                )
+            except Exception:
+                logger.exception("fulltext confirmation failed, continuing with chunks only")
+
+        citations = [
+            {
+                "chunk_id": c["id"],
+                "chapter_id": c["chapter_id"],
+                "book_id": c["book_id"],
+                "score": c["score"],
+                "content": c["content"][:200],
+            }
+            for c in chunks
+        ]
+        citations.extend(
+            {
+                "chunk_id": "",
+                "chapter_id": s["chapter_id"],
+                "book_id": s["book_id"],
+                "score": 1.0,
+                "content": f"《{s['title']}》全文定位：{'、'.join(s['terms'])}",
+            }
+            for s in fulltext_snippets
+        )
+
+        context = _build_plain_context(chunks, fulltext_snippets)
         system_message = {"role": "system", "content": _SYSTEM_PROMPT_TEMPLATE.format(context=context or "（无相关片段）")}
         llm_messages = [system_message] + messages
 
@@ -207,21 +329,12 @@ class QAPipeline:
 
         answer_text = "".join(answer_chunks)
         used = _extract_cited_indices(answer_text)
-        logger.info("plain RAG: answer cites %d/%d top-k chunks", len(used), len(citations))
+        logger.info(
+            "plain RAG: answer cites %d/%d contexts (chunks=%d fulltext=%d)",
+            len(used), len(citations), len(chunks), len(fulltext_snippets),
+        )
 
-        yield {
-            "type": "citations",
-            "citations": [
-                {
-                    "chunk_id": c["id"],
-                    "chapter_id": c["chapter_id"],
-                    "book_id": c["book_id"],
-                    "score": c["score"],
-                    "content": c["content"][:200],
-                }
-                for c in citations
-            ],
-        }
+        yield {"type": "citations", "citations": citations}
 
     def _decide_tool(
         self,
@@ -317,15 +430,16 @@ class QAPipeline:
                 f"v{active_skill['version']})\n"
                 f"任务参数：{json.dumps(active_skill['arguments'], ensure_ascii=False)}\n"
                 f"执行指引：{active_skill['prompt']}\n"
-                "请遵循该流程完成回答，并仅依据下方工具数据提供书籍事实。"
+                "请遵循该流程完成回答。"
             )
         system_message = {
             "role": "system",
             "content": (
                 "你是一个书籍知识库问答助手。已经为你查询到以下多组数据（按工具调用分组），"
                 "请据此直接回答用户问题，不需要标注引用编号；"
-                "如果用户问的是总结类问题，可以直接引用其中的总结/摘要内容作答；"
-                "如果工具结果不足以完整回答，请如实说明信息边界（例如只读了部分章节）：\n"
+                "如果用户问的是总结类问题，可以直接引用其中的总结/摘要内容作答。\n"
+                + _ANSWER_RULES
+                + "\n工具数据：\n"
                 + context
                 + skill_instructions
                 + mindmap_instructions
