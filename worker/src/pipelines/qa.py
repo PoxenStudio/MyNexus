@@ -49,7 +49,7 @@ _TOOL_DECISION_PROMPT = (
     "- 追踪人物关系与发展 → skill_character_tracker\n"
     "- 收集原文引句 → skill_quote_collector\n"
     "- 生成预习、复习或讨论指南 → skill_reading_guide\n"
-    "- 生成思维导图/知识图谱/概念图 → generate_mindmap\n"
+    "- 生成思维导图/知识图谱/概念图 → generate_mindmap（必须先调用 semantic_search/search_by_chapters/read_chapter 收集证据，再据证据编写 markdown；历史对话中已有充分证据时可直接生成）\n"
     "Skill 是任务流程指引，不是数据来源；选中后再调用必要的数据工具。一个回合只启用一个 Skill。\n"
     "如果问题不在上述范围、或可通过对话历史直接回答，不要调用任何工具，直接留空。"
 )
@@ -79,7 +79,7 @@ class QAPipeline:
                 ReadChapterTool(self.retrieval.core_api),
                 SearchByChaptersTool(self.retrieval),
                 SemanticSearchTool(self.retrieval),
-                MindmapTool(self.retrieval, self.llm),
+                MindmapTool(),
                 *builtin_skill_tools(),
             ]
         )
@@ -111,14 +111,28 @@ class QAPipeline:
             citations.extend(result.pop("__citations", []) or [])
             skill_activation = result.pop("__skill__", None)
 
-            if name == "generate_mindmap" and not scope_error:
-                if "error" not in result:
-                    logger.info("mindmap tool succeeded, emitting tool_result event")
-                    yield {"type": "tool_result", "tool_name": name, "result": result}
-                    mindmap_emitted = True
-                    break
-                logger.warning("mindmap tool failed: %s", result.get("error"))
-                result = {"error": result.get("error", "mindmap generation failed")}
+            if name == "generate_mindmap" and not scope_error and "error" not in result:
+                logger.info(
+                    "mindmap tool ok: title=%s nodes=%s prior_citations=%d",
+                    result.get("title"),
+                    (result.get("stats") or {}).get("node_count"),
+                    len(citations),
+                )
+                yield {"type": "tool_result", "tool_name": name, "result": result}
+                tool_results.append(
+                    {
+                        "tool": name,
+                        "arguments": {"title": result.get("title")},
+                        "result": {
+                            "type": "mindmap",
+                            "title": result.get("title"),
+                            "rendered": True,
+                            "note": "思维导图已渲染给用户，最终回答中不要重复输出 markdown 原文",
+                        },
+                    }
+                )
+                mindmap_emitted = True
+                break
 
             if skill_activation:
                 active_skill = skill_activation
@@ -142,21 +156,11 @@ class QAPipeline:
                     },
                 ]
 
-        if mindmap_emitted and not tool_results and not active_skill:
-            logger.info("mindmap-only path, yielding citations and returning")
-            yield {
-                "type": "citations",
-                "citations": [
-                    {
-                        "chunk_id": c["chunk_id"],
-                        "chapter_id": c["chapter_id"],
-                        "book_id": c["book_id"],
-                        "score": c["score"],
-                        "content": c["content"][:200],
-                    }
-                    for c in citations
-                ],
-            }
+        if mindmap_emitted:
+            logger.info("mindmap emitted, streaming companion answer with %d citations", len(citations))
+            yield from self._answer_from_tools(
+                messages, tool_results, citations, active_skill, mindmap=True
+            )
             return
 
         if active_skill and not citations:
@@ -291,6 +295,7 @@ class QAPipeline:
         tool_results: list[dict],
         citations: list[dict],
         active_skill: dict | None = None,
+        mindmap: bool = False,
     ) -> Iterator[dict]:
         """Streams the final answer from accumulated tool results (single- or multi-round)."""
         context = "\n\n".join(
@@ -298,6 +303,13 @@ class QAPipeline:
             + json.dumps(r["result"], ensure_ascii=False)
             for r in tool_results
         )
+        mindmap_instructions = ""
+        if mindmap:
+            mindmap_instructions = (
+                "\n\n思维导图已经作为独立可视化卡片渲染给用户，不要重复输出其 markdown 原文。"
+                "请用简短文字（可用小标题或表格）介绍图的主要分支与组织逻辑，"
+                "并在结尾用一两句话给出后续可细化方向（如聚焦某个分支展开）。"
+            )
         skill_instructions = ""
         if active_skill:
             skill_instructions = (
@@ -316,6 +328,7 @@ class QAPipeline:
                 "如果工具结果不足以完整回答，请如实说明信息边界（例如只读了部分章节）：\n"
                 + context
                 + skill_instructions
+                + mindmap_instructions
             ),
         }
         llm_messages = [system_message] + messages

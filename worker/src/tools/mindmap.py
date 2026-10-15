@@ -1,35 +1,16 @@
 import logging
 import re
 
-from nodes.llm.base_llm import BaseLLM
-from pipelines.retrieval import RetrievalPipeline
 from tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
-_MINDMAP_PROMPT = """你是思维导图生成助手。根据以下书籍内容，生成一个结构清晰的思维导图，使用标准 Markdown 标题格式：
-- 一级标题 (#) 作为根节点（思维导图的中心主题）
-- 二级标题 (##) 作为主要分支
-- 三级标题 (###) 作为子分支
-- 无序列表项 (-) 作为叶子节点/具体细节
-
-规则：
-1. 根节点使用书籍标题或主题
-2. 从粗到细，层次不超过 4 级标题
-3. 内容要忠实于参考材料，不要凭空添加
-4. 每个节点用简洁的短语，不用长句
-
-参考内容：
-{context}
-
-请输出思维导图 Markdown："""
-
 
 class MindmapTool(BaseTool):
-
-    def __init__(self, retrieval: RetrievalPipeline, llm: BaseLLM) -> None:
-        self.retrieval = retrieval
-        self.llm = llm
+    """Pure formatting tool: the model authors title/markdown itself from
+    evidence gathered by earlier retrieval tools in the same turn — this
+    tool only validates, normalizes mermaid fallback syntax, and computes
+    stats."""
 
     @property
     def name(self) -> str:
@@ -38,9 +19,10 @@ class MindmapTool(BaseTool):
     @property
     def description(self) -> str:
         return (
-            "根据书籍内容生成思维导图。当用户要求生成思维导图、知识图谱、概念图、"
-            "或者可视化某本书/某章/某个主题的结构时调用此工具。"
-            "工具内部会检索相关书籍内容并生成思维导图的 Markdown 结构。"
+            "生成思维导图可视化。当用户要求生成思维导图、知识图谱、概念图或可视化某本书/某章/某主题的结构时调用。"
+            "调用前应先通过 semantic_search/read_chapter/search_by_chapters 获取足够的原文证据，"
+            "markdown 必须基于检索到的事实，不得凭空编造。"
+            "markdown 参数必须使用标准 Markdown 标题语法（# ## ### 与 - 列表），禁止使用 mermaid mindmap 语法。"
         )
 
     @property
@@ -48,85 +30,63 @@ class MindmapTool(BaseTool):
         return {
             "type": "object",
             "properties": {
-                "query": {
+                "title": {
                     "type": "string",
-                    "description": "要生成思维导图的主题描述，用于检索相关书籍内容。例如「《活着》的主要人物和情节」",
+                    "description": "思维导图标题，例如《三国演义》主要人物关系",
+                },
+                "markdown": {
+                    "type": "string",
+                    "description": (
+                        "思维导图内容，标准 Markdown 标题格式（禁止 mermaid 语法）："
+                        "# 为中心主题，## 为主分支，### 为子分支，- 为叶子项。"
+                        "每个节点用简洁短语；层次不超过 4 级标题；节点数建议 30-80 个。\n"
+                        "示例：\n"
+                        "# 主题\n"
+                        "## 阵营 A\n"
+                        "### 核心人物\n"
+                        "- 人物甲（关系说明）\n"
+                        "## 阵营 B\n"
+                        "- 人物乙"
+                    ),
                 },
             },
-            "required": ["query"],
+            "required": ["title", "markdown"],
         }
 
-    def run(self, query: str = "", **kwargs) -> dict:
-        search_query = query or "思维导图 主要内容 章节结构"
-        results = self.retrieval.search(search_query, top_k=15)
-        if not results:
-            return {"error": "未检索到相关书籍内容，无法生成思维导图"}
+    def run(self, title: str = "", markdown: str = "", **kwargs) -> dict:
+        title = (title or "").strip()
+        raw = (markdown or "").strip()
+        if not title:
+            return {"error": "mindmap title is required"}
+        if not raw:
+            return {"error": "mindmap markdown content is required"}
 
-        citations = [
-            {
-                "chunk_id": r["id"],
-                "chapter_id": r["chapter_id"],
-                "book_id": r["book_id"],
-                "score": r["score"],
-                "content": r["content"][:200],
-            }
-            for r in results
-        ]
+        if raw.startswith("mindmap") or raw.startswith("```mermaid") or raw.startswith("graph"):
+            raw = self._convert_mermaid(raw, title)
+            logger.info("mindmap: converted mermaid syntax to markdown headings")
 
-        context = "\n\n".join(f"[片段 {i + 1}]\n{r['content']}" for i, r in enumerate(results))
-        messages = [{"role": "system", "content": _MINDMAP_PROMPT.format(context=context)}]
-
-        chunks = []
-        try:
-            for delta in self.llm.process(messages, call_site="qa.mindmap"):
-                chunks.append(delta)
-        except Exception as exc:
-            logger.exception("mindmap llm generation failed")
-            return {"error": f"思维导图生成失败: {exc}"}
-
-        markdown = "".join(chunks).strip()
-        markdown = self._clean_markdown(markdown)
-        title = self._extract_title(markdown)
-
-        node_count = len([l for l in markdown.split("\n") if l.strip()])
-        logger.info("mindmap generated: title=%s nodes=%d", title, node_count)
+        node_count = len([l for l in raw.split("\n") if l.strip()])
+        logger.info("mindmap tool: title=%s nodes=%d", title, node_count)
 
         return {
             "type": "mindmap",
             "title": title,
-            "markdown": markdown,
+            "markdown": raw,
             "stats": {"node_count": node_count},
-            "__citations": citations,
         }
 
-    _FENCE_RE = re.compile(r"^```(?:markdown|md|mermaid)?\s*|\s*```$", re.MULTILINE)
-    _MERMAID_RE = re.compile(r"^mindmap\s*$", re.MULTILINE)
+    _FENCE_RE = re.compile(r"^```(?:mermaid|markdown|md)?\s*|\s*```$", re.MULTILINE)
 
-    def _clean_markdown(self, text: str) -> str:
-        text = self._FENCE_RE.sub("", text).strip()
-        if text.startswith("mindmap") or text.startswith("graph"):
-            text = self._convert_mermaid(text)
-        return text
-
-    def _extract_title(self, markdown: str) -> str:
-        for line in markdown.split("\n"):
-            stripped = line.strip()
-            m = re.match(r"^#\s+(.+)", stripped)
-            if m:
-                return m.group(1).strip()
-        return "思维导图"
-
-    def _convert_mermaid(self, text: str) -> str:
-        text = self._MERMAID_RE.sub("", text).strip()
+    def _convert_mermaid(self, text: str, fallback_title: str) -> str:
+        text = self._FENCE_RE.sub("", text)
+        text = re.sub(r"^(mindmap|graph\s+\w+)\s*$", "", text, flags=re.MULTILINE).strip()
         lines = text.split("\n")
 
         min_indent = float("inf")
         for line in lines:
-            stripped = line.strip()
-            if not stripped:
+            if not line.strip():
                 continue
-            indent = len(line) - len(line.lstrip())
-            min_indent = min(min_indent, indent)
+            min_indent = min(min_indent, len(line) - len(line.lstrip()))
         if min_indent == float("inf"):
             min_indent = 0
 
@@ -136,8 +96,10 @@ class MindmapTool(BaseTool):
             if not stripped:
                 continue
             indent = len(line) - len(line.lstrip())
-            depth = (indent - min_indent) // 2
+            depth = max(0, (indent - min_indent) // 2)
             clean = stripped
+            if "-->" in clean:
+                continue
             for pat in (r"^\((.+)\)$", r"^\[(.+)\]$", r"^\{(.+)\}$", r'^["\'](.+)["\']$'):
                 m = re.match(pat, clean)
                 if m:
@@ -153,7 +115,6 @@ class MindmapTool(BaseTool):
             elif depth == 3:
                 result.append(f"#### {clean}")
             else:
-                list_indent = "  " * max(0, depth - 4)
-                result.append(f"{list_indent}- {clean}")
+                result.append(f"{'  ' * max(0, depth - 4)}- {clean}")
 
-        return "\n".join(result) if result else "# 思维导图"
+        return "\n".join(result) if result else f"# {fallback_title}"

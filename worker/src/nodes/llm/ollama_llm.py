@@ -199,7 +199,7 @@ class OllamaLLM(BaseLLM):
         )
         body_len = sum(len(m.get("content", "") or "") for m in messages)
         t_start = time.time()
-        logger = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
+        llm_log = LLMCallLogger("ollama", self.model, self.base_url, messages) if self.debug else None
         logger.info(
             "LLM call start: call_site=%s model=%s base_url=%s body=%dchars",
             call_site, self.model, self.base_url, body_len,
@@ -219,8 +219,8 @@ class OllamaLLM(BaseLLM):
                 "LLM call ERROR: call_site=%s elapsed=%.1fs error_type=%s error=%s",
                 call_site, t_elapsed, type(exc).__name__, str(exc)[:200],
             )
-            if logger:
-                logger.log_error(exc)
+            if llm_log:
+                llm_log.log_error(exc)
             raise
         message = data.get("message", {})
         tool_calls = [
@@ -239,9 +239,9 @@ class OllamaLLM(BaseLLM):
             call_site=call_site,
             finish_reason=data.get("done_reason", ""),
         )
-        if logger:
+        if llm_log:
             logged = {k: v for k, v in result.items() if k != "usage"}
-            logger.log_response(json.dumps(logged, ensure_ascii=False))
+            llm_log.log_response(json.dumps(logged, ensure_ascii=False))
         logger.info(
             "LLM call done: call_site=%s elapsed=%.1fs usage=(prompt=%d completion=%d total=%d) finish_reason=%s",
             call_site, time.time() - t_start,

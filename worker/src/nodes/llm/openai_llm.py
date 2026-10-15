@@ -271,9 +271,9 @@ class OpenAILLM(BaseLLM):
             call_site=call_site,
             finish_reason=(data.get("choices") or [{}])[0].get("finish_reason", ""),
         )
-        if logger:
+        if llm_log:
             logged = {k: v for k, v in result.items() if k != "usage"}
-            logger.log_response(json.dumps(logged, ensure_ascii=False))
+            llm_log.log_response(json.dumps(logged, ensure_ascii=False))
         logger.info(
             "LLM call done: call_site=%s elapsed=%.1fs usage=(prompt=%d completion=%d total=%d) finish_reason=%s",
             call_site, time.time() - t_start,
