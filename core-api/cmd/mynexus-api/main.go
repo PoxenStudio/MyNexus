@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc/connectivity"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"mynexus/core-api/internal/api"
 	"mynexus/core-api/internal/config"
@@ -20,14 +25,28 @@ import (
 	"mynexus/core-api/internal/storage/sqlite"
 )
 
-// workerHealthCheckInterval paces watchWorkerHealth below — frequent enough
-// that a dead Worker doesn't leave tasks stuck for long, coarse enough not
-// to matter when it hasn't (this is a poll of already-tracked gRPC channel
-// state, not a network call of its own). Also doubles as the periodic
-// safety-net interval for dispatcher.TryDispatch (see watchWorkerHealth) —
-// one ticker, two jobs, since both only matter on roughly the same
-// timescale.
 const workerHealthCheckInterval = 20 * time.Second
+
+func setupFileLogging() {
+	logDir := "./data/logs"
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("MYNEXUS_IN_DOCKER"))); v == "1" || v == "true" || v == "yes" || v == "on" {
+		logDir = "/data/logs"
+	}
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		log.Printf("failed to create log dir %s: %v — file logging disabled", logDir, err)
+		return
+	}
+	logPath := filepath.Join(logDir, "core.log")
+	file := &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    5,
+		MaxBackups: 7,
+		MaxAge:     0,
+		Compress:   false,
+	}
+	log.SetOutput(io.MultiWriter(os.Stdout, file))
+	log.Printf("core-api file logging enabled: %s (5MB × 7 backups)", logPath)
+}
 
 // recoverOrphanedTasks handles every task left stuck pending/processing —
 // see TaskService.RequeueOrphanedIngest/FailOrphanedSummarize for why
@@ -124,6 +143,7 @@ func openStore(cfg config.Config) (storage.Database, error) {
 
 func main() {
 	cfg := config.Load()
+	setupFileLogging()
 
 	store, err := openStore(cfg)
 	if err != nil {
