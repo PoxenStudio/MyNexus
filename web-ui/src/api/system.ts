@@ -87,6 +87,7 @@ export interface SystemSettings {
     // once a user goes over this, their oldest session is silently pruned
     // on their next new conversation. <= 0 means no limit.
     max_sessions: number;
+    sliding_window_size: number;
   };
   keyword: {
     max_keywords: number;

@@ -139,6 +139,9 @@ type ChatConfig struct {
 	// updated_at) are silently deleted, not blocked outright. <= 0 means no
 	// limit.
 	MaxSessions int `yaml:"max_sessions" json:"max_sessions"`
+	// SlidingWindowSize 是发给 Worker 的最近 user/assistant 消息条数上限，
+	// 更早的历史不进入 LLM（Worker 侧另有同值防御性截断）。<= 0 表示不限制。
+	SlidingWindowSize int `yaml:"sliding_window_size" json:"sliding_window_size"`
 }
 
 // DebugConfig is Worker-side only (Core API never reads it, same round-trip-
@@ -226,7 +229,7 @@ func defaults() Config {
 		},
 		Splitter:  SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
 		I18n:      I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
-		Chat:      ChatConfig{Enabled: true, MaxSessions: 100},
+		Chat:      ChatConfig{Enabled: true, MaxSessions: 100, SlidingWindowSize: 8},
 		Keyword:   KeywordConfig{MaxKeywords: 50},
 		Retrieval: RetrievalConfig{Fusion: "weighted", VectorWeight: 0.6, KeywordWeight: 0.4},
 		Debug:     DebugConfig{LLMLogging: false},
@@ -274,6 +277,11 @@ func Load() Config {
 	if v := os.Getenv("MYNEXUS_CHAT_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			cfg.Chat.Enabled = b
+		}
+	}
+	if v := os.Getenv("MYNEXUS_CHAT_SLIDING_WINDOW_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Chat.SlidingWindowSize = n
 		}
 	}
 	if v := os.Getenv("MYNEXUS_DEBUG_LLM_LOGGING"); v != "" {

@@ -24,11 +24,12 @@ type ChatHandler struct {
 	// maxSessions is config.ChatConfig.MaxSessions, snapshotted at router
 	// wiring time (like RequireChatEnabled's cfg.Chat.Enabled) — see
 	// ChatService.EnforceSessionLimit.
-	maxSessions int
+	maxSessions       int
+	slidingWindowSize int
 }
 
-func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient, maxSessions int) *ChatHandler {
-	return &ChatHandler{chats: chats, worker: worker, maxSessions: maxSessions}
+func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient, maxSessions, slidingWindowSize int) *ChatHandler {
+	return &ChatHandler{chats: chats, worker: worker, maxSessions: maxSessions, slidingWindowSize: slidingWindowSize}
 }
 
 // sseEvent is the same wire shape the browser has always received (see
@@ -96,10 +97,22 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	lastUserMessage := req.Messages[len(req.Messages)-1]
 	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]")
 
-	messages := make([]coordinator.ChatMessage, 0, len(req.Messages))
-	for _, m := range req.Messages {
+	// 历史以 DB 为可信来源装配（滑动窗口 + citations 注入），不信任客户端上报内容
+	promptMsgs, err := h.chats.BuildPromptMessages(sessionID, h.slidingWindowSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "assemble chat history failed: " + err.Error()})
+		return
+	}
+	messages := make([]coordinator.ChatMessage, 0, len(promptMsgs))
+	injected := 0
+	for _, m := range promptMsgs {
+		if strings.Contains(m.Content, "上一轮回答参考来源：") {
+			injected++
+		}
 		messages = append(messages, coordinator.ChatMessage{Role: m.Role, Content: m.Content})
 	}
+	fmt.Printf("[chat] session=%s history=%d window=%d citation_msgs=%d\n",
+		sessionID, len(messages), h.slidingWindowSize, injected)
 
 	stream, err := h.worker.Chat(coordinator.ChatRequest{Messages: messages, BookIDs: req.BookIDs, TopK: 10})
 	if err != nil {

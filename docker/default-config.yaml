@@ -57,6 +57,8 @@ i18n:
 chat:
   enabled: true
   max_sessions: 100
+  sliding_window_size: 8
+  history_window: 8
 keyword:
   max_keywords: 50
 retrieval:

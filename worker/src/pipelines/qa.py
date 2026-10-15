@@ -110,6 +110,11 @@ class QAPipeline:
     def answer(
         self, messages: list[dict], book_ids: list[str] | None = None, top_k: int = 10
     ) -> Iterator[dict]:
+        window = self.config.chat_history_window
+        if window and len(messages) > window:
+            logger.info("chat history defensive truncation: %d -> %d", len(messages), window)
+            messages = messages[-window:]
+
         tool_results: list[dict] = []
         citations: list[dict] = []
         working = list(messages)

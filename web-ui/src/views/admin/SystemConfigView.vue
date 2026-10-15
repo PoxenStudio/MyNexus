@@ -372,6 +372,11 @@ onMounted(load);
         </label>
         <p class="hint">{{ t("settings.maxSessionsHint") }}</p>
         <label>
+          {{ t("settings.slidingWindowSize") }}
+          <input v-model.number="settings.chat.sliding_window_size" type="number" min="0" max="100" />
+        </label>
+        <p class="hint">{{ t("settings.slidingWindowSizeHint") }}</p>
+        <label>
           {{ t("settings.maxKeywords") }}
           <input v-model.number="settings.keyword.max_keywords" type="number" min="1" max="500" />
         </label>

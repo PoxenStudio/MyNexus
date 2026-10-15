@@ -295,6 +295,8 @@
     "chatEnabled": "啟用會話（問答）頁面",
     "maxSessions": "每使用者最大會話數",
     "maxSessionsHint": "每個使用者最多保留的會話數量，超出後會自動刪除最早的會話（按最後更新時間）。",
+    "slidingWindowSize": "會話記憶視窗（訊息筆數）",
+    "slidingWindowSizeHint": "每次問答送給模型的最近對話筆數，更早的對話不進入模型；0 表示不限製。預設 8。",
     "maxKeywords": "內容關鍵詞數量上限",
     "maxKeywordsHint": "書籍詳情頁詞雲展示的內容關鍵詞數量上限，修改後已總結過的書籍立即按新上限展示，無需重新總結。",
     "skipBackmatterChapters": "生成章節總結時跳過書後參考書目及索引章節",

@@ -93,6 +93,9 @@ class WorkerConfig:
     # 会话工具调用最大轮数，达到后强制基于已积累上下文作答。
     chat_max_tool_rounds: int = 3
 
+    # 发给 LLM 的最近 user/assistant 消息条数上限，core-api 已做窗口截断，此处为防御兜底。
+    chat_history_window: int = 8
+
     retrieval_fusion: str = "weighted"
     retrieval_vector_weight: float = 0.6
     retrieval_keyword_weight: float = 0.4
@@ -164,6 +167,7 @@ def load_config() -> WorkerConfig:
     )
     cfg.cover_font_path = raw.get("cover", {}).get("font_path", cfg.cover_font_path)
     cfg.chat_max_tool_rounds = int(raw.get("chat", {}).get("max_tool_rounds", cfg.chat_max_tool_rounds))
+    cfg.chat_history_window = int(raw.get("chat", {}).get("history_window", cfg.chat_history_window))
 
     retrieval = raw.get("retrieval", {})
     cfg.retrieval_fusion = retrieval.get("fusion", cfg.retrieval_fusion)
@@ -219,5 +223,7 @@ def load_config() -> WorkerConfig:
         cfg.core_api_base_url = v
     if v := os.getenv("MYNEXUS_STORAGE_DATABASE"):
         cfg.storage_database = v
+    if v := os.getenv("MYNEXUS_CHAT_HISTORY_WINDOW"):
+        cfg.chat_history_window = int(v)
 
     return cfg
