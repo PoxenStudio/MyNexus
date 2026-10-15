@@ -143,12 +143,15 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 );
 
 CREATE TABLE IF NOT EXISTS chat_sessions (
-    id         TEXT PRIMARY KEY,
-    user_id    TEXT NOT NULL,
-    title      TEXT DEFAULT '',
-    book_ids   TEXT DEFAULT '[]',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id                   TEXT PRIMARY KEY,
+    user_id              TEXT NOT NULL,
+    title                TEXT DEFAULT '',
+    book_ids             TEXT DEFAULT '[]',
+    memory_summary       TEXT NOT NULL DEFAULT '',
+    memory_updated_at    TIMESTAMP,
+    memory_message_count INTEGER NOT NULL DEFAULT 0,
+    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (

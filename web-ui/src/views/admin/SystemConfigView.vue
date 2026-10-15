@@ -376,6 +376,11 @@ onMounted(load);
           <input v-model.number="settings.chat.sliding_window_size" type="number" min="0" max="100" />
         </label>
         <p class="hint">{{ t("settings.slidingWindowSizeHint") }}</p>
+        <label class="checkbox-row">
+          <input v-model="settings.chat.memory_enabled" type="checkbox" />
+          {{ t("settings.memoryEnabled") }}
+        </label>
+        <p class="hint">{{ t("settings.memoryEnabledHint") }}</p>
         <label>
           {{ t("settings.maxKeywords") }}
           <input v-model.number="settings.keyword.max_keywords" type="number" min="1" max="500" />

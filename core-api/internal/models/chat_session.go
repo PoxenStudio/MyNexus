@@ -1,12 +1,15 @@
 package models
 
 type ChatSession struct {
-	ID        string
-	UserID    string
-	Title     string
-	BookIDs   string // JSON array, stored as-is
-	CreatedAt string
-	UpdatedAt string
+	ID                 string
+	UserID             string
+	Title              string
+	BookIDs            string // JSON array, stored as-is
+	MemorySummary      string
+	MemoryUpdatedAt    string
+	MemoryMessageCount int
+	CreatedAt          string
+	UpdatedAt          string
 }
 
 const (

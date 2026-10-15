@@ -40,11 +40,20 @@ class BaseLLM(BaseNode):
         ...
 
     @abstractmethod
-    def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
+    def call(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        call_site: str = "",
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> dict:
         """Single non-streaming request, optionally offering `tools` (OpenAI
         function-calling schema — see tools/base.py's BaseTool.to_schema).
         Used for the tool-call decision step (see pipelines/qa.py), which
         needs a single structured response rather than a token stream.
+        temperature/max_tokens override the provider defaults when given
+        (used by chat-memory compression: low temp, small output cap).
 
         Returns {"content": str | None, "tool_calls": [{"id", "name",
         "arguments": dict}, ...], "usage": LLMUsage} — tool_calls is an empty

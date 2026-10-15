@@ -6,27 +6,27 @@ type MyBooksFileInfo struct {
 }
 
 type MyBooksSearchItem struct {
-	ID        int64              `json:"id"`
-	Title     string             `json:"title"`
-	Author    string             `json:"author"`
-	Authors   []string           `json:"authors"`
-	Thumb     string             `json:"thumb"`
-	Img       string             `json:"img"`
-	Publisher string             `json:"publisher"`
-	Language  string             `json:"language"`
-	Tags      []string           `json:"tags"`
-	Series    string             `json:"series"`
-	ISBN      string             `json:"isbn"`
-	PubDate   string             `json:"pubdate"`
-	Comments  string             `json:"comments"`
-	Files     []MyBooksFileInfo  `json:"files"`
+	ID        int64             `json:"id"`
+	Title     string            `json:"title"`
+	Author    string            `json:"author"`
+	Authors   []string          `json:"authors"`
+	Thumb     string            `json:"thumb"`
+	Img       string            `json:"img"`
+	Publisher string            `json:"publisher"`
+	Language  string            `json:"language"`
+	Tags      []string          `json:"tags"`
+	Series    string            `json:"series"`
+	ISBN      string            `json:"isbn"`
+	PubDate   string            `json:"pubdate"`
+	Comments  string            `json:"comments"`
+	Files     []MyBooksFileInfo `json:"files"`
 }
 
 type MyBooksSearchResponse struct {
-	Title string             `json:"title"`
-	Total int                `json:"total"`
-	Start int                `json:"start"`
-	Size  int                `json:"size"`
+	Title string              `json:"title"`
+	Total int                 `json:"total"`
+	Start int                 `json:"start"`
+	Size  int                 `json:"size"`
 	Books []MyBooksSearchItem `json:"books"`
 }
 
@@ -42,6 +42,6 @@ type MyBooksImportRequest struct {
 }
 
 type MyBooksImportResponse struct {
-	BookID  string `json:"book_id"`
-	TaskID  string `json:"task_id"`
+	BookID string `json:"book_id"`
+	TaskID string `json:"task_id"`
 }

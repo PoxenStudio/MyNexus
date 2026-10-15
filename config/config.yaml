@@ -57,7 +57,7 @@ chat:
     enabled: true
     max_sessions: 100
     sliding_window_size: 8
-    history_window: 8
+    memory_enabled: true
 keyword:
     max_keywords: 50
 retrieval:

@@ -88,6 +88,7 @@ export interface SystemSettings {
     // on their next new conversation. <= 0 means no limit.
     max_sessions: number;
     sliding_window_size: number;
+    memory_enabled: boolean;
   };
   keyword: {
     max_keywords: number;

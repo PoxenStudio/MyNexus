@@ -24,13 +24,13 @@ type ChatCompletionRequest struct {
 // from Worker changed (a gRPC ChatChunk.citations field now, not a raw SSE
 // "citations" JSON key relayed byte-for-byte).
 type CitationResponse struct {
-	ChunkID   string  `json:"chunk_id"`
-	ChapterID string  `json:"chapter_id"`
-	BookID    string  `json:"book_id"`
-	Score     float64 `json:"score"`
-	Content   string  `json:"content"`
-	StartOffset int   `json:"start_offset,omitempty"`
-	EndOffset   int   `json:"end_offset,omitempty"`
+	ChunkID     string  `json:"chunk_id"`
+	ChapterID   string  `json:"chapter_id"`
+	BookID      string  `json:"book_id"`
+	Score       float64 `json:"score"`
+	Content     string  `json:"content"`
+	StartOffset int     `json:"start_offset,omitempty"`
+	EndOffset   int     `json:"end_offset,omitempty"`
 }
 
 type RenameSessionRequest struct {

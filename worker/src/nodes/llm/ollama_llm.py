@@ -181,12 +181,22 @@ class OllamaLLM(BaseLLM):
             finally:
                 stop_event.set()
 
-    def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
+    def call(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        call_site: str = "",
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> dict:
+        options = {"num_predict": max_tokens or self._MAX_OUTPUT_TOKENS}
+        if temperature is not None:
+            options["temperature"] = temperature
         body: dict = {
             "model": self.model,
             "messages": messages,
             "stream": False,
-            "options": {"num_predict": self._MAX_OUTPUT_TOKENS},
+            "options": options,
         }
         if tools:
             body["tools"] = tools

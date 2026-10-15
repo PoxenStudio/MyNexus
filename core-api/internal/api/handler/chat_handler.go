@@ -97,24 +97,33 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	lastUserMessage := req.Messages[len(req.Messages)-1]
 	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]")
 
-	// 历史以 DB 为可信来源装配（滑动窗口 + citations 注入），不信任客户端上报内容
-	promptMsgs, err := h.chats.BuildPromptMessages(sessionID, h.slidingWindowSize)
+	// 历史以 DB 为可信来源装配（滑动窗口 + citations 注入 + 记忆摘要/待压缩旧消息）
+	prompt, err := h.chats.BuildChatPrompt(sessionID, h.slidingWindowSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "assemble chat history failed: " + err.Error()})
 		return
 	}
-	messages := make([]coordinator.ChatMessage, 0, len(promptMsgs))
+	messages := make([]coordinator.ChatMessage, 0, len(prompt.Messages))
 	injected := 0
-	for _, m := range promptMsgs {
+	for _, m := range prompt.Messages {
 		if strings.Contains(m.Content, "上一轮回答参考来源：") {
 			injected++
 		}
 		messages = append(messages, coordinator.ChatMessage{Role: m.Role, Content: m.Content})
 	}
-	fmt.Printf("[chat] session=%s history=%d window=%d citation_msgs=%d\n",
-		sessionID, len(messages), h.slidingWindowSize, injected)
+	older := make([]coordinator.ChatMessage, 0, len(prompt.Older))
+	for _, m := range prompt.Older {
+		older = append(older, coordinator.ChatMessage{Role: m.Role, Content: m.Content})
+	}
+	fmt.Printf("[chat] session=%s window=%d history=%d older=%d cursor=%d has_memory=%t citation_msgs=%d\n",
+		sessionID, h.slidingWindowSize, len(messages), len(older),
+		prompt.MemoryMessageCount, prompt.MemorySummary != "", injected)
 
-	stream, err := h.worker.Chat(coordinator.ChatRequest{Messages: messages, BookIDs: req.BookIDs, TopK: 10})
+	stream, err := h.worker.Chat(coordinator.ChatRequest{
+		Messages: messages, BookIDs: req.BookIDs, TopK: 10,
+		MemorySummary: prompt.MemorySummary, MemoryMessageCount: prompt.MemoryMessageCount,
+		OlderMessages: older,
+	})
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "chat failed: " + err.Error()})
 		return
@@ -139,6 +148,14 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		}
 
 		var frame sseEvent
+
+		if event.MemoryUpdate != nil {
+			// 记忆事件只落库，不转发浏览器：消费后直接进入下一帧，避免发出空 SSE 帧
+			if err := h.chats.UpdateChatMemory(sessionID, event.MemoryUpdate.Summary, event.MemoryUpdate.MessageCount); err != nil {
+				fmt.Printf("[chat] update memory failed: %v\n", err)
+			}
+			continue
+		}
 
 		if event.ToolResult != nil {
 			frame.ToolResult = &struct {

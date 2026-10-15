@@ -39,12 +39,12 @@ func (h *LLMUsageHandler) BookTokenUsage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"book_id":          bookID,
-		"total_tokens":     total,
-		"prompt_tokens":    prompt,
+		"book_id":           bookID,
+		"total_tokens":      total,
+		"prompt_tokens":     prompt,
 		"completion_tokens": completion,
-		"calls":            calls,
-		"breakdown":        breakdown,
+		"calls":             calls,
+		"breakdown":         breakdown,
 	})
 }
 
@@ -75,8 +75,8 @@ func (h *LLMUsageHandler) TokenStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"range_days":   rangeDays,
-		"daily":        rows,
+		"range_days":        rangeDays,
+		"daily":             rows,
 		"today_by_provider": today,
 	})
 }

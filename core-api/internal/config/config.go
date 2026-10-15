@@ -140,8 +140,11 @@ type ChatConfig struct {
 	// limit.
 	MaxSessions int `yaml:"max_sessions" json:"max_sessions"`
 	// SlidingWindowSize 是发给 Worker 的最近 user/assistant 消息条数上限，
-	// 更早的历史不进入 LLM（Worker 侧另有同值防御性截断）。<= 0 表示不限制。
+	// 更早的历史不进入 LLM；Worker 侧读取同键做防御性截断。<= 0 表示不限制。
 	SlidingWindowSize int `yaml:"sliding_window_size" json:"sliding_window_size"`
+	// MemoryEnabled 是 Worker 侧长期记忆摘要开关，Core API 不读取，
+	// 仅为 config.yaml 全量写回而保留。
+	MemoryEnabled bool `yaml:"memory_enabled" json:"memory_enabled"`
 }
 
 // DebugConfig is Worker-side only (Core API never reads it, same round-trip-
@@ -229,7 +232,7 @@ func defaults() Config {
 		},
 		Splitter:  SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
 		I18n:      I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
-		Chat:      ChatConfig{Enabled: true, MaxSessions: 100, SlidingWindowSize: 8},
+		Chat:      ChatConfig{Enabled: true, MaxSessions: 100, SlidingWindowSize: 8, MemoryEnabled: true},
 		Keyword:   KeywordConfig{MaxKeywords: 50},
 		Retrieval: RetrievalConfig{Fusion: "weighted", VectorWeight: 0.6, KeywordWeight: 0.4},
 		Debug:     DebugConfig{LLMLogging: false},

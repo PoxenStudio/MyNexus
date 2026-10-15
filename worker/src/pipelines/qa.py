@@ -5,6 +5,7 @@ from typing import Iterator
 
 from config import WorkerConfig, load_config
 from nodes.factory import get_llm
+from pipelines import chat_memory
 from pipelines.fulltext import confirm_in_chapters
 from pipelines.retrieval import RetrievalPipeline
 from skills.catalog import builtin_skill_tools
@@ -51,6 +52,13 @@ def _build_plain_context(chunks: list[dict], fulltext_snippets: list[dict]) -> s
         idx += 1
         parts.append(f"[{idx}]（《{snip['title']}》全文定位）{snip['text']}")
     return "\n\n".join(parts)
+
+
+def _memory_section(summary: str) -> str:
+    summary = (summary or "").strip()
+    if not summary:
+        return ""
+    return "\n\n## Conversation Memory\n" + summary
 
 
 # Only used for the tool-call decision step (see _decide_tool) — kept
@@ -108,12 +116,36 @@ class QAPipeline:
         )
 
     def answer(
-        self, messages: list[dict], book_ids: list[str] | None = None, top_k: int = 10
+        self,
+        messages: list[dict],
+        book_ids: list[str] | None = None,
+        top_k: int = 10,
+        memory_summary: str = "",
+        memory_message_count: int = 0,
+        older_messages: list[dict] | None = None,
     ) -> Iterator[dict]:
         window = self.config.chat_history_window
         if window and len(messages) > window:
             logger.info("chat history defensive truncation: %d -> %d", len(messages), window)
             messages = messages[-window:]
+
+        active_summary = memory_summary or ""
+        if older_messages and self.config.chat_memory_enabled:
+            try:
+                compressed = chat_memory.maybe_compress(self.llm.call, active_summary, older_messages)
+            except Exception:
+                logger.exception("memory compression failed, continuing with existing summary")
+                compressed = None
+            if compressed:
+                new_summary, usage = compressed
+                new_count = memory_message_count + len(older_messages)
+                logger.info(
+                    "memory compressed: older=%d cursor %d -> %d summary_len=%d",
+                    len(older_messages), memory_message_count, new_count, len(new_summary),
+                )
+                yield {"type": "memory_update", "summary": new_summary, "message_count": new_count}
+                self._report_memory_usage(usage, book_ids)
+                active_summary = new_summary
 
         tool_results: list[dict] = []
         citations: list[dict] = []
@@ -122,7 +154,7 @@ class QAPipeline:
         mindmap_emitted = False
 
         for _ in range(self.config.chat_max_tool_rounds):
-            tool_call = self._decide_tool(working, active_skill, book_ids)
+            tool_call = self._decide_tool(working, active_skill, book_ids, active_summary)
             if tool_call is None:
                 break
             name, arguments = tool_call
@@ -187,7 +219,8 @@ class QAPipeline:
         if mindmap_emitted:
             logger.info("mindmap emitted, streaming companion answer with %d citations", len(citations))
             yield from self._answer_from_tools(
-                messages, tool_results, citations, active_skill, mindmap=True
+                messages, tool_results, citations, active_skill, mindmap=True,
+                memory_summary=active_summary,
             )
             return
 
@@ -266,7 +299,9 @@ class QAPipeline:
             )
 
         if tool_results or active_skill:
-            yield from self._answer_from_tools(messages, tool_results, citations, active_skill)
+            yield from self._answer_from_tools(
+                messages, tool_results, citations, active_skill, memory_summary=active_summary
+            )
             return
 
         question = messages[-1]["content"] if messages else ""
@@ -319,7 +354,11 @@ class QAPipeline:
         )
 
         context = _build_plain_context(chunks, fulltext_snippets)
-        system_message = {"role": "system", "content": _SYSTEM_PROMPT_TEMPLATE.format(context=context or "（无相关片段）")}
+        system_message = {
+            "role": "system",
+            "content": _SYSTEM_PROMPT_TEMPLATE.format(context=context or "（无相关片段）")
+            + _memory_section(active_summary),
+        }
         llm_messages = [system_message] + messages
 
         answer_chunks = []
@@ -346,6 +385,7 @@ class QAPipeline:
         messages: list[dict],
         active_skill: dict | None = None,
         book_ids: list[str] | None = None,
+        memory_summary: str = "",
     ) -> tuple[str, dict] | None:
         """Single non-streaming call asking the model whether this turn needs
         a tool (see BaseLLM.call) — separate from the streaming call in
@@ -375,7 +415,9 @@ class QAPipeline:
                 "不要再次选择其他 Skill；如需证据，只调用合适的数据工具。"
             )
             excluded_names = self.skill_tool_names
-        decision_messages = [{"role": "system", "content": decision_prompt}] + messages
+        decision_messages = [
+            {"role": "system", "content": decision_prompt + _memory_section(memory_summary)}
+        ] + messages
         try:
             result = self.llm.call(decision_messages, tools=self.tools.schemas(excluded_names))
         except Exception as exc:  # noqa: BLE001 - fall through to normal RAG on any failure here
@@ -407,6 +449,25 @@ class QAPipeline:
             scoped_arguments["book_ids"] = list(book_ids)
         return scoped_arguments, None
 
+    def _report_memory_usage(self, usage, book_ids: list[str] | None) -> None:
+        # Fire-and-forget：压缩 token 记账失败不得影响问答主流程
+        if not usage or getattr(usage, "total_tokens", 0) <= 0:
+            return
+        try:
+            self.retrieval.core_api.report_token_usage(
+                task_id="",
+                book_id=(book_ids[0] if book_ids else ""),
+                task_type="chat",
+                llm_provider=usage.provider,
+                llm_model=usage.model,
+                call_site="chat.memory_compress",
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                total_tokens=usage.total_tokens,
+            )
+        except Exception:
+            logger.exception("report memory compression token usage failed")
+
     def _answer_from_tools(
         self,
         messages: list[dict],
@@ -414,6 +475,7 @@ class QAPipeline:
         citations: list[dict],
         active_skill: dict | None = None,
         mindmap: bool = False,
+        memory_summary: str = "",
     ) -> Iterator[dict]:
         """Streams the final answer from accumulated tool results (single- or multi-round)."""
         context = "\n\n".join(
@@ -448,6 +510,7 @@ class QAPipeline:
                 + context
                 + skill_instructions
                 + mindmap_instructions
+                + _memory_section(memory_summary)
             ),
         }
         llm_messages = [system_message] + messages

@@ -215,12 +215,21 @@ class OpenAILLM(BaseLLM):
 
         return _UsageIterator(_gen(), usage)
 
-    def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
+    def call(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        call_site: str = "",
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> dict:
         body: dict = {
             "model": self.model, "messages": messages, "stream": False,
-            "max_tokens": self._MAX_OUTPUT_TOKENS,
+            "max_tokens": max_tokens or self._MAX_OUTPUT_TOKENS,
             "thinking": {"type": "disabled"},
         }
+        if temperature is not None:
+            body["temperature"] = temperature
         if tools:
             body["tools"] = tools
         payload = json.dumps(body).encode("utf-8")

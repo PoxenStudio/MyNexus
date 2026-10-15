@@ -11,7 +11,7 @@ type Chapter struct {
 	// Keywords/Definitions/References are raw JSON strings (same storage
 	// convention as Book.Keywords) — see dto.NewChapterResponse for the
 	// decode side.
-	Keywords   string
+	Keywords    string
 	Definitions string
-	References string
+	References  string
 }

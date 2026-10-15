@@ -111,12 +111,26 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         import json as _json
 
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
+        older_messages = [{"role": m.role, "content": m.content} for m in request.older_messages]
         book_ids = list(request.book_ids) or None
         top_k = request.top_k or 10
 
-        for event in self.qa.answer(messages, book_ids=book_ids, top_k=top_k):
+        for event in self.qa.answer(
+            messages,
+            book_ids=book_ids,
+            top_k=top_k,
+            memory_summary=request.memory_summary,
+            memory_message_count=request.memory_message_count,
+            older_messages=older_messages,
+        ):
             if event["type"] == "delta":
                 yield mynexus_pb2.ChatChunk(delta=event["content"])
+            elif event["type"] == "memory_update":
+                yield mynexus_pb2.ChatChunk(
+                    memory_update=mynexus_pb2.MemoryUpdate(
+                        summary=event["summary"], message_count=event["message_count"]
+                    )
+                )
             elif event["type"] == "tool_result":
                 tr = mynexus_pb2.ToolResult(
                     tool_name=event["tool_name"],

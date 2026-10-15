@@ -236,9 +236,12 @@ type ChatMessage struct {
 }
 
 type ChatRequest struct {
-	Messages []ChatMessage
-	BookIDs  []string
-	TopK     int
+	Messages           []ChatMessage
+	BookIDs            []string
+	TopK               int
+	MemorySummary      string
+	MemoryMessageCount int
+	OlderMessages      []ChatMessage
 }
 
 type ToolResultEvent struct {
@@ -246,12 +249,18 @@ type ToolResultEvent struct {
 	ResultJSON string
 }
 
+type MemoryUpdateEvent struct {
+	Summary      string
+	MessageCount int
+}
+
 // ChatEvent is one item from a Chat stream: exactly one of Delta, Citations,
-// or ToolResult is set at a time.
+// ToolResult, or MemoryUpdate is set at a time.
 type ChatEvent struct {
-	Delta      string
-	Citations  []Citation
-	ToolResult *ToolResultEvent
+	Delta        string
+	Citations    []Citation
+	ToolResult   *ToolResultEvent
+	MemoryUpdate *MemoryUpdateEvent
 }
 
 type Citation struct {
@@ -296,6 +305,11 @@ func (s *ChatStream) Recv() (ChatEvent, error) {
 			ToolName:   payload.ToolResult.ToolName,
 			ResultJSON: payload.ToolResult.ResultJson,
 		}}, nil
+	case *mynexuspb.ChatChunk_MemoryUpdate:
+		return ChatEvent{MemoryUpdate: &MemoryUpdateEvent{
+			Summary:      payload.MemoryUpdate.Summary,
+			MessageCount: int(payload.MemoryUpdate.MessageCount),
+		}}, nil
 	default:
 		return ChatEvent{}, nil
 	}
@@ -308,12 +322,21 @@ func (c *WorkerClient) Chat(req ChatRequest) (*ChatStream, error) {
 	for _, m := range req.Messages {
 		messages = append(messages, &mynexuspb.ChatMessage{Role: m.Role, Content: m.Content})
 	}
+	older := make([]*mynexuspb.ChatMessage, 0, len(req.OlderMessages))
+	for _, m := range req.OlderMessages {
+		older = append(older, &mynexuspb.ChatMessage{Role: m.Role, Content: m.Content})
+	}
 
 	// No context timeout here — chat responses stream for as long as the LLM
 	// takes, which a short control-plane deadline would cut off (mirrors the
 	// old streamClient-with-no-Timeout used for the HTTP-era SSE relay).
 	stream, err := c.client.Chat(context.Background(), &mynexuspb.ChatRequest{
-		Messages: messages, BookIds: req.BookIDs, TopK: int32(req.TopK),
+		Messages:           messages,
+		BookIds:            req.BookIDs,
+		TopK:               int32(req.TopK),
+		MemorySummary:      req.MemorySummary,
+		MemoryMessageCount: int32(req.MemoryMessageCount),
+		OlderMessages:      older,
 	})
 	if err != nil {
 		return nil, wrapWorkerError(err)

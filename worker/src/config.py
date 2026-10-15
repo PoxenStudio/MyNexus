@@ -94,7 +94,11 @@ class WorkerConfig:
     chat_max_tool_rounds: int = 3
 
     # 发给 LLM 的最近 user/assistant 消息条数上限，core-api 已做窗口截断，此处为防御兜底。
+    # 与 core-api 共用 config.yaml 的 chat.sliding_window_size 键。
     chat_history_window: int = 8
+
+    # 滑出窗口的旧消息是否增量压缩为长期记忆摘要。
+    chat_memory_enabled: bool = True
 
     retrieval_fusion: str = "weighted"
     retrieval_vector_weight: float = 0.6
@@ -167,7 +171,8 @@ def load_config() -> WorkerConfig:
     )
     cfg.cover_font_path = raw.get("cover", {}).get("font_path", cfg.cover_font_path)
     cfg.chat_max_tool_rounds = int(raw.get("chat", {}).get("max_tool_rounds", cfg.chat_max_tool_rounds))
-    cfg.chat_history_window = int(raw.get("chat", {}).get("history_window", cfg.chat_history_window))
+    cfg.chat_history_window = int(raw.get("chat", {}).get("sliding_window_size", cfg.chat_history_window))
+    cfg.chat_memory_enabled = raw.get("chat", {}).get("memory_enabled", cfg.chat_memory_enabled)
 
     retrieval = raw.get("retrieval", {})
     cfg.retrieval_fusion = retrieval.get("fusion", cfg.retrieval_fusion)
@@ -223,7 +228,9 @@ def load_config() -> WorkerConfig:
         cfg.core_api_base_url = v
     if v := os.getenv("MYNEXUS_STORAGE_DATABASE"):
         cfg.storage_database = v
-    if v := os.getenv("MYNEXUS_CHAT_HISTORY_WINDOW"):
+    if v := os.getenv("MYNEXUS_CHAT_SLIDING_WINDOW_SIZE"):
         cfg.chat_history_window = int(v)
+    if v := os.getenv("MYNEXUS_CHAT_MEMORY_ENABLED"):
+        cfg.chat_memory_enabled = v.strip().lower() in ("1", "true", "yes", "on")
 
     return cfg

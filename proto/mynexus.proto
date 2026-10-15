@@ -205,6 +205,13 @@ message ChatRequest {
   repeated ChatMessage messages = 1;
   repeated string book_ids = 2;
   int32 top_k = 3;
+  // 已有对话记忆摘要（Core API 从 chat_sessions.memory_summary 读出），
+  // Worker 注入 system prompt；空表示该会话还没有长期记忆。
+  string memory_summary = 4;
+  // 已摘要到第几条消息（游标，对应 chat_sessions.memory_message_count）。
+  int32 memory_message_count = 5;
+  // 游标之后、滑动窗口之前的旧消息原文，交给 Worker 做增量 LLM 压缩。
+  repeated ChatMessage older_messages = 6;
 }
 
 message Citation {
@@ -226,14 +233,22 @@ message ToolResult {
   string result_json = 2;
 }
 
+// Worker 完成一轮增量摘要压缩后回传，Core API 校验会话归属后落库。
+message MemoryUpdate {
+  string summary = 1;
+  int32 message_count = 2;
+}
+
 // One chunk of a streamed chat reply: either an answer-text delta, a structured
-// tool result (e.g. mindmap markdown), or (the final message in the stream) the
-// full citation list.
+// tool result (e.g. mindmap markdown), a memory-summary update (emitted before
+// the answer when compression ran this turn), or (the final message in the
+// stream) the full citation list.
 message ChatChunk {
   oneof payload {
     string delta = 1;
     CitationList citations = 2;
     ToolResult tool_result = 3;
+    MemoryUpdate memory_update = 4;
   }
 }
 
