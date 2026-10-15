@@ -101,6 +101,8 @@
     "noKeywords": "None",
     "chapterKeywords": "Chapter Keywords",
     "chapterDefinitions": "Chapter Definitions",
+    "chapterNotSummarized": "Not generated",
+    "retryChapterSummary": "Regenerate summary (will catch up all missing chapters)",
     "language": "Language",
     "languageSaveError": "Failed to save language",
     "summarySaveError": "Failed to save the book summary",
@@ -199,7 +201,9 @@
       "book_reduce": "Book Summary",
       "chat": "Chat Answer",
       "chat_decision": "Tool Decision",
-      "chat_tool": "Tool Call"
+      "chat_tool": "Tool Call",
+      "reading_guide": "Reading Guide",
+      "reference_index": "Reference Index"
     }
   },
   "users": {

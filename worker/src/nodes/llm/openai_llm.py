@@ -82,6 +82,7 @@ class OpenAILLM(BaseLLM):
                     "stream": True,
                     "stream_options": {"include_usage": True},
                     "max_tokens": self._MAX_OUTPUT_TOKENS,
+                    "thinking": {"type": "disabled"},
                 }
             ).encode("utf-8")
             req = urllib.request.Request(
@@ -215,7 +216,11 @@ class OpenAILLM(BaseLLM):
         return _UsageIterator(_gen(), usage)
 
     def call(self, messages: list[dict], tools: list[dict] | None = None, call_site: str = "") -> dict:
-        body: dict = {"model": self.model, "messages": messages, "stream": False, "max_tokens": self._MAX_OUTPUT_TOKENS}
+        body: dict = {
+            "model": self.model, "messages": messages, "stream": False,
+            "max_tokens": self._MAX_OUTPUT_TOKENS,
+            "thinking": {"type": "disabled"},
+        }
         if tools:
             body["tools"] = tools
         payload = json.dumps(body).encode("utf-8")

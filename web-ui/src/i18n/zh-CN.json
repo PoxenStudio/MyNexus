@@ -101,6 +101,8 @@
     "noKeywords": "无",
     "chapterKeywords": "本章关键词",
     "chapterDefinitions": "本章定义",
+    "chapterNotSummarized": "未生成",
+    "retryChapterSummary": "重新生成总结（将补齐所有未生成章节）",
     "language": "语言",
     "languageSaveError": "保存语言失败",
     "summarySaveError": "保存全书总结失败",
@@ -199,7 +201,9 @@
       "book_reduce": "全书摘要",
       "chat": "对话问答",
       "chat_decision": "工具决策",
-      "chat_tool": "工具调用"
+      "chat_tool": "工具调用",
+      "reading_guide": "阅读指南",
+      "reference_index": "引用书目汇总"
     }
   },
   "users": {

@@ -566,6 +566,15 @@ class SummaryPipeline:
             raise
         text = "".join(chunks).strip()
         usage = stream.usage
+        if not text:
+            logger.warning(
+                "_complete returned EMPTY text: site=%s chapter=%r task=%s book=%s finish_reason=%s completion_tokens=%d model=%s provider=%s prompt_len=%d chunks_collected=%d",
+                call_site, chapter_title, task_id, book_id,
+                usage.finish_reason or "-",
+                usage.completion_tokens,
+                usage.model, usage.provider,
+                len(prompt), len(chunks),
+            )
         logger.debug(
             "_complete done: site=%s chapter=%r task=%s text_len=%d finish_reason=%s usage=(prompt=%d completion=%d total=%d)",
             call_site, chapter_title, task_id, len(text), usage.finish_reason or "-",
@@ -910,11 +919,20 @@ class SummaryPipeline:
                     chapter_keywords: list[tuple[str, float]] = []
                     chapter_definitions: list[tuple[str, str]] = []
                     chapter_refs: list[str] = []
+                    if not summary.strip():
+                        logger.warning("boilerplate chapter %r first attempt returned empty, retrying once", ch.title)
+                        summary = self.summarize_chapter(ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id, cancel_event=cancel_event)
                 else:
                     summary, chapter_definitions, chapter_kw, chapter_refs = self.analyze_chapter(
                         ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id, cancel_event=cancel_event,
                     )
                     chapter_keywords = [(kw, 1.0 / max(idx + 1, 1)) for idx, kw in enumerate(chapter_kw[:_CHAPTER_KEYWORDS_DISPLAY_CAP])]
+                    if not summary.strip():
+                        logger.warning("chapter %r first attempt returned empty summary, retrying once", ch.title)
+                        summary, chapter_definitions, chapter_kw, chapter_refs = self.analyze_chapter(
+                            ch.title, ch.content, lang=lang, on_progress=on_progress, task_id=task_id, book_id=book_id, cancel_event=cancel_event,
+                        )
+                        chapter_keywords = [(kw, 1.0 / max(idx + 1, 1)) for idx, kw in enumerate(chapter_kw[:_CHAPTER_KEYWORDS_DISPLAY_CAP])]
 
                 logger.info(
                     "chapter %d/%d done: title=%r summary=%d chars keywords=%d definitions=%d references=%d",
@@ -936,8 +954,8 @@ class SummaryPipeline:
                         entry = {"count": 0, "display": ref.strip(), "chapters": []}
                         chapter_refs_totals[rnorm] = entry
                     entry["count"] += 1
-                    if title not in entry["chapters"]:
-                        entry["chapters"].append(title)
+                    if ch.title not in entry["chapters"]:
+                        entry["chapters"].append(ch.title)
 
             if cancel_event is not None and cancel_event.is_set():
                 raise CancelledError("cancelled before book-level reduce")

@@ -166,7 +166,11 @@ func (s *CoreAPIServer) ReportComplete(ctx context.Context, req *mynexuspb.Compl
 	if err := s.books.ApplyParsedMetadata(task.BookID, book.GetTitle(), book.GetAuthor(), book.GetLanguage()); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	if err := s.books.SetStatus(task.BookID, models.BookStatusReady); err != nil {
+	// Ingest/vectorize done but chapter summaries + whole-book summary are
+	// still pending — mark processing so the UI doesn't show the book as
+	// ready to answer Q&A yet. ReportBookSummary flips this to ready once
+	// the whole pipeline finishes.
+	if err := s.books.SetStatus(task.BookID, models.BookStatusProcessing); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	if err := s.tasks.Complete(req.TaskId); err != nil {
@@ -338,6 +342,9 @@ func (s *CoreAPIServer) ReportBookSummary(ctx context.Context, req *mynexuspb.Bo
 		req.BookId, req.Summary, string(keywordsJSON),
 		req.GetReadingGuide(), req.GetReferenceIndex(),
 	); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	if err := s.books.SetStatus(req.BookId, models.BookStatusReady); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	if err := s.tasks.Complete(req.TaskId); err != nil {

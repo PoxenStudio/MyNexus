@@ -726,6 +726,15 @@ onUnmounted(() => {
           <div v-else class="chapter-title chapter-title-plain">
             <span class="chapter-dot" aria-hidden="true"></span>
             <span class="chapter-title-text">{{ ch.title }}</span>
+            <span class="chapter-status-pending">{{ t("books.chapterNotSummarized") }}</span>
+            <button
+              v-if="!summarizing && !rebuilding"
+              class="chapter-retry-btn"
+              :title="t('books.retryChapterSummary')"
+              @click="summarizeBook(book.id, 'continue')"
+            >
+              <AppIcon name="refresh" :size="14" />
+            </button>
           </div>
         </li>
       </ol>
@@ -1022,6 +1031,35 @@ onUnmounted(() => {
   border-radius: 50%;
   background: var(--neon-green, #39ff14);
   box-shadow: 0 0 4px var(--neon-green, #39ff14);
+}
+.chapter-status-pending {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.7rem;
+  border-radius: 999px;
+  background: var(--warning-bg, rgba(245, 158, 11, 0.12));
+  color: var(--warning, #f59e0b);
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.chapter-retry-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.chapter-retry-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .chapter-card {
   border: 1px solid var(--border);
