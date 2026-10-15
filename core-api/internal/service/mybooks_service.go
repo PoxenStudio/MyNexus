@@ -73,7 +73,7 @@ func (s *MyBooksService) Search(name string, start, size int) (dto.MyBooksSearch
 		return dto.MyBooksSearchResponse{}, fmt.Errorf("build url: %w", err)
 	}
 	q := u.Query()
-	q.Set("name", name)
+	q.Set("name", "title:"+name)
 	q.Set("start", fmt.Sprintf("%d", start))
 	q.Set("size", fmt.Sprintf("%d", size))
 	u.RawQuery = q.Encode()
@@ -133,6 +133,17 @@ func (s *MyBooksService) Search(name string, start, size int) (dto.MyBooksSearch
 
 	items := make([]dto.MyBooksSearchItem, 0, len(raw.Books))
 	for _, b := range raw.Books {
+		supported := make([]dto.MyBooksFileInfo, 0, 2)
+		for _, f := range b.Files {
+			low := strings.ToLower(f.Format)
+			if low == "epub" || low == "txt" {
+				supported = append(supported, dto.MyBooksFileInfo{Format: low, Size: f.Size})
+			}
+		}
+		if len(supported) == 0 {
+			continue
+		}
+
 		lang := b.Language
 		if lang == "" {
 			for _, s := range toStrSlice(b.Languages) {
@@ -144,17 +155,13 @@ func (s *MyBooksService) Search(name string, start, size int) (dto.MyBooksSearch
 		if len(authors) == 0 && b.Author != "" {
 			authors = []string{b.Author}
 		}
-		files := make([]dto.MyBooksFileInfo, len(b.Files))
-		for i, f := range b.Files {
-			files[i] = dto.MyBooksFileInfo{Format: strings.ToLower(f.Format), Size: f.Size}
-		}
 		items = append(items, dto.MyBooksSearchItem{
 			ID:        b.ID,
 			Title:     b.Title,
 			Author:    b.Author,
 			Authors:   authors,
-			Thumb:     b.Thumb,
-			Img:       b.Img,
+			Thumb:     resolveURL(base, b.Thumb),
+			Img:       resolveURL(base, b.Img),
 			Publisher: b.Publisher,
 			Language:  lang,
 			Tags:      toStrSlice(b.Tags),
@@ -162,7 +169,7 @@ func (s *MyBooksService) Search(name string, start, size int) (dto.MyBooksSearch
 			ISBN:      b.ISBN,
 			PubDate:   b.PubDate,
 			Comments:  b.Comments,
-			Files:     files,
+			Files:     supported,
 		})
 	}
 
@@ -232,4 +239,18 @@ func toStrSlice(v any) []string {
 	default:
 		return nil
 	}
+}
+
+func resolveURL(baseURL, ref string) string {
+	if ref == "" {
+		return ""
+	}
+	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
+		return ref
+	}
+	base := strings.TrimRight(baseURL, "/")
+	if strings.HasPrefix(ref, "/") {
+		return base + ref
+	}
+	return base + "/" + ref
 }
