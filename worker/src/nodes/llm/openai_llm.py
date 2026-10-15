@@ -80,7 +80,11 @@ class OpenAILLM(BaseLLM):
                             usage.completion_tokens = int(u.get("completion_tokens", 0))
                             usage.total_tokens = int(u.get("total_tokens", 0))
                             continue
-                        choice = event["choices"][0]
+                        choices = event.get("choices")
+                        if not choices:
+                            logger.debug("openai stream chunk without choices: %s", data[:200])
+                            continue
+                        choice = choices[0]
                         finish = choice.get("finish_reason")
                         if finish:
                             usage.finish_reason = finish

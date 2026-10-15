@@ -31,7 +31,9 @@
     "close": "关闭",
     "confirmDelete": "确定要删除吗？此操作不可撤销。",
     "confirmRevoke": "确定要吊销该 Token 吗？吊销后无法恢复。",
-    "empty": "暂无数据"
+    "empty": "暂无数据",
+    "viewCard": "卡片视图",
+    "viewList": "列表视图"
   },
   "dashboard": {
     "title": "仪表盘",

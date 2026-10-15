@@ -31,7 +31,9 @@
     "close": "Close",
     "confirmDelete": "Are you sure you want to delete this? This cannot be undone.",
     "confirmRevoke": "Are you sure you want to revoke this token? This cannot be undone.",
-    "empty": "No data"
+    "empty": "No data",
+    "viewCard": "Card view",
+    "viewList": "List view"
   },
   "dashboard": {
     "title": "Dashboard",

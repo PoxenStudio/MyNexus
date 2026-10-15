@@ -31,7 +31,9 @@
     "close": "關閉",
     "confirmDelete": "確定要刪除嗎？此操作不可撤銷。",
     "confirmRevoke": "確定要吊銷該 Token 嗎？吊銷後無法恢復。",
-    "empty": "暫無數據"
+    "empty": "暫無數據",
+    "viewCard": "卡片檢視",
+    "viewList": "清單檢視"
   },
   "dashboard": {
     "title": "儀表盤",

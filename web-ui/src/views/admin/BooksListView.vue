@@ -10,6 +10,7 @@ import {
   uploadBook,
   type Book,
 } from "../../api/books";
+import { apiClient } from "../../api/client";
 import { fetchSettings } from "../../api/system";
 import MyBooksImportDialog from "../../components/MyBooksImportDialog.vue";
 
@@ -19,9 +20,6 @@ const loading = ref(true);
 const uploading = ref(false);
 const mybooksConfigured = ref(false);
 const mybooksDialogOpen = ref(false);
-// {current, total} while a multi-file upload is running — current is the
-// 1-based index of the file in flight, so the label reads "1/3" not "0/3"
-// the instant the batch starts. null when nothing is uploading.
 const uploadProgress = ref<{ current: number; total: number } | null>(null);
 const uploadErrors = ref<string[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -29,9 +27,21 @@ const selected = ref<Set<string>>(new Set());
 const bulkRunning = ref(false);
 const bulkErrors = ref<string[]>([]);
 
+type ViewMode = "card" | "list";
+const viewMode = ref<ViewMode>("card");
+
 const allSelected = computed(() => books.value.length > 0 && selected.value.size === books.value.length);
 const someSelected = computed(() => selected.value.size > 0);
 const dragOver = ref(false);
+
+function coverUrl(b: Book) {
+  if (!b.cover_url) return "";
+  return apiClient.defaults.baseURL + b.cover_url;
+}
+
+function coverFallback(b: Book) {
+  return (b.title || b.id || "?").charAt(0).toUpperCase();
+}
 
 async function load() {
   loading.value = true;
@@ -43,7 +53,7 @@ async function load() {
       const s = await fetchSettings();
       mybooksConfigured.value = !!(s.mybooks?.base_url?.trim());
     } catch {
-      /* ignore — config not essential for the list */
+      /* ignore */
     }
   } finally {
     loading.value = false;
@@ -56,21 +66,6 @@ async function onFileSelected(e: Event) {
   if (fileInput.value) fileInput.value.value = "";
 }
 
-// Uploads each file as its own POST /books/import (the backend has no
-// multi-file endpoint — one book == one request, one task), one HTTP
-// request at a time rather than firing them all in parallel — mainly so the
-// UI can show which file is currently being sent, and so N large multipart
-// uploads aren't all competing for upload bandwidth at once. This only
-// serializes the *upload* though: each request returns as soon as the file
-// is saved and TriggerIngest is fired (fire-and-forget — see
-// worker/src/server.py), so the actual parse/split/embed work for book 1
-// is very likely still running in its own background thread on Worker by
-// the time book 2's upload starts — Worker has no cap on concurrent ingest
-// pipelines (worker.max_concurrent_tasks only sizes its gRPC request
-// thread pool, not pipeline concurrency), so multiple books do end up
-// building at the same time. One failed upload doesn't stop the rest —
-// errors are collected and shown together at the end, same pattern as
-// onBulkDelete/onBulkRebuild's per-item results.
 async function doUploadMany(files: File[]) {
   uploading.value = true;
   uploadErrors.value = [];
@@ -194,6 +189,33 @@ onMounted(load);
 
     <div class="toolbar">
       <button class="ghost" @click="load">{{ t("common.refresh") }}</button>
+      <div class="view-toggle" role="tablist" aria-label="view mode">
+        <button
+          type="button"
+          :class="['ghost', 'toggle-btn', { active: viewMode === 'card' }]"
+          @click="viewMode = 'card'"
+          :title="t('common.viewCard')"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <rect x="1" y="1" width="6" height="6" rx="1" />
+            <rect x="9" y="1" width="6" height="6" rx="1" />
+            <rect x="1" y="9" width="6" height="6" rx="1" />
+            <rect x="9" y="9" width="6" height="6" rx="1" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          :class="['ghost', 'toggle-btn', { active: viewMode === 'list' }]"
+          @click="viewMode = 'list'"
+          :title="t('common.viewList')"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <rect x="1" y="2" width="14" height="2" rx="0.5" />
+            <rect x="1" y="7" width="14" height="2" rx="0.5" />
+            <rect x="1" y="12" width="14" height="2" rx="0.5" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div v-if="someSelected" class="bulk-bar">
@@ -206,33 +228,61 @@ onMounted(load);
     </ul>
 
     <div v-if="loading">{{ t("common.loading") }}</div>
-    <table v-else-if="books.length">
-      <thead>
-        <tr>
-          <th><input type="checkbox" :checked="allSelected" @change="toggleAll" /></th>
-          <th>{{ t("books.table.title") }}</th>
-          <th>{{ t("books.table.author") }}</th>
-          <th>{{ t("books.table.format") }}</th>
-          <th>{{ t("books.table.status") }}</th>
-          <th>{{ t("books.table.updatedAt") }}</th>
-          <th>{{ t("books.table.actions") }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="b in books" :key="b.id">
-          <td><input type="checkbox" :checked="selected.has(b.id)" @change="toggleOne(b.id)" /></td>
-          <td><router-link :to="`/books/${b.id}`">{{ b.title || b.id }}</router-link></td>
-          <td>{{ b.author }}</td>
-          <td>{{ b.source_format }}</td>
-          <td><span :class="['badge', b.status]">{{ t(`status.${b.status}`, b.status) }}</span></td>
-          <td>{{ new Date(b.updated_at).toLocaleString() }}</td>
-          <td class="actions">
-            <button class="ghost" @click="onRebuild(b.id)">{{ t("books.rebuild") }}</button>
-            <button class="ghost" @click="onDelete(b.id)">{{ t("common.delete") }}</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+
+    <template v-else-if="books.length">
+      <!-- CARD VIEW -->
+      <div v-if="viewMode === 'card'" class="book-grid">
+        <div
+          v-for="b in books"
+          :key="b.id"
+          :class="['book-card', { selected: selected.has(b.id) }]"
+        >
+          <label class="card-checkbox">
+            <input type="checkbox" :checked="selected.has(b.id)" @change="toggleOne(b.id)" />
+          </label>
+          <router-link :to="`/books/${b.id}`" class="card-cover-wrap">
+            <img v-if="coverUrl(b)" :src="coverUrl(b)" :alt="b.title" class="card-cover" loading="lazy" />
+            <div v-else class="card-cover card-cover-fallback">{{ coverFallback(b) }}</div>
+            <span :class="['card-status', b.status]">{{ t(`status.${b.status}`, b.status) }}</span>
+          </router-link>
+          <div class="card-body">
+            <router-link :to="`/books/${b.id}`" class="card-title" :title="b.title">
+              {{ b.title || b.id }}
+            </router-link>
+            <div v-if="b.author" class="card-author" :title="b.author">{{ b.author }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIST VIEW -->
+      <table v-else>
+        <thead>
+          <tr>
+            <th><input type="checkbox" :checked="allSelected" @change="toggleAll" /></th>
+            <th>{{ t("books.table.title") }}</th>
+            <th>{{ t("books.table.author") }}</th>
+            <th>{{ t("books.table.format") }}</th>
+            <th>{{ t("books.table.status") }}</th>
+            <th>{{ t("books.table.updatedAt") }}</th>
+            <th>{{ t("books.table.actions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="b in books" :key="b.id">
+            <td><input type="checkbox" :checked="selected.has(b.id)" @change="toggleOne(b.id)" /></td>
+            <td><router-link :to="`/books/${b.id}`">{{ b.title || b.id }}</router-link></td>
+            <td>{{ b.author }}</td>
+            <td>{{ b.source_format }}</td>
+            <td><span :class="['badge', b.status]">{{ t(`status.${b.status}`, b.status) }}</span></td>
+            <td>{{ new Date(b.updated_at).toLocaleString() }}</td>
+            <td class="actions">
+              <button class="ghost" @click="onRebuild(b.id)">{{ t("books.rebuild") }}</button>
+              <button class="ghost" @click="onDelete(b.id)">{{ t("common.delete") }}</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
     <p v-else>{{ t("common.empty") }}</p>
 
     <MyBooksImportDialog v-model="mybooksDialogOpen" @imported="load" />
@@ -306,8 +356,32 @@ onMounted(load);
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   margin: 0 0 0.75rem;
+}
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.toggle-btn {
+  border: none !important;
+  border-radius: 0 !important;
+  border-right: 1px solid var(--border) !important;
+  padding: 0.3rem 0.5rem !important;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: inherit;
+}
+.toggle-btn:last-child {
+  border-right: none !important;
+}
+.toggle-btn.active {
+  background: var(--accent-bg);
+  color: var(--primary, #3b82f6);
 }
 .bulk-bar {
   display: flex;
@@ -363,5 +437,102 @@ button.ghost.danger {
 button.ghost:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* CARD VIEW */
+.book-grid {
+  display: grid;
+  gap: 1.25rem 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+.book-card {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.book-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+.book-card.selected {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: -2px;
+}
+.card-checkbox {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 4px;
+  padding: 2px 4px;
+  display: flex;
+  cursor: pointer;
+}
+.card-cover-wrap {
+  display: block;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #e5e7eb;
+  position: relative;
+}
+.card-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.card-cover-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.card-status {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  backdrop-filter: blur(2px);
+}
+.card-status.ready, .card-status.completed { background: rgba(22, 163, 74, 0.85); }
+.card-status.failed { background: rgba(220, 38, 38, 0.85); }
+.card-status.pending, .card-status.processing { background: rgba(217, 119, 6, 0.85); }
+.card-body {
+  padding: 0.5rem 0.2rem 0.1rem;
+}
+.card-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text-h);
+  font-weight: 500;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  min-height: 2.7em;
+}
+.card-title:hover {
+  color: var(--primary, #3b82f6);
+}
+.card-author {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--text-h, inherit);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
