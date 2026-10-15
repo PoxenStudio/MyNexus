@@ -346,6 +346,7 @@ message Chapter {
   string content = 5;
   string summary = 6;
   repeated Keyword keywords = 7;
+  repeated string references = 8;
 }
 
 message Chunk {
@@ -404,6 +405,10 @@ message ChapterSummaryRequest {
   // pipelines/summary.py's _extract_chapter_definitions) — the definition
   // given by the book itself, not one the model invents.
   repeated Definition definitions = 5;
+  // Works / titles cited or mentioned in this chapter — LLM-extracted from
+  // the raw text, aggregated across all chapters to build the book-level
+  // reference_index markdown table (see worker/src/pipelines/summary.py).
+  repeated string references = 6;
 }
 
 message Definition {

@@ -358,7 +358,7 @@ func (h *BookHandler) summarizeOne(bookID string, forceRestart bool) (taskID str
 	for _, ch := range chapters {
 		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
 			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
-			Keywords: ch.Keywords,
+			Keywords: ch.Keywords, References: ch.References,
 		})
 	}
 

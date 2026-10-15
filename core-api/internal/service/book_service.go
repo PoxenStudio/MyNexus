@@ -521,8 +521,8 @@ func (s *BookService) ListChunks(bookID, chapterID string, page, size int) ([]mo
 
 func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 	rows, err := s.db.Query(
-		`SELECT id, book_id, title, level, sort_order, content, summary, keywords, definitions
-		 FROM chapters WHERE book_id = ? ORDER BY sort_order ASC`, bookID)
+		`SELECT id, book_id, title, level, sort_order, content, summary, keywords, definitions, "references"
+			 FROM chapters WHERE book_id = ? ORDER BY sort_order ASC`, bookID)
 	if err != nil {
 		return nil, fmt.Errorf("list chapters: %w", err)
 	}
@@ -532,7 +532,8 @@ func (s *BookService) ListChapters(bookID string) ([]models.Chapter, error) {
 	for rows.Next() {
 		var c models.Chapter
 		if err := rows.Scan(
-			&c.ID, &c.BookID, &c.Title, &c.Level, &c.SortOrder, &c.Content, &c.Summary, &c.Keywords, &c.Definitions,
+			&c.ID, &c.BookID, &c.Title, &c.Level, &c.SortOrder, &c.Content,
+			&c.Summary, &c.Keywords, &c.Definitions, &c.References,
 		); err != nil {
 			return nil, fmt.Errorf("scan chapter: %w", err)
 		}
@@ -576,10 +577,10 @@ func (s *BookService) ListChapterSummaries(bookID string) ([]ChapterSummaryLite,
 // mid-run crash/failure. keywordsJSON/definitionsJSON are already-encoded
 // JSON arrays (see grpcserver.ReportChapterSummary), same storage
 // convention as SetBookSummary's keywordsJSON.
-func (s *BookService) UpdateChapterSummary(chapterID, summary, keywordsJSON, definitionsJSON string) error {
+func (s *BookService) UpdateChapterSummary(chapterID, summary, keywordsJSON, definitionsJSON, referencesJSON string) error {
 	_, err := s.db.Exec(
-		`UPDATE chapters SET summary = ?, keywords = ?, definitions = ? WHERE id = ?`,
-		summary, keywordsJSON, definitionsJSON, chapterID,
+		`UPDATE chapters SET summary = ?, keywords = ?, definitions = ?, "references" = ? WHERE id = ?`,
+		summary, keywordsJSON, definitionsJSON, referencesJSON, chapterID,
 	)
 	return err
 }
@@ -589,9 +590,22 @@ func (s *BookService) UpdateChapterSummary(chapterID, summary, keywordsJSON, def
 // weight descending — see worker/src/pipelines/summary.py) — the reduce
 // step, run once after every chapter has a summary.
 func (s *BookService) SetBookSummary(bookID, summary, keywordsJSON, readingGuide, referenceIndex string) error {
+	// reading_guide / reference_index are coalesced so that a partial
+	// "continue" rerun (to_generate only covers a subset of chapters)
+	// doesn't wipe out the previously-generated book-level extras —
+	// worker only builds these from per-chapter data it actually re-ran,
+	// leaving the strings empty when it skipped chapters.
 	_, err := s.db.Exec(
-		`UPDATE books SET summary = ?, keywords = ?, reading_guide = ?, reference_index = ?, updated_at = ? WHERE id = ?`,
-		summary, keywordsJSON, readingGuide, referenceIndex, time.Now().UTC().Format(time.RFC3339), bookID)
+		`UPDATE books SET
+			summary = ?, keywords = ?,
+			reading_guide = CASE WHEN ? = '' THEN reading_guide ELSE ? END,
+			reference_index = CASE WHEN ? = '' THEN reference_index ELSE ? END,
+			updated_at = ?
+		 WHERE id = ?`,
+		summary, keywordsJSON,
+		readingGuide, readingGuide,
+		referenceIndex, referenceIndex,
+		time.Now().UTC().Format(time.RFC3339), bookID)
 	return err
 }
 

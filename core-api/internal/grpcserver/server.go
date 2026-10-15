@@ -249,7 +249,7 @@ func (s *CoreAPIServer) autoSummarize(bookID string) {
 		}
 		reqChapters = append(reqChapters, coordinator.SummarizeChapter{
 			ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
-			Keywords: ch.Keywords,
+			Keywords: ch.Keywords, References: ch.References,
 		})
 	}
 	log.Printf("book %s: auto-summarize (continue) over %d chapter(s), %d already summarized", bookID, len(reqChapters), reused)
@@ -316,7 +316,12 @@ func (s *CoreAPIServer) ReportChapterSummary(ctx context.Context, req *mynexuspb
 		return nil, status.Errorf(codes.Internal, "marshal definitions: %v", err)
 	}
 
-	if err := s.books.UpdateChapterSummary(req.ChapterId, req.Summary, string(keywordsJSON), string(definitionsJSON)); err != nil {
+	referencesJSON, err := json.Marshal(req.References)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "marshal references: %v", err)
+	}
+
+	if err := s.books.UpdateChapterSummary(req.ChapterId, req.Summary, string(keywordsJSON), string(definitionsJSON), string(referencesJSON)); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return &mynexuspb.Ack{Ok: true}, nil

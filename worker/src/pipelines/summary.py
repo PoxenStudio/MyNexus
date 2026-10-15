@@ -890,6 +890,29 @@ class SummaryPipeline:
 
             chapter_kw_cache: dict[str, dict[str, float]] = {}
             chapter_refs_totals: dict[str, dict] = {}
+            # Seed chapter_refs_totals with references already persisted in
+            # the DB (every chapter carries its references list when the
+            # core-api hands us SummarizeRequest.chapters). In "continue"
+            # mode (to_generate only covers empty-summary chapters) this
+            # lets us rebuild the full book-level reference_index without
+            # re-LLM-ing chapters we skipped — exactly the scenario the
+            # "references-on-chapters" persistence was added for.
+            for ch in usable:
+                for ref in getattr(ch, "references", []) or []:
+                    rnorm = ref.strip().lower()
+                    if not rnorm:
+                        continue
+                    entry = chapter_refs_totals.get(rnorm)
+                    if entry is None:
+                        entry = {"count": 0, "display": ref.strip(), "chapters": []}
+                        chapter_refs_totals[rnorm] = entry
+                    entry["count"] += 1
+                    if ch.title not in entry["chapters"]:
+                        entry["chapters"].append(ch.title)
+            logger.info(
+                "reference totals seeded from DB: %d unique works from existing chapter references",
+                len(chapter_refs_totals),
+            )
 
             # Keeps original chapter order for the reduce step: chapters not
             # in to_generate keep their existing summary untouched.
@@ -939,7 +962,9 @@ class SummaryPipeline:
                     i + 1, total, ch.title, len(summary), len(chapter_keywords), len(chapter_definitions), len(chapter_refs),
                 )
                 self.core_api.report_chapter_summary(
-                    task_id, ch.id, summary, keywords=chapter_keywords, definitions=chapter_definitions
+                    task_id, ch.id, summary,
+                    keywords=chapter_keywords, definitions=chapter_definitions,
+                    references=chapter_refs,
                 )
                 summaries_by_id[ch.id] = summary
                 progress = 5 + int(80 * (i + 1) / max(total, 1))
@@ -988,16 +1013,19 @@ class SummaryPipeline:
                 f"[{i + 1}] {title or '（未命名章节）'}\n{summary}"
                 for i, (title, summary) in enumerate(chapter_summaries)
             )
+            # Reference index / reading guide are only trustworthy when
+            # every chapter has been re-analyzed (force_restart=true).
+            # In "continue" mode we only re-run empty-summary chapters, so
+            # chapter_refs_totals would only hold a subset — writing that
+            # subset as the new reference_index would silently drop entries
+            # collected from chapters we skipped. Emit empty strings so
+            # the DB layer keeps the previously-generated values intact.
+            full_coverage = force_restart or len(to_generate) == len(usable)
+            reference_index = _build_reference_index_markdown(chapter_refs_totals) if full_coverage else ""
             reading_guide = self._generate_reading_guide(
                 chapter_summaries_joined, book_summary, lang=lang,
                 task_id=task_id, book_id=book_id, cancel_event=cancel_event,
-            )
-            # Reference index: assembled locally from per-chapter LLM-
-            # extracted references (each chapter analysis already asked the
-            # LLM to pull embedded work titles / citations, so we skip an
-            # extra LLM call here — one LLM invocation per chapter is all
-            # it takes).
-            reference_index = _build_reference_index_markdown(chapter_refs_totals)
+            ) if full_coverage else ""
             logger.info(
                 "reference index built locally: %d unique works (from chapter analyses)",
                 len(chapter_refs_totals),

@@ -728,10 +728,11 @@ onUnmounted(() => {
             <span class="chapter-title-text">{{ ch.title }}</span>
             <span class="chapter-status-pending">{{ t("books.chapterNotSummarized") }}</span>
             <button
-              v-if="!summarizing && !rebuilding"
               class="chapter-retry-btn"
-              :title="t('books.retryChapterSummary')"
-              @click="summarizeBook(book.id, 'continue')"
+              :class="{ 'is-loading': summarizing }"
+              :disabled="summarizing"
+              :title="summarizing ? t('books.summarizing') : t('books.retryChapterSummary')"
+              @click="onSummarize('continue')"
             >
               <AppIcon name="refresh" :size="14" />
             </button>
@@ -1060,6 +1061,16 @@ onUnmounted(() => {
 .chapter-retry-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+.chapter-retry-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.chapter-retry-btn.is-loading svg {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 .chapter-card {
   border: 1px solid var(--border);

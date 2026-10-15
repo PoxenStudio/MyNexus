@@ -1658,6 +1658,7 @@ type Chapter struct {
 	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	Summary       string                 `protobuf:"bytes,6,opt,name=summary,proto3" json:"summary,omitempty"`
 	Keywords      []*Keyword             `protobuf:"bytes,7,rep,name=keywords,proto3" json:"keywords,omitempty"`
+	References    []string               `protobuf:"bytes,8,rep,name=references,proto3" json:"references,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1737,6 +1738,13 @@ func (x *Chapter) GetSummary() string {
 func (x *Chapter) GetKeywords() []*Keyword {
 	if x != nil {
 		return x.Keywords
+	}
+	return nil
+}
+
+func (x *Chapter) GetReferences() []string {
+	if x != nil {
+		return x.References
 	}
 	return nil
 }
@@ -2062,7 +2070,11 @@ type ChapterSummaryRequest struct {
 	// Terms/concepts defined in this chapter's text, LLM-extracted (see
 	// pipelines/summary.py's _extract_chapter_definitions) — the definition
 	// given by the book itself, not one the model invents.
-	Definitions   []*Definition `protobuf:"bytes,5,rep,name=definitions,proto3" json:"definitions,omitempty"`
+	Definitions []*Definition `protobuf:"bytes,5,rep,name=definitions,proto3" json:"definitions,omitempty"`
+	// Works / titles cited or mentioned in this chapter — LLM-extracted from
+	// the raw text, aggregated across all chapters to build the book-level
+	// reference_index markdown table (see worker/src/pipelines/summary.py).
+	References    []string `protobuf:"bytes,6,rep,name=references,proto3" json:"references,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2128,6 +2140,13 @@ func (x *ChapterSummaryRequest) GetKeywords() []*Keyword {
 func (x *ChapterSummaryRequest) GetDefinitions() []*Definition {
 	if x != nil {
 		return x.Definitions
+	}
+	return nil
+}
+
+func (x *ChapterSummaryRequest) GetReferences() []string {
+	if x != nil {
+		return x.References
 	}
 	return nil
 }
@@ -3231,7 +3250,7 @@ const file_mynexus_proto_rawDesc = "" +
 	"\bBookMeta\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x1a\n" +
-	"\blanguage\x18\x03 \x01(\tR\blanguage\"\xc6\x01\n" +
+	"\blanguage\x18\x03 \x01(\tR\blanguage\"\xe6\x01\n" +
 	"\aChapter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x14\n" +
@@ -3240,7 +3259,10 @@ const file_mynexus_proto_rawDesc = "" +
 	"sort_order\x18\x04 \x01(\x05R\tsortOrder\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12\x18\n" +
 	"\asummary\x18\x06 \x01(\tR\asummary\x12,\n" +
-	"\bkeywords\x18\a \x03(\v2\x10.mynexus.KeywordR\bkeywords\"\xec\x01\n" +
+	"\bkeywords\x18\a \x03(\v2\x10.mynexus.KeywordR\bkeywords\x12\x1e\n" +
+	"\n" +
+	"references\x18\b \x03(\tR\n" +
+	"references\"\xec\x01\n" +
 	"\x05Chunk\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -3266,14 +3288,17 @@ const file_mynexus_proto_rawDesc = "" +
 	"\vFailRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1b\n" +
 	"\terror_msg\x18\x02 \x01(\tR\berrorMsg\x12\x1a\n" +
-	"\bcanceled\x18\x03 \x01(\bR\bcanceled\"\xce\x01\n" +
+	"\bcanceled\x18\x03 \x01(\bR\bcanceled\"\xee\x01\n" +
 	"\x15ChapterSummaryRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x1d\n" +
 	"\n" +
 	"chapter_id\x18\x02 \x01(\tR\tchapterId\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\x12,\n" +
 	"\bkeywords\x18\x04 \x03(\v2\x10.mynexus.KeywordR\bkeywords\x125\n" +
-	"\vdefinitions\x18\x05 \x03(\v2\x13.mynexus.DefinitionR\vdefinitions\":\n" +
+	"\vdefinitions\x18\x05 \x03(\v2\x13.mynexus.DefinitionR\vdefinitions\x12\x1e\n" +
+	"\n" +
+	"references\x18\x06 \x03(\tR\n" +
+	"references\":\n" +
 	"\n" +
 	"Definition\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +

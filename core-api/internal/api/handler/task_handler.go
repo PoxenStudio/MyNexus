@@ -87,7 +87,7 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 		for _, ch := range chapters {
 			reqChapters = append(reqChapters, coordinator.SummarizeChapter{
 				ID: ch.ID, Title: ch.Title, Level: ch.Level, Content: ch.Content, Summary: ch.Summary,
-				Keywords: ch.Keywords,
+				Keywords: ch.Keywords, References: ch.References,
 			})
 		}
 		// Retry resumes rather than restarts: chapters already summarized

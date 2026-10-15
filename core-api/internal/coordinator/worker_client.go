@@ -126,12 +126,13 @@ func (c *WorkerClient) TriggerIngest(req IngestRequest) error {
 }
 
 type SummarizeChapter struct {
-	ID       string
-	Title    string
-	Level    int
-	Content  string
-	Summary  string
-	Keywords string
+	ID         string
+	Title      string
+	Level      int
+	Content    string
+	Summary    string
+	Keywords   string
+	References string
 }
 
 type SummarizeRequest struct {
@@ -171,9 +172,14 @@ func (c *WorkerClient) TriggerSummarize(req SummarizeRequest) error {
 		for _, kw := range kwList {
 			pbKw = append(pbKw, &mynexuspb.Keyword{Term: kw.Term, Weight: kw.Weight})
 		}
+		var refList []string
+		if ch.References != "" {
+			_ = json.Unmarshal([]byte(ch.References), &refList)
+		}
 		chapters = append(chapters, &mynexuspb.Chapter{
 			Id: ch.ID, Title: ch.Title, Level: int32(ch.Level), Content: ch.Content, Summary: ch.Summary,
-			Keywords: pbKw,
+			Keywords:   pbKw,
+			References: refList,
 		})
 	}
 

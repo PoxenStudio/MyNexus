@@ -104,13 +104,8 @@ class CoreApiClient:
         summary: str,
         keywords: list[tuple[str, float]] | None = None,
         definitions: list[tuple[str, str]] | None = None,
+        references: list[str] | None = None,
     ) -> None:
-        """Map step of summarization (see pipelines/summary.py): persists one
-        chapter's summary immediately, so progress survives a mid-run crash.
-
-        keywords: this chapter's own top-N content keywords (distinct from
-        report_book_summary's whole-book aggregate). definitions: {name,
-        content} pairs the chapter itself defines, LLM-extracted."""
         keyword_msgs = [mynexus_pb2.Keyword(term=term, weight=weight) for term, weight in (keywords or [])]
         definition_msgs = [mynexus_pb2.Definition(name=name, content=content) for name, content in (definitions or [])]
         self._stub.ReportChapterSummary(
@@ -120,6 +115,7 @@ class CoreApiClient:
                 summary=summary,
                 keywords=keyword_msgs,
                 definitions=definition_msgs,
+                references=references or [],
             )
         )
 
