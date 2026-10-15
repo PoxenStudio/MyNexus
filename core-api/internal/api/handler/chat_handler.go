@@ -41,7 +41,11 @@ type sseEvent struct {
 			Content string `json:"content"`
 		} `json:"delta"`
 	} `json:"choices"`
-	Citations json.RawMessage `json:"citations,omitempty"`
+	Citations  json.RawMessage `json:"citations,omitempty"`
+	ToolResult *struct {
+		ToolName   string `json:"tool_name"`
+		ResultJSON string `json:"result_json"`
+	} `json:"tool_result,omitempty"`
 }
 
 // Completions calls Worker's streaming Chat RPC and relays it to the browser
@@ -122,6 +126,14 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		}
 
 		var frame sseEvent
+
+		if event.ToolResult != nil {
+			frame.ToolResult = &struct {
+				ToolName   string `json:"tool_name"`
+				ResultJSON string `json:"result_json"`
+			}{ToolName: event.ToolResult.ToolName, ResultJSON: event.ToolResult.ResultJSON}
+		}
+
 		if event.Delta != "" {
 			answer.WriteString(event.Delta)
 			frame.Choices = []struct {

@@ -21,11 +21,17 @@ export interface Citation {
   end_offset?: number;
 }
 
+export interface ToolResult {
+  tool_name: string;
+  result_json: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: string;
   content: string;
   citations: Citation[];
+  tool_result?: ToolResult;
   created_at: string;
 }
 
@@ -65,6 +71,7 @@ export async function streamCompletion(
   bookIds: string[],
   onDelta: (text: string) => void,
   onCitations?: (citations: Citation[]) => void,
+  onToolResult?: (toolResult: ToolResult) => void,
 ): Promise<{ sessionId: string }> {
   const res = await fetch(`${API_BASE}/chat/completions`, {
     method: "POST",
@@ -96,6 +103,7 @@ export async function streamCompletion(
         const delta = event?.choices?.[0]?.delta?.content;
         if (delta) onDelta(delta);
         if (event?.citations) onCitations?.(event.citations);
+        if (event?.tool_result) onToolResult?.(event.tool_result);
       } catch {
         // ignore malformed/partial SSE frames
       }

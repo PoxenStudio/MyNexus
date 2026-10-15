@@ -236,7 +236,7 @@ class OpenAILLM(BaseLLM):
         )
         body_len = sum(len(m.get("content", "") or "") for m in messages)
         t_start = time.time()
-        logger = LLMCallLogger("openai", self.model, self.base_url, messages) if self.debug else None
+        llm_log = LLMCallLogger("openai", self.model, self.base_url, messages) if self.debug else None
         logger.info(
             "LLM call start: call_site=%s model=%s base_url=%s body=%dchars",
             call_site, self.model, self.base_url, body_len,
@@ -256,8 +256,8 @@ class OpenAILLM(BaseLLM):
                 "LLM call ERROR: call_site=%s elapsed=%.1fs error_type=%s error=%s",
                 call_site, t_elapsed, type(exc).__name__, str(exc)[:200],
             )
-            if logger:
-                logger.log_error(exc)
+            if llm_log:
+                llm_log.log_error(exc)
             raise
         message = data["choices"][0]["message"]
         result = {"content": message.get("content"), "tool_calls": _parse_tool_calls(message)}

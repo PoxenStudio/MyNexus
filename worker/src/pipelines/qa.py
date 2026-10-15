@@ -10,6 +10,7 @@ from skills.catalog import builtin_skill_tools
 from tools.book_info import BookInfoTool
 from tools.library_stats import LibraryStatsTool
 from tools.list_chapters import ListChaptersTool
+from tools.mindmap import MindmapTool
 from tools.read_chapter import ReadChapterTool
 from tools.registry import ToolRegistry
 from tools.search_by_chapters import SearchByChaptersTool
@@ -48,6 +49,7 @@ _TOOL_DECISION_PROMPT = (
     "- 追踪人物关系与发展 → skill_character_tracker\n"
     "- 收集原文引句 → skill_quote_collector\n"
     "- 生成预习、复习或讨论指南 → skill_reading_guide\n"
+    "- 生成思维导图/知识图谱/概念图 → generate_mindmap\n"
     "Skill 是任务流程指引，不是数据来源；选中后再调用必要的数据工具。一个回合只启用一个 Skill。\n"
     "如果问题不在上述范围、或可通过对话历史直接回答，不要调用任何工具，直接留空。"
 )
@@ -77,6 +79,7 @@ class QAPipeline:
                 ReadChapterTool(self.retrieval.core_api),
                 SearchByChaptersTool(self.retrieval),
                 SemanticSearchTool(self.retrieval),
+                MindmapTool(self.retrieval, self.llm),
                 *builtin_skill_tools(),
             ]
         )
@@ -88,6 +91,7 @@ class QAPipeline:
         citations: list[dict] = []
         working = list(messages)
         active_skill: dict | None = None
+        mindmap_emitted = False
 
         for _ in range(self.config.chat_max_tool_rounds):
             tool_call = self._decide_tool(working, active_skill, book_ids)
@@ -106,6 +110,16 @@ class QAPipeline:
                     result["error"] = "no book found within the current chat scope"
             citations.extend(result.pop("__citations", []) or [])
             skill_activation = result.pop("__skill__", None)
+
+            if name == "generate_mindmap" and not scope_error:
+                if "error" not in result:
+                    logger.info("mindmap tool succeeded, emitting tool_result event")
+                    yield {"type": "tool_result", "tool_name": name, "result": result}
+                    mindmap_emitted = True
+                    break
+                logger.warning("mindmap tool failed: %s", result.get("error"))
+                result = {"error": result.get("error", "mindmap generation failed")}
+
             if skill_activation:
                 active_skill = skill_activation
                 working = working + [
@@ -127,6 +141,23 @@ class QAPipeline:
                         ),
                     },
                 ]
+
+        if mindmap_emitted and not tool_results and not active_skill:
+            logger.info("mindmap-only path, yielding citations and returning")
+            yield {
+                "type": "citations",
+                "citations": [
+                    {
+                        "chunk_id": c["chunk_id"],
+                        "chapter_id": c["chapter_id"],
+                        "book_id": c["book_id"],
+                        "score": c["score"],
+                        "content": c["content"][:200],
+                    }
+                    for c in citations
+                ],
+            }
+            return
 
         if active_skill and not citations:
             question = messages[-1]["content"] if messages else ""

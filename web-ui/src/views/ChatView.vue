@@ -5,12 +5,20 @@ import * as chatApi from "../api/chat";
 import * as booksApi from "../api/books";
 import AppIcon from "../components/AppIcon.vue";
 import MarkdownContent from "../components/MarkdownContent.vue";
+import MindmapView from "../components/MindmapView.vue";
 
 const { t } = useI18n();
 
+interface ChatMessage {
+  role: string;
+  content: string;
+  citations?: chatApi.Citation[];
+  mindmap?: { title: string; markdown: string };
+}
+
 const sessions = ref<chatApi.ChatSession[]>([]);
 const activeSessionId = ref<string | null>(null);
-const messages = ref<{ role: string; content: string; citations?: chatApi.Citation[] }[]>([]);
+const messages = ref<ChatMessage[]>([]);
 const input = ref("");
 const sending = ref(false);
 const loadingSessions = ref(true);
@@ -116,6 +124,16 @@ async function onSend() {
         messages.value[msgIdx].citations = citations;
         finalizeAssistantMessage(messages.value[msgIdx]);
         loadCitationBooks(citations);
+      },
+      (toolResult) => {
+        if (toolResult.tool_name !== "generate_mindmap") return;
+        try {
+          const parsed = JSON.parse(toolResult.result_json);
+          const msgIdx = messages.value.length - 1;
+          messages.value[msgIdx].mindmap = { title: parsed.title || "思维导图", markdown: parsed.markdown || "" };
+        } catch {
+          // ignore parse error
+        }
       },
     );
     if (!activeSessionId.value && sessionId) {
@@ -229,6 +247,7 @@ onMounted(loadSessions);
           </span>
           <p v-else-if="m.role === 'user'">{{ m.content }}</p>
           <MarkdownContent v-else :content="m.content" />
+          <MindmapView v-if="m.mindmap" :markdown="m.mindmap.markdown" :title="m.mindmap.title" />
           <div v-if="m.citations?.length" class="citations">
             <details v-for="(c, ci) in m.citations" :key="c.chunk_id" class="citation-card">
               <summary>

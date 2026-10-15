@@ -241,11 +241,17 @@ type ChatRequest struct {
 	TopK     int
 }
 
-// ChatEvent is one item from a Chat stream: exactly one of Delta (an answer
-// text fragment) or Citations (the final message) is set.
+type ToolResultEvent struct {
+	ToolName   string
+	ResultJSON string
+}
+
+// ChatEvent is one item from a Chat stream: exactly one of Delta, Citations,
+// or ToolResult is set at a time.
 type ChatEvent struct {
-	Delta     string
-	Citations []Citation
+	Delta      string
+	Citations  []Citation
+	ToolResult *ToolResultEvent
 }
 
 type Citation struct {
@@ -285,6 +291,11 @@ func (s *ChatStream) Recv() (ChatEvent, error) {
 			})
 		}
 		return ChatEvent{Citations: citations}, nil
+	case *mynexuspb.ChatChunk_ToolResult:
+		return ChatEvent{ToolResult: &ToolResultEvent{
+			ToolName:   payload.ToolResult.ToolName,
+			ResultJSON: payload.ToolResult.ResultJson,
+		}}, nil
 	default:
 		return ChatEvent{}, nil
 	}

@@ -1245,14 +1245,68 @@ func (x *CitationList) GetItems() []*Citation {
 	return nil
 }
 
-// One chunk of a streamed chat reply: either an answer-text delta, or (the
-// final message in the stream) the full citation list.
+type ToolResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ToolName      string                 `protobuf:"bytes,1,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	ResultJson    string                 `protobuf:"bytes,2,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolResult) Reset() {
+	*x = ToolResult{}
+	mi := &file_mynexus_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolResult) ProtoMessage() {}
+
+func (x *ToolResult) ProtoReflect() protoreflect.Message {
+	mi := &file_mynexus_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolResult.ProtoReflect.Descriptor instead.
+func (*ToolResult) Descriptor() ([]byte, []int) {
+	return file_mynexus_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ToolResult) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *ToolResult) GetResultJson() string {
+	if x != nil {
+		return x.ResultJson
+	}
+	return ""
+}
+
+// One chunk of a streamed chat reply: either an answer-text delta, a structured
+// tool result (e.g. mindmap markdown), or (the final message in the stream) the
+// full citation list.
 type ChatChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*ChatChunk_Delta
 	//	*ChatChunk_Citations
+	//	*ChatChunk_ToolResult
 	Payload       isChatChunk_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1260,7 +1314,7 @@ type ChatChunk struct {
 
 func (x *ChatChunk) Reset() {
 	*x = ChatChunk{}
-	mi := &file_mynexus_proto_msgTypes[20]
+	mi := &file_mynexus_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1326,7 @@ func (x *ChatChunk) String() string {
 func (*ChatChunk) ProtoMessage() {}
 
 func (x *ChatChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[20]
+	mi := &file_mynexus_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1339,7 @@ func (x *ChatChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatChunk.ProtoReflect.Descriptor instead.
 func (*ChatChunk) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{20}
+	return file_mynexus_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ChatChunk) GetPayload() isChatChunk_Payload {
@@ -1313,6 +1367,15 @@ func (x *ChatChunk) GetCitations() *CitationList {
 	return nil
 }
 
+func (x *ChatChunk) GetToolResult() *ToolResult {
+	if x != nil {
+		if x, ok := x.Payload.(*ChatChunk_ToolResult); ok {
+			return x.ToolResult
+		}
+	}
+	return nil
+}
+
 type isChatChunk_Payload interface {
 	isChatChunk_Payload()
 }
@@ -1325,9 +1388,15 @@ type ChatChunk_Citations struct {
 	Citations *CitationList `protobuf:"bytes,2,opt,name=citations,proto3,oneof"`
 }
 
+type ChatChunk_ToolResult struct {
+	ToolResult *ToolResult `protobuf:"bytes,3,opt,name=tool_result,json=toolResult,proto3,oneof"`
+}
+
 func (*ChatChunk_Delta) isChatChunk_Payload() {}
 
 func (*ChatChunk_Citations) isChatChunk_Payload() {}
+
+func (*ChatChunk_ToolResult) isChatChunk_Payload() {}
 
 type ChapterSummariesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1338,7 +1407,7 @@ type ChapterSummariesRequest struct {
 
 func (x *ChapterSummariesRequest) Reset() {
 	*x = ChapterSummariesRequest{}
-	mi := &file_mynexus_proto_msgTypes[21]
+	mi := &file_mynexus_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1350,7 +1419,7 @@ func (x *ChapterSummariesRequest) String() string {
 func (*ChapterSummariesRequest) ProtoMessage() {}
 
 func (x *ChapterSummariesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[21]
+	mi := &file_mynexus_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1363,7 +1432,7 @@ func (x *ChapterSummariesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterSummariesRequest.ProtoReflect.Descriptor instead.
 func (*ChapterSummariesRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{21}
+	return file_mynexus_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ChapterSummariesRequest) GetBookId() string {
@@ -1383,7 +1452,7 @@ type ChapterSummaryEntry struct {
 
 func (x *ChapterSummaryEntry) Reset() {
 	*x = ChapterSummaryEntry{}
-	mi := &file_mynexus_proto_msgTypes[22]
+	mi := &file_mynexus_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1395,7 +1464,7 @@ func (x *ChapterSummaryEntry) String() string {
 func (*ChapterSummaryEntry) ProtoMessage() {}
 
 func (x *ChapterSummaryEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[22]
+	mi := &file_mynexus_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1408,7 +1477,7 @@ func (x *ChapterSummaryEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterSummaryEntry.ProtoReflect.Descriptor instead.
 func (*ChapterSummaryEntry) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{22}
+	return file_mynexus_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ChapterSummaryEntry) GetChapterId() string {
@@ -1435,7 +1504,7 @@ type ChapterSummariesResponse struct {
 
 func (x *ChapterSummariesResponse) Reset() {
 	*x = ChapterSummariesResponse{}
-	mi := &file_mynexus_proto_msgTypes[23]
+	mi := &file_mynexus_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1447,7 +1516,7 @@ func (x *ChapterSummariesResponse) String() string {
 func (*ChapterSummariesResponse) ProtoMessage() {}
 
 func (x *ChapterSummariesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[23]
+	mi := &file_mynexus_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1460,7 +1529,7 @@ func (x *ChapterSummariesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterSummariesResponse.ProtoReflect.Descriptor instead.
 func (*ChapterSummariesResponse) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{23}
+	return file_mynexus_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ChapterSummariesResponse) GetChapters() []*ChapterSummaryEntry {
@@ -1489,7 +1558,7 @@ type ProgressRequest struct {
 
 func (x *ProgressRequest) Reset() {
 	*x = ProgressRequest{}
-	mi := &file_mynexus_proto_msgTypes[24]
+	mi := &file_mynexus_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1501,7 +1570,7 @@ func (x *ProgressRequest) String() string {
 func (*ProgressRequest) ProtoMessage() {}
 
 func (x *ProgressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[24]
+	mi := &file_mynexus_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1514,7 +1583,7 @@ func (x *ProgressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProgressRequest.ProtoReflect.Descriptor instead.
 func (*ProgressRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{24}
+	return file_mynexus_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ProgressRequest) GetTaskId() string {
@@ -1554,7 +1623,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_mynexus_proto_msgTypes[25]
+	mi := &file_mynexus_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1566,7 +1635,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[25]
+	mi := &file_mynexus_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1579,7 +1648,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{25}
+	return file_mynexus_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Ack) GetOk() bool {
@@ -1600,7 +1669,7 @@ type BookMeta struct {
 
 func (x *BookMeta) Reset() {
 	*x = BookMeta{}
-	mi := &file_mynexus_proto_msgTypes[26]
+	mi := &file_mynexus_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1612,7 +1681,7 @@ func (x *BookMeta) String() string {
 func (*BookMeta) ProtoMessage() {}
 
 func (x *BookMeta) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[26]
+	mi := &file_mynexus_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1625,7 +1694,7 @@ func (x *BookMeta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookMeta.ProtoReflect.Descriptor instead.
 func (*BookMeta) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{26}
+	return file_mynexus_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *BookMeta) GetTitle() string {
@@ -1665,7 +1734,7 @@ type Chapter struct {
 
 func (x *Chapter) Reset() {
 	*x = Chapter{}
-	mi := &file_mynexus_proto_msgTypes[27]
+	mi := &file_mynexus_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1677,7 +1746,7 @@ func (x *Chapter) String() string {
 func (*Chapter) ProtoMessage() {}
 
 func (x *Chapter) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[27]
+	mi := &file_mynexus_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1690,7 +1759,7 @@ func (x *Chapter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chapter.ProtoReflect.Descriptor instead.
 func (*Chapter) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{27}
+	return file_mynexus_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *Chapter) GetId() string {
@@ -1765,7 +1834,7 @@ type Chunk struct {
 
 func (x *Chunk) Reset() {
 	*x = Chunk{}
-	mi := &file_mynexus_proto_msgTypes[28]
+	mi := &file_mynexus_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1777,7 +1846,7 @@ func (x *Chunk) String() string {
 func (*Chunk) ProtoMessage() {}
 
 func (x *Chunk) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[28]
+	mi := &file_mynexus_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1790,7 +1859,7 @@ func (x *Chunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chunk.ProtoReflect.Descriptor instead.
 func (*Chunk) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{28}
+	return file_mynexus_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Chunk) GetId() string {
@@ -1859,7 +1928,7 @@ type MetadataRequest struct {
 
 func (x *MetadataRequest) Reset() {
 	*x = MetadataRequest{}
-	mi := &file_mynexus_proto_msgTypes[29]
+	mi := &file_mynexus_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1871,7 +1940,7 @@ func (x *MetadataRequest) String() string {
 func (*MetadataRequest) ProtoMessage() {}
 
 func (x *MetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[29]
+	mi := &file_mynexus_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1884,7 +1953,7 @@ func (x *MetadataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetadataRequest.ProtoReflect.Descriptor instead.
 func (*MetadataRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{29}
+	return file_mynexus_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *MetadataRequest) GetTaskId() string {
@@ -1923,7 +1992,7 @@ type CompleteRequest struct {
 
 func (x *CompleteRequest) Reset() {
 	*x = CompleteRequest{}
-	mi := &file_mynexus_proto_msgTypes[30]
+	mi := &file_mynexus_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1935,7 +2004,7 @@ func (x *CompleteRequest) String() string {
 func (*CompleteRequest) ProtoMessage() {}
 
 func (x *CompleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[30]
+	mi := &file_mynexus_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1948,7 +2017,7 @@ func (x *CompleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteRequest.ProtoReflect.Descriptor instead.
 func (*CompleteRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{30}
+	return file_mynexus_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CompleteRequest) GetTaskId() string {
@@ -2008,7 +2077,7 @@ type FailRequest struct {
 
 func (x *FailRequest) Reset() {
 	*x = FailRequest{}
-	mi := &file_mynexus_proto_msgTypes[31]
+	mi := &file_mynexus_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2020,7 +2089,7 @@ func (x *FailRequest) String() string {
 func (*FailRequest) ProtoMessage() {}
 
 func (x *FailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[31]
+	mi := &file_mynexus_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2033,7 +2102,7 @@ func (x *FailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailRequest.ProtoReflect.Descriptor instead.
 func (*FailRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{31}
+	return file_mynexus_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *FailRequest) GetTaskId() string {
@@ -2081,7 +2150,7 @@ type ChapterSummaryRequest struct {
 
 func (x *ChapterSummaryRequest) Reset() {
 	*x = ChapterSummaryRequest{}
-	mi := &file_mynexus_proto_msgTypes[32]
+	mi := &file_mynexus_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2093,7 +2162,7 @@ func (x *ChapterSummaryRequest) String() string {
 func (*ChapterSummaryRequest) ProtoMessage() {}
 
 func (x *ChapterSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[32]
+	mi := &file_mynexus_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2106,7 +2175,7 @@ func (x *ChapterSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterSummaryRequest.ProtoReflect.Descriptor instead.
 func (*ChapterSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{32}
+	return file_mynexus_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ChapterSummaryRequest) GetTaskId() string {
@@ -2161,7 +2230,7 @@ type Definition struct {
 
 func (x *Definition) Reset() {
 	*x = Definition{}
-	mi := &file_mynexus_proto_msgTypes[33]
+	mi := &file_mynexus_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2173,7 +2242,7 @@ func (x *Definition) String() string {
 func (*Definition) ProtoMessage() {}
 
 func (x *Definition) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[33]
+	mi := &file_mynexus_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2186,7 +2255,7 @@ func (x *Definition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Definition.ProtoReflect.Descriptor instead.
 func (*Definition) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{33}
+	return file_mynexus_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *Definition) GetName() string {
@@ -2217,7 +2286,7 @@ type BookSummaryRequest struct {
 
 func (x *BookSummaryRequest) Reset() {
 	*x = BookSummaryRequest{}
-	mi := &file_mynexus_proto_msgTypes[34]
+	mi := &file_mynexus_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2229,7 +2298,7 @@ func (x *BookSummaryRequest) String() string {
 func (*BookSummaryRequest) ProtoMessage() {}
 
 func (x *BookSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[34]
+	mi := &file_mynexus_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2242,7 +2311,7 @@ func (x *BookSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookSummaryRequest.ProtoReflect.Descriptor instead.
 func (*BookSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{34}
+	return file_mynexus_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *BookSummaryRequest) GetTaskId() string {
@@ -2307,7 +2376,7 @@ type TokenUsageRequest struct {
 
 func (x *TokenUsageRequest) Reset() {
 	*x = TokenUsageRequest{}
-	mi := &file_mynexus_proto_msgTypes[35]
+	mi := &file_mynexus_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2319,7 +2388,7 @@ func (x *TokenUsageRequest) String() string {
 func (*TokenUsageRequest) ProtoMessage() {}
 
 func (x *TokenUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[35]
+	mi := &file_mynexus_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2332,7 +2401,7 @@ func (x *TokenUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenUsageRequest.ProtoReflect.Descriptor instead.
 func (*TokenUsageRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{35}
+	return file_mynexus_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *TokenUsageRequest) GetTaskId() string {
@@ -2408,7 +2477,7 @@ type Keyword struct {
 
 func (x *Keyword) Reset() {
 	*x = Keyword{}
-	mi := &file_mynexus_proto_msgTypes[36]
+	mi := &file_mynexus_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2420,7 +2489,7 @@ func (x *Keyword) String() string {
 func (*Keyword) ProtoMessage() {}
 
 func (x *Keyword) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[36]
+	mi := &file_mynexus_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2433,7 +2502,7 @@ func (x *Keyword) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Keyword.ProtoReflect.Descriptor instead.
 func (*Keyword) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{36}
+	return file_mynexus_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *Keyword) GetTerm() string {
@@ -2461,7 +2530,7 @@ type KeywordSearchRequest struct {
 
 func (x *KeywordSearchRequest) Reset() {
 	*x = KeywordSearchRequest{}
-	mi := &file_mynexus_proto_msgTypes[37]
+	mi := &file_mynexus_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2473,7 +2542,7 @@ func (x *KeywordSearchRequest) String() string {
 func (*KeywordSearchRequest) ProtoMessage() {}
 
 func (x *KeywordSearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[37]
+	mi := &file_mynexus_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2486,7 +2555,7 @@ func (x *KeywordSearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeywordSearchRequest.ProtoReflect.Descriptor instead.
 func (*KeywordSearchRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{37}
+	return file_mynexus_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *KeywordSearchRequest) GetQuery() string {
@@ -2521,7 +2590,7 @@ type KeywordSearchResult struct {
 
 func (x *KeywordSearchResult) Reset() {
 	*x = KeywordSearchResult{}
-	mi := &file_mynexus_proto_msgTypes[38]
+	mi := &file_mynexus_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2533,7 +2602,7 @@ func (x *KeywordSearchResult) String() string {
 func (*KeywordSearchResult) ProtoMessage() {}
 
 func (x *KeywordSearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[38]
+	mi := &file_mynexus_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2546,7 +2615,7 @@ func (x *KeywordSearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeywordSearchResult.ProtoReflect.Descriptor instead.
 func (*KeywordSearchResult) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{38}
+	return file_mynexus_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *KeywordSearchResult) GetChunkId() string {
@@ -2579,7 +2648,7 @@ type KeywordSearchResponse struct {
 
 func (x *KeywordSearchResponse) Reset() {
 	*x = KeywordSearchResponse{}
-	mi := &file_mynexus_proto_msgTypes[39]
+	mi := &file_mynexus_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2591,7 +2660,7 @@ func (x *KeywordSearchResponse) String() string {
 func (*KeywordSearchResponse) ProtoMessage() {}
 
 func (x *KeywordSearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[39]
+	mi := &file_mynexus_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2604,7 +2673,7 @@ func (x *KeywordSearchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeywordSearchResponse.ProtoReflect.Descriptor instead.
 func (*KeywordSearchResponse) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{39}
+	return file_mynexus_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *KeywordSearchResponse) GetResults() []*KeywordSearchResult {
@@ -2622,7 +2691,7 @@ type LibraryStatsRequest struct {
 
 func (x *LibraryStatsRequest) Reset() {
 	*x = LibraryStatsRequest{}
-	mi := &file_mynexus_proto_msgTypes[40]
+	mi := &file_mynexus_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2634,7 +2703,7 @@ func (x *LibraryStatsRequest) String() string {
 func (*LibraryStatsRequest) ProtoMessage() {}
 
 func (x *LibraryStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[40]
+	mi := &file_mynexus_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2647,7 +2716,7 @@ func (x *LibraryStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LibraryStatsRequest.ProtoReflect.Descriptor instead.
 func (*LibraryStatsRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{40}
+	return file_mynexus_proto_rawDescGZIP(), []int{41}
 }
 
 type BookStatusCount struct {
@@ -2660,7 +2729,7 @@ type BookStatusCount struct {
 
 func (x *BookStatusCount) Reset() {
 	*x = BookStatusCount{}
-	mi := &file_mynexus_proto_msgTypes[41]
+	mi := &file_mynexus_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2672,7 +2741,7 @@ func (x *BookStatusCount) String() string {
 func (*BookStatusCount) ProtoMessage() {}
 
 func (x *BookStatusCount) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[41]
+	mi := &file_mynexus_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2685,7 +2754,7 @@ func (x *BookStatusCount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookStatusCount.ProtoReflect.Descriptor instead.
 func (*BookStatusCount) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{41}
+	return file_mynexus_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *BookStatusCount) GetStatus() string {
@@ -2712,7 +2781,7 @@ type LibraryStatsResponse struct {
 
 func (x *LibraryStatsResponse) Reset() {
 	*x = LibraryStatsResponse{}
-	mi := &file_mynexus_proto_msgTypes[42]
+	mi := &file_mynexus_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2724,7 +2793,7 @@ func (x *LibraryStatsResponse) String() string {
 func (*LibraryStatsResponse) ProtoMessage() {}
 
 func (x *LibraryStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[42]
+	mi := &file_mynexus_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2737,7 +2806,7 @@ func (x *LibraryStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LibraryStatsResponse.ProtoReflect.Descriptor instead.
 func (*LibraryStatsResponse) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{42}
+	return file_mynexus_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *LibraryStatsResponse) GetTotalBooks() int32 {
@@ -2763,7 +2832,7 @@ type BookInfoRequest struct {
 
 func (x *BookInfoRequest) Reset() {
 	*x = BookInfoRequest{}
-	mi := &file_mynexus_proto_msgTypes[43]
+	mi := &file_mynexus_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2775,7 +2844,7 @@ func (x *BookInfoRequest) String() string {
 func (*BookInfoRequest) ProtoMessage() {}
 
 func (x *BookInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[43]
+	mi := &file_mynexus_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2788,7 +2857,7 @@ func (x *BookInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookInfoRequest.ProtoReflect.Descriptor instead.
 func (*BookInfoRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{43}
+	return file_mynexus_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *BookInfoRequest) GetQuery() string {
@@ -2808,7 +2877,7 @@ type ChapterContentRequest struct {
 
 func (x *ChapterContentRequest) Reset() {
 	*x = ChapterContentRequest{}
-	mi := &file_mynexus_proto_msgTypes[44]
+	mi := &file_mynexus_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2820,7 +2889,7 @@ func (x *ChapterContentRequest) String() string {
 func (*ChapterContentRequest) ProtoMessage() {}
 
 func (x *ChapterContentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[44]
+	mi := &file_mynexus_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2833,7 +2902,7 @@ func (x *ChapterContentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterContentRequest.ProtoReflect.Descriptor instead.
 func (*ChapterContentRequest) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{44}
+	return file_mynexus_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ChapterContentRequest) GetBookId() string {
@@ -2862,7 +2931,7 @@ type ChapterContentResponse struct {
 
 func (x *ChapterContentResponse) Reset() {
 	*x = ChapterContentResponse{}
-	mi := &file_mynexus_proto_msgTypes[45]
+	mi := &file_mynexus_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2874,7 +2943,7 @@ func (x *ChapterContentResponse) String() string {
 func (*ChapterContentResponse) ProtoMessage() {}
 
 func (x *ChapterContentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[45]
+	mi := &file_mynexus_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2887,7 +2956,7 @@ func (x *ChapterContentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterContentResponse.ProtoReflect.Descriptor instead.
 func (*ChapterContentResponse) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{45}
+	return file_mynexus_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ChapterContentResponse) GetChapterId() string {
@@ -2930,7 +2999,7 @@ type ChapterInfo struct {
 
 func (x *ChapterInfo) Reset() {
 	*x = ChapterInfo{}
-	mi := &file_mynexus_proto_msgTypes[46]
+	mi := &file_mynexus_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2942,7 +3011,7 @@ func (x *ChapterInfo) String() string {
 func (*ChapterInfo) ProtoMessage() {}
 
 func (x *ChapterInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[46]
+	mi := &file_mynexus_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2955,7 +3024,7 @@ func (x *ChapterInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChapterInfo.ProtoReflect.Descriptor instead.
 func (*ChapterInfo) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{46}
+	return file_mynexus_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ChapterInfo) GetChapterId() string {
@@ -3006,7 +3075,7 @@ type BookInfo struct {
 
 func (x *BookInfo) Reset() {
 	*x = BookInfo{}
-	mi := &file_mynexus_proto_msgTypes[47]
+	mi := &file_mynexus_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3018,7 +3087,7 @@ func (x *BookInfo) String() string {
 func (*BookInfo) ProtoMessage() {}
 
 func (x *BookInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[47]
+	mi := &file_mynexus_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3031,7 +3100,7 @@ func (x *BookInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookInfo.ProtoReflect.Descriptor instead.
 func (*BookInfo) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{47}
+	return file_mynexus_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *BookInfo) GetBookId() string {
@@ -3099,7 +3168,7 @@ type BookInfoResponse struct {
 
 func (x *BookInfoResponse) Reset() {
 	*x = BookInfoResponse{}
-	mi := &file_mynexus_proto_msgTypes[48]
+	mi := &file_mynexus_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3111,7 +3180,7 @@ func (x *BookInfoResponse) String() string {
 func (*BookInfoResponse) ProtoMessage() {}
 
 func (x *BookInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mynexus_proto_msgTypes[48]
+	mi := &file_mynexus_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3124,7 +3193,7 @@ func (x *BookInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BookInfoResponse.ProtoReflect.Descriptor instead.
 func (*BookInfoResponse) Descriptor() ([]byte, []int) {
-	return file_mynexus_proto_rawDescGZIP(), []int{48}
+	return file_mynexus_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *BookInfoResponse) GetBooks() []*BookInfo {
@@ -3226,10 +3295,17 @@ const file_mynexus_proto_rawDesc = "" +
 	"\n" +
 	"end_offset\x18\a \x01(\x05R\tendOffset\"7\n" +
 	"\fCitationList\x12'\n" +
-	"\x05items\x18\x01 \x03(\v2\x11.mynexus.CitationR\x05items\"e\n" +
+	"\x05items\x18\x01 \x03(\v2\x11.mynexus.CitationR\x05items\"J\n" +
+	"\n" +
+	"ToolResult\x12\x1b\n" +
+	"\ttool_name\x18\x01 \x01(\tR\btoolName\x12\x1f\n" +
+	"\vresult_json\x18\x02 \x01(\tR\n" +
+	"resultJson\"\x9d\x01\n" +
 	"\tChatChunk\x12\x16\n" +
 	"\x05delta\x18\x01 \x01(\tH\x00R\x05delta\x125\n" +
-	"\tcitations\x18\x02 \x01(\v2\x15.mynexus.CitationListH\x00R\tcitationsB\t\n" +
+	"\tcitations\x18\x02 \x01(\v2\x15.mynexus.CitationListH\x00R\tcitations\x126\n" +
+	"\vtool_result\x18\x03 \x01(\v2\x13.mynexus.ToolResultH\x00R\n" +
+	"toolResultB\t\n" +
 	"\apayload\"2\n" +
 	"\x17ChapterSummariesRequest\x12\x17\n" +
 	"\abook_id\x18\x01 \x01(\tR\x06bookId\"N\n" +
@@ -3415,7 +3491,7 @@ func file_mynexus_proto_rawDescGZIP() []byte {
 	return file_mynexus_proto_rawDescData
 }
 
-var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_mynexus_proto_msgTypes = make([]protoimpl.MessageInfo, 50)
 var file_mynexus_proto_goTypes = []any{
 	(*VectorBookRequest)(nil),               // 0: mynexus.VectorBookRequest
 	(*VectorRecord)(nil),                    // 1: mynexus.VectorRecord
@@ -3437,110 +3513,112 @@ var file_mynexus_proto_goTypes = []any{
 	(*ChatRequest)(nil),                     // 17: mynexus.ChatRequest
 	(*Citation)(nil),                        // 18: mynexus.Citation
 	(*CitationList)(nil),                    // 19: mynexus.CitationList
-	(*ChatChunk)(nil),                       // 20: mynexus.ChatChunk
-	(*ChapterSummariesRequest)(nil),         // 21: mynexus.ChapterSummariesRequest
-	(*ChapterSummaryEntry)(nil),             // 22: mynexus.ChapterSummaryEntry
-	(*ChapterSummariesResponse)(nil),        // 23: mynexus.ChapterSummariesResponse
-	(*ProgressRequest)(nil),                 // 24: mynexus.ProgressRequest
-	(*Ack)(nil),                             // 25: mynexus.Ack
-	(*BookMeta)(nil),                        // 26: mynexus.BookMeta
-	(*Chapter)(nil),                         // 27: mynexus.Chapter
-	(*Chunk)(nil),                           // 28: mynexus.Chunk
-	(*MetadataRequest)(nil),                 // 29: mynexus.MetadataRequest
-	(*CompleteRequest)(nil),                 // 30: mynexus.CompleteRequest
-	(*FailRequest)(nil),                     // 31: mynexus.FailRequest
-	(*ChapterSummaryRequest)(nil),           // 32: mynexus.ChapterSummaryRequest
-	(*Definition)(nil),                      // 33: mynexus.Definition
-	(*BookSummaryRequest)(nil),              // 34: mynexus.BookSummaryRequest
-	(*TokenUsageRequest)(nil),               // 35: mynexus.TokenUsageRequest
-	(*Keyword)(nil),                         // 36: mynexus.Keyword
-	(*KeywordSearchRequest)(nil),            // 37: mynexus.KeywordSearchRequest
-	(*KeywordSearchResult)(nil),             // 38: mynexus.KeywordSearchResult
-	(*KeywordSearchResponse)(nil),           // 39: mynexus.KeywordSearchResponse
-	(*LibraryStatsRequest)(nil),             // 40: mynexus.LibraryStatsRequest
-	(*BookStatusCount)(nil),                 // 41: mynexus.BookStatusCount
-	(*LibraryStatsResponse)(nil),            // 42: mynexus.LibraryStatsResponse
-	(*BookInfoRequest)(nil),                 // 43: mynexus.BookInfoRequest
-	(*ChapterContentRequest)(nil),           // 44: mynexus.ChapterContentRequest
-	(*ChapterContentResponse)(nil),          // 45: mynexus.ChapterContentResponse
-	(*ChapterInfo)(nil),                     // 46: mynexus.ChapterInfo
-	(*BookInfo)(nil),                        // 47: mynexus.BookInfo
-	(*BookInfoResponse)(nil),                // 48: mynexus.BookInfoResponse
+	(*ToolResult)(nil),                      // 20: mynexus.ToolResult
+	(*ChatChunk)(nil),                       // 21: mynexus.ChatChunk
+	(*ChapterSummariesRequest)(nil),         // 22: mynexus.ChapterSummariesRequest
+	(*ChapterSummaryEntry)(nil),             // 23: mynexus.ChapterSummaryEntry
+	(*ChapterSummariesResponse)(nil),        // 24: mynexus.ChapterSummariesResponse
+	(*ProgressRequest)(nil),                 // 25: mynexus.ProgressRequest
+	(*Ack)(nil),                             // 26: mynexus.Ack
+	(*BookMeta)(nil),                        // 27: mynexus.BookMeta
+	(*Chapter)(nil),                         // 28: mynexus.Chapter
+	(*Chunk)(nil),                           // 29: mynexus.Chunk
+	(*MetadataRequest)(nil),                 // 30: mynexus.MetadataRequest
+	(*CompleteRequest)(nil),                 // 31: mynexus.CompleteRequest
+	(*FailRequest)(nil),                     // 32: mynexus.FailRequest
+	(*ChapterSummaryRequest)(nil),           // 33: mynexus.ChapterSummaryRequest
+	(*Definition)(nil),                      // 34: mynexus.Definition
+	(*BookSummaryRequest)(nil),              // 35: mynexus.BookSummaryRequest
+	(*TokenUsageRequest)(nil),               // 36: mynexus.TokenUsageRequest
+	(*Keyword)(nil),                         // 37: mynexus.Keyword
+	(*KeywordSearchRequest)(nil),            // 38: mynexus.KeywordSearchRequest
+	(*KeywordSearchResult)(nil),             // 39: mynexus.KeywordSearchResult
+	(*KeywordSearchResponse)(nil),           // 40: mynexus.KeywordSearchResponse
+	(*LibraryStatsRequest)(nil),             // 41: mynexus.LibraryStatsRequest
+	(*BookStatusCount)(nil),                 // 42: mynexus.BookStatusCount
+	(*LibraryStatsResponse)(nil),            // 43: mynexus.LibraryStatsResponse
+	(*BookInfoRequest)(nil),                 // 44: mynexus.BookInfoRequest
+	(*ChapterContentRequest)(nil),           // 45: mynexus.ChapterContentRequest
+	(*ChapterContentResponse)(nil),          // 46: mynexus.ChapterContentResponse
+	(*ChapterInfo)(nil),                     // 47: mynexus.ChapterInfo
+	(*BookInfo)(nil),                        // 48: mynexus.BookInfo
+	(*BookInfoResponse)(nil),                // 49: mynexus.BookInfoResponse
 }
 var file_mynexus_proto_depIdxs = []int32{
-	27, // 0: mynexus.SummarizeRequest.chapters:type_name -> mynexus.Chapter
+	28, // 0: mynexus.SummarizeRequest.chapters:type_name -> mynexus.Chapter
 	14, // 1: mynexus.SearchResponse.results:type_name -> mynexus.SearchResult
 	16, // 2: mynexus.ChatRequest.messages:type_name -> mynexus.ChatMessage
 	18, // 3: mynexus.CitationList.items:type_name -> mynexus.Citation
 	19, // 4: mynexus.ChatChunk.citations:type_name -> mynexus.CitationList
-	22, // 5: mynexus.ChapterSummariesResponse.chapters:type_name -> mynexus.ChapterSummaryEntry
-	36, // 6: mynexus.Chapter.keywords:type_name -> mynexus.Keyword
-	26, // 7: mynexus.MetadataRequest.book:type_name -> mynexus.BookMeta
-	26, // 8: mynexus.CompleteRequest.book:type_name -> mynexus.BookMeta
-	27, // 9: mynexus.CompleteRequest.chapters:type_name -> mynexus.Chapter
-	28, // 10: mynexus.CompleteRequest.chunks:type_name -> mynexus.Chunk
-	36, // 11: mynexus.ChapterSummaryRequest.keywords:type_name -> mynexus.Keyword
-	33, // 12: mynexus.ChapterSummaryRequest.definitions:type_name -> mynexus.Definition
-	36, // 13: mynexus.BookSummaryRequest.keywords:type_name -> mynexus.Keyword
-	38, // 14: mynexus.KeywordSearchResponse.results:type_name -> mynexus.KeywordSearchResult
-	41, // 15: mynexus.LibraryStatsResponse.by_status:type_name -> mynexus.BookStatusCount
-	46, // 16: mynexus.BookInfo.chapters:type_name -> mynexus.ChapterInfo
-	47, // 17: mynexus.BookInfoResponse.books:type_name -> mynexus.BookInfo
-	11, // 18: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
-	13, // 19: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
-	17, // 20: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
-	8,  // 21: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
-	6,  // 22: mynexus.WorkerService.ReembedBookSummary:input_type -> mynexus.ReembedBookSummaryRequest
-	9,  // 23: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
-	7,  // 24: mynexus.WorkerService.DeleteBook:input_type -> mynexus.DeleteBookRequest
-	5,  // 25: mynexus.WorkerService.CancelTask:input_type -> mynexus.CancelTaskRequest
-	0,  // 26: mynexus.WorkerService.ExportBookVectors:input_type -> mynexus.VectorBookRequest
-	1,  // 27: mynexus.WorkerService.ImportBookVectors:input_type -> mynexus.VectorRecord
-	2,  // 28: mynexus.WorkerService.CommitBookVectorImport:input_type -> mynexus.CommitBookVectorImportRequest
-	3,  // 29: mynexus.WorkerService.RollbackBookVectorImport:input_type -> mynexus.RollbackBookVectorImportRequest
-	4,  // 30: mynexus.WorkerService.FinalizeBookVectorImport:input_type -> mynexus.FinalizeBookVectorImportRequest
-	24, // 31: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
-	29, // 32: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
-	30, // 33: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
-	31, // 34: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
-	32, // 35: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
-	34, // 36: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
-	35, // 37: mynexus.CoreApiService.ReportTokenUsage:input_type -> mynexus.TokenUsageRequest
-	37, // 38: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
-	40, // 39: mynexus.CoreApiService.GetLibraryStats:input_type -> mynexus.LibraryStatsRequest
-	44, // 40: mynexus.CoreApiService.GetChapterContent:input_type -> mynexus.ChapterContentRequest
-	43, // 41: mynexus.CoreApiService.GetBookInfo:input_type -> mynexus.BookInfoRequest
-	21, // 42: mynexus.CoreApiService.GetChapterSummaries:input_type -> mynexus.ChapterSummariesRequest
-	12, // 43: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
-	15, // 44: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
-	20, // 45: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
-	25, // 46: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
-	25, // 47: mynexus.WorkerService.ReembedBookSummary:output_type -> mynexus.Ack
-	10, // 48: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
-	25, // 49: mynexus.WorkerService.DeleteBook:output_type -> mynexus.Ack
-	25, // 50: mynexus.WorkerService.CancelTask:output_type -> mynexus.Ack
-	1,  // 51: mynexus.WorkerService.ExportBookVectors:output_type -> mynexus.VectorRecord
-	25, // 52: mynexus.WorkerService.ImportBookVectors:output_type -> mynexus.Ack
-	25, // 53: mynexus.WorkerService.CommitBookVectorImport:output_type -> mynexus.Ack
-	25, // 54: mynexus.WorkerService.RollbackBookVectorImport:output_type -> mynexus.Ack
-	25, // 55: mynexus.WorkerService.FinalizeBookVectorImport:output_type -> mynexus.Ack
-	25, // 56: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
-	25, // 57: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
-	25, // 58: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
-	25, // 59: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
-	25, // 60: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
-	25, // 61: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
-	25, // 62: mynexus.CoreApiService.ReportTokenUsage:output_type -> mynexus.Ack
-	39, // 63: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
-	42, // 64: mynexus.CoreApiService.GetLibraryStats:output_type -> mynexus.LibraryStatsResponse
-	45, // 65: mynexus.CoreApiService.GetChapterContent:output_type -> mynexus.ChapterContentResponse
-	48, // 66: mynexus.CoreApiService.GetBookInfo:output_type -> mynexus.BookInfoResponse
-	23, // 67: mynexus.CoreApiService.GetChapterSummaries:output_type -> mynexus.ChapterSummariesResponse
-	43, // [43:68] is the sub-list for method output_type
-	18, // [18:43] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	20, // 5: mynexus.ChatChunk.tool_result:type_name -> mynexus.ToolResult
+	23, // 6: mynexus.ChapterSummariesResponse.chapters:type_name -> mynexus.ChapterSummaryEntry
+	37, // 7: mynexus.Chapter.keywords:type_name -> mynexus.Keyword
+	27, // 8: mynexus.MetadataRequest.book:type_name -> mynexus.BookMeta
+	27, // 9: mynexus.CompleteRequest.book:type_name -> mynexus.BookMeta
+	28, // 10: mynexus.CompleteRequest.chapters:type_name -> mynexus.Chapter
+	29, // 11: mynexus.CompleteRequest.chunks:type_name -> mynexus.Chunk
+	37, // 12: mynexus.ChapterSummaryRequest.keywords:type_name -> mynexus.Keyword
+	34, // 13: mynexus.ChapterSummaryRequest.definitions:type_name -> mynexus.Definition
+	37, // 14: mynexus.BookSummaryRequest.keywords:type_name -> mynexus.Keyword
+	39, // 15: mynexus.KeywordSearchResponse.results:type_name -> mynexus.KeywordSearchResult
+	42, // 16: mynexus.LibraryStatsResponse.by_status:type_name -> mynexus.BookStatusCount
+	47, // 17: mynexus.BookInfo.chapters:type_name -> mynexus.ChapterInfo
+	48, // 18: mynexus.BookInfoResponse.books:type_name -> mynexus.BookInfo
+	11, // 19: mynexus.WorkerService.TriggerIngest:input_type -> mynexus.IngestRequest
+	13, // 20: mynexus.WorkerService.Search:input_type -> mynexus.SearchRequest
+	17, // 21: mynexus.WorkerService.Chat:input_type -> mynexus.ChatRequest
+	8,  // 22: mynexus.WorkerService.Shutdown:input_type -> mynexus.ShutdownRequest
+	6,  // 23: mynexus.WorkerService.ReembedBookSummary:input_type -> mynexus.ReembedBookSummaryRequest
+	9,  // 24: mynexus.WorkerService.TriggerSummarize:input_type -> mynexus.SummarizeRequest
+	7,  // 25: mynexus.WorkerService.DeleteBook:input_type -> mynexus.DeleteBookRequest
+	5,  // 26: mynexus.WorkerService.CancelTask:input_type -> mynexus.CancelTaskRequest
+	0,  // 27: mynexus.WorkerService.ExportBookVectors:input_type -> mynexus.VectorBookRequest
+	1,  // 28: mynexus.WorkerService.ImportBookVectors:input_type -> mynexus.VectorRecord
+	2,  // 29: mynexus.WorkerService.CommitBookVectorImport:input_type -> mynexus.CommitBookVectorImportRequest
+	3,  // 30: mynexus.WorkerService.RollbackBookVectorImport:input_type -> mynexus.RollbackBookVectorImportRequest
+	4,  // 31: mynexus.WorkerService.FinalizeBookVectorImport:input_type -> mynexus.FinalizeBookVectorImportRequest
+	25, // 32: mynexus.CoreApiService.ReportProgress:input_type -> mynexus.ProgressRequest
+	30, // 33: mynexus.CoreApiService.ReportMetadata:input_type -> mynexus.MetadataRequest
+	31, // 34: mynexus.CoreApiService.ReportComplete:input_type -> mynexus.CompleteRequest
+	32, // 35: mynexus.CoreApiService.ReportFail:input_type -> mynexus.FailRequest
+	33, // 36: mynexus.CoreApiService.ReportChapterSummary:input_type -> mynexus.ChapterSummaryRequest
+	35, // 37: mynexus.CoreApiService.ReportBookSummary:input_type -> mynexus.BookSummaryRequest
+	36, // 38: mynexus.CoreApiService.ReportTokenUsage:input_type -> mynexus.TokenUsageRequest
+	38, // 39: mynexus.CoreApiService.KeywordSearch:input_type -> mynexus.KeywordSearchRequest
+	41, // 40: mynexus.CoreApiService.GetLibraryStats:input_type -> mynexus.LibraryStatsRequest
+	45, // 41: mynexus.CoreApiService.GetChapterContent:input_type -> mynexus.ChapterContentRequest
+	44, // 42: mynexus.CoreApiService.GetBookInfo:input_type -> mynexus.BookInfoRequest
+	22, // 43: mynexus.CoreApiService.GetChapterSummaries:input_type -> mynexus.ChapterSummariesRequest
+	12, // 44: mynexus.WorkerService.TriggerIngest:output_type -> mynexus.IngestAck
+	15, // 45: mynexus.WorkerService.Search:output_type -> mynexus.SearchResponse
+	21, // 46: mynexus.WorkerService.Chat:output_type -> mynexus.ChatChunk
+	26, // 47: mynexus.WorkerService.Shutdown:output_type -> mynexus.Ack
+	26, // 48: mynexus.WorkerService.ReembedBookSummary:output_type -> mynexus.Ack
+	10, // 49: mynexus.WorkerService.TriggerSummarize:output_type -> mynexus.SummarizeAck
+	26, // 50: mynexus.WorkerService.DeleteBook:output_type -> mynexus.Ack
+	26, // 51: mynexus.WorkerService.CancelTask:output_type -> mynexus.Ack
+	1,  // 52: mynexus.WorkerService.ExportBookVectors:output_type -> mynexus.VectorRecord
+	26, // 53: mynexus.WorkerService.ImportBookVectors:output_type -> mynexus.Ack
+	26, // 54: mynexus.WorkerService.CommitBookVectorImport:output_type -> mynexus.Ack
+	26, // 55: mynexus.WorkerService.RollbackBookVectorImport:output_type -> mynexus.Ack
+	26, // 56: mynexus.WorkerService.FinalizeBookVectorImport:output_type -> mynexus.Ack
+	26, // 57: mynexus.CoreApiService.ReportProgress:output_type -> mynexus.Ack
+	26, // 58: mynexus.CoreApiService.ReportMetadata:output_type -> mynexus.Ack
+	26, // 59: mynexus.CoreApiService.ReportComplete:output_type -> mynexus.Ack
+	26, // 60: mynexus.CoreApiService.ReportFail:output_type -> mynexus.Ack
+	26, // 61: mynexus.CoreApiService.ReportChapterSummary:output_type -> mynexus.Ack
+	26, // 62: mynexus.CoreApiService.ReportBookSummary:output_type -> mynexus.Ack
+	26, // 63: mynexus.CoreApiService.ReportTokenUsage:output_type -> mynexus.Ack
+	40, // 64: mynexus.CoreApiService.KeywordSearch:output_type -> mynexus.KeywordSearchResponse
+	43, // 65: mynexus.CoreApiService.GetLibraryStats:output_type -> mynexus.LibraryStatsResponse
+	46, // 66: mynexus.CoreApiService.GetChapterContent:output_type -> mynexus.ChapterContentResponse
+	49, // 67: mynexus.CoreApiService.GetBookInfo:output_type -> mynexus.BookInfoResponse
+	24, // 68: mynexus.CoreApiService.GetChapterSummaries:output_type -> mynexus.ChapterSummariesResponse
+	44, // [44:69] is the sub-list for method output_type
+	19, // [19:44] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_mynexus_proto_init() }
@@ -3548,9 +3626,10 @@ func file_mynexus_proto_init() {
 	if File_mynexus_proto != nil {
 		return
 	}
-	file_mynexus_proto_msgTypes[20].OneofWrappers = []any{
+	file_mynexus_proto_msgTypes[21].OneofWrappers = []any{
 		(*ChatChunk_Delta)(nil),
 		(*ChatChunk_Citations)(nil),
+		(*ChatChunk_ToolResult)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -3558,7 +3637,7 @@ func file_mynexus_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mynexus_proto_rawDesc), len(file_mynexus_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   49,
+			NumMessages:   50,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

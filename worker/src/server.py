@@ -108,6 +108,8 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         )
 
     def Chat(self, request, context):
+        import json as _json
+
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
         book_ids = list(request.book_ids) or None
         top_k = request.top_k or 10
@@ -115,6 +117,12 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
         for event in self.qa.answer(messages, book_ids=book_ids, top_k=top_k):
             if event["type"] == "delta":
                 yield mynexus_pb2.ChatChunk(delta=event["content"])
+            elif event["type"] == "tool_result":
+                tr = mynexus_pb2.ToolResult(
+                    tool_name=event["tool_name"],
+                    result_json=_json.dumps(event["result"], ensure_ascii=False),
+                )
+                yield mynexus_pb2.ChatChunk(tool_result=tr)
             else:
                 citations = [
                     mynexus_pb2.Citation(

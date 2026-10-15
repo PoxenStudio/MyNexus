@@ -221,12 +221,19 @@ message CitationList {
   repeated Citation items = 1;
 }
 
-// One chunk of a streamed chat reply: either an answer-text delta, or (the
-// final message in the stream) the full citation list.
+message ToolResult {
+  string tool_name = 1;
+  string result_json = 2;
+}
+
+// One chunk of a streamed chat reply: either an answer-text delta, a structured
+// tool result (e.g. mindmap markdown), or (the final message in the stream) the
+// full citation list.
 message ChatChunk {
   oneof payload {
     string delta = 1;
     CitationList citations = 2;
+    ToolResult tool_result = 3;
   }
 }
 
