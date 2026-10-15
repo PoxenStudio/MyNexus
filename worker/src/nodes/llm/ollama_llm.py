@@ -1,13 +1,32 @@
 import json
 import logging
+import socket
+import urllib.error
 import urllib.request
 from typing import Iterator
 
 from nodes.llm.base_llm import BaseLLM, LLMUsage, _UsageIterator
 from util.debug_log import LLMCallLogger
-from util.http import call_provider, host_lock
+from util.http import ServiceCallError, call_provider, host_lock, set_stream_idle_timeout
 
 logger = logging.getLogger(__name__)
+
+_STREAM_IDLE_TIMEOUT_SECONDS = 90
+
+
+def _is_socket_timeout(exc: Exception) -> bool:
+    if isinstance(exc, socket.timeout):
+        return True
+    if isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, socket.timeout):
+        return True
+    return False
+
+
+def _raise_service_timeout(exc: Exception) -> None:
+    raise ServiceCallError(
+        f"LLM 服务长时间无响应（{_STREAM_IDLE_TIMEOUT_SECONDS}s 内未收到任何数据），"
+        f"可能是服务端故障或网络中断，请稍后重试"
+    ) from exc
 
 
 class OllamaLLM(BaseLLM):
@@ -49,6 +68,7 @@ class OllamaLLM(BaseLLM):
                 with host_lock(self.base_url), call_provider(
                     req, timeout=120, service="llm", provider="ollama", model=self.model
                 ) as resp:
+                    set_stream_idle_timeout(resp, _STREAM_IDLE_TIMEOUT_SECONDS)
                     for raw_line in resp:
                         line = raw_line.decode("utf-8", errors="ignore").strip()
                         if not line:
@@ -66,6 +86,12 @@ class OllamaLLM(BaseLLM):
                             usage.finish_reason = event.get("done_reason", "")
                             break
             except Exception as exc:
+                if _is_socket_timeout(exc):
+                    logger.warning(
+                        "ollama stream idle timeout: call_site=%s chunks_collected=%d idle=%ds",
+                        call_site, sum(len(c) for c in chunks), _STREAM_IDLE_TIMEOUT_SECONDS,
+                    )
+                    _raise_service_timeout(exc)
                 logger.exception("ollama stream error: call_site=%s chunks_collected=%d", call_site, sum(len(c) for c in chunks))
                 if llm_log:
                     llm_log.log_error(exc)
@@ -104,6 +130,9 @@ class OllamaLLM(BaseLLM):
             ) as resp:
                 data = json.loads(resp.read())
         except Exception as exc:
+            if _is_socket_timeout(exc):
+                logger.warning("ollama call timeout: call_site=%s", call_site)
+                _raise_service_timeout(exc)
             if logger:
                 logger.log_error(exc)
             raise

@@ -154,4 +154,18 @@ def call_provider(req: urllib.request.Request, *, timeout: float, service: str, 
                 continue
             raise ServiceCallError(
                 f"{label} 服务不可用：无法连接（{exc.reason}），请检查系统设置中的服务地址是否正确，以及对应服务本身是否已启动"
-            ) from exc
+            )
+
+
+def set_stream_idle_timeout(resp, seconds: int) -> bool:
+    """Override the socket recv timeout on an opened HTTPResponse so the
+    streaming body stops waiting when the provider goes silent mid-stream —
+    the default timeout from call_provider only protects the connect phase."""
+    try:
+        sock = getattr(getattr(getattr(resp, "fp", None), "raw", None), "_sock", None)
+        if sock is not None:
+            sock.settimeout(seconds)
+            return True
+    except (AttributeError, OSError):
+        pass
+    return False

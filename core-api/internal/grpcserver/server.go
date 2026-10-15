@@ -12,9 +12,11 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	"mynexus/core-api/internal/api/dto"
@@ -25,6 +27,26 @@ import (
 	"mynexus/core-api/internal/models"
 	"mynexus/core-api/internal/service"
 )
+
+// Core API 的 gRPC server 是 Worker 过来的调用入口（ReportProgress/Chat 等）。
+// 客户端（Worker 的 Python grpc channel，以及 Core API 自己的 worker_client
+// 反向连 Worker）都会发 keepalive ping。Go server 默认的 enforcement policy
+// 很严（ClientParameters.Time < 5s 就 ENHANCE_YOUR_CALM），我们把阈值放宽，
+// 同时禁用 "too_many_pings" 的直接 disconnect——Python grpcio 默认 30s ping，
+// 但实测某些版本会 5s 内连发两次，Go 这边会给 GoAway + ENHANCE_YOUR_CALM，
+// 导致 worker 侧收到 stream RPC error、chat 被掐。
+var coreAPIKeepaliveEnforcement = keepalive.EnforcementPolicy{
+	MinTime:             10 * time.Second, // 客户端 ping 低于 10s 间隔才拒绝
+	PermitWithoutStream: true,             // 允许空闲连接也 ping
+}
+
+var coreAPIKeepaliveServer = keepalive.ServerParameters{
+	MaxConnectionIdle:     5 * time.Minute,
+	MaxConnectionAge:      30 * time.Minute,
+	MaxConnectionAgeGrace: 10 * time.Second,
+	Time:                  30 * time.Second, // server 自己发 ping 的间隔
+	Timeout:               5 * time.Second,
+}
 
 type CoreAPIServer struct {
 	mynexuspb.UnimplementedCoreApiServiceServer
@@ -66,7 +88,10 @@ func (s *CoreAPIServer) Listen() (net.Listener, error) {
 // Serve runs the accept loop against a listener obtained from Listen —
 // blocking, meant to be run in its own goroutine from main().
 func (s *CoreAPIServer) Serve(lis net.Listener) error {
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.KeepaliveEnforcementPolicy(coreAPIKeepaliveEnforcement),
+		grpc.KeepaliveParams(coreAPIKeepaliveServer),
+	)
 	mynexuspb.RegisterCoreApiServiceServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }

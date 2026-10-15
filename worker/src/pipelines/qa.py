@@ -161,9 +161,14 @@ class QAPipeline:
         llm_messages = [system_message] + messages
 
         answer_chunks = []
-        for delta in self.llm.process(llm_messages):
-            answer_chunks.append(delta)
-            yield {"type": "delta", "content": delta}
+        try:
+            for delta in self.llm.process(llm_messages, call_site="qa.plain_answer"):
+                answer_chunks.append(delta)
+                yield {"type": "delta", "content": delta}
+        except Exception as exc:
+            logger.exception("qa plain answer stream failed")
+            yield {"type": "delta", "content": f"\n\n⚠️ {exc}"}
+            return
 
         answer_text = "".join(answer_chunks)
         used = _extract_cited_indices(answer_text)
@@ -283,8 +288,13 @@ class QAPipeline:
             ),
         }
         llm_messages = [system_message] + messages
-        for delta in self.llm.process(llm_messages):
-            yield {"type": "delta", "content": delta}
+        try:
+            for delta in self.llm.process(llm_messages, call_site="qa.tool_answer"):
+                yield {"type": "delta", "content": delta}
+        except Exception as exc:
+            logger.exception("qa tool answer stream failed")
+            yield {"type": "delta", "content": f"\n\n⚠️ {exc}"}
+            return
         yield {"type": "citations", "citations": citations}
 
 
