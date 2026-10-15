@@ -61,7 +61,7 @@ export MYNEXUS_STORAGE_DATABASE=postgres
 export MYNEXUS_STORAGE_POSTGRES_DSN="postgres://mynexus:mynexus@postgres:5432/mynexus?sslmode=disable"
 ```
 
-Docker Compose 的集成镜像默认使用 SQLite；切换为 Postgres 时，请在挂载的 `config-runtime/config.yaml` 中配置 `storage.database` 和 `storage.postgres.dsn`，并自行提供可从容器访问的 Postgres 服务。
+Docker Compose 的集成镜像默认使用 SQLite；切换为 Postgres 时，请在挂载的 `config/config.yaml` 中配置 `storage.database` 和 `storage.postgres.dsn`，并自行提供可从容器访问的 Postgres 服务。
 
 ## 部署方式
 
@@ -76,18 +76,18 @@ bash scripts/download-embedding-model.sh
 make build-base
 docker compose up -d --build
 
-# 更新 LLM/Embedding 服务密钥后重建容器（也可在 config-runtime/config.yaml 中配置）
+# 更新 LLM/Embedding 服务密钥后重建容器（也可在 config/config.yaml 中配置）
 OPENAI_API_KEY=sk-xxx docker compose up -d
 ```
 
-浏览器访问 http://localhost:3000。三个服务运行在同一个容器中，nginx 对外提供前端并代理 API；Core API 和 worker 仅在容器内部通过 gRPC 通信。Compose 将宿主机 `./data` 和 `./config-runtime` 分别挂载到 `/data` 与 `/config`。默认配置使用 SQLite，数据库、向量库和上传文件保存在 `/data`；本地 embedding 模型和 NLTK 数据预置在镜像中（`/usr/share/models`、`/usr/share/nltk_data`），不会被 `/data` 卷覆盖。可通过 `MYNEXUS_DATA_DIR`、`MYNEXUS_CONFIG_DIR` 和 `MYNEXUS_PORT` 指定宿主机目录和端口。
+浏览器访问 http://localhost:3000。三个服务运行在同一个容器中，nginx 对外提供前端并代理 API；Core API 和 worker 仅在容器内部通过 gRPC 通信。Compose 将宿主机 `./data` 和 `./config` 分别挂载到 `/data` 与 `/config`。默认配置使用 SQLite，数据库、向量库和上传文件保存在 `/data`；本地 embedding 模型和 NLTK 数据预置在镜像中（`/usr/share/models`、`/usr/share/nltk_data`），不会被 `/data` 卷覆盖。可通过 `MYNEXUS_DATA_DIR`、`MYNEXUS_CONFIG_DIR` 和 `MYNEXUS_PORT` 指定宿主机目录和端口。
 
 不使用 Compose 时也可以直接运行单个镜像（需先构建 base 和 app 镜像）：
 
 ```bash
 make build-image
 docker run -d --name mynexus -p 3000:80 \
-  -v "$PWD/data:/data" -v "$PWD/config-runtime:/config" \
+  -v "$PWD/data:/data" -v "$PWD/config:/config" \
   --restart unless-stopped poxenstudio/mynexus:latest
 ```
 
@@ -101,7 +101,7 @@ docker run -d --name mynexus -p 3000:80 \
 |---------|--------|------|
 | `MYNEXUS_PORT` | `3000` | 宿主机映射端口 |
 | `MYNEXUS_DATA_DIR` | `./data` | 宿主机数据目录（数据库/向量库/日志） |
-| `MYNEXUS_CONFIG_DIR` | `./config-runtime` | 宿主机配置目录 |
+| `MYNEXUS_CONFIG_DIR` | `./config` | 宿主机配置目录 |
 | `MYNEXUS_API_TOKEN` | 空 | 全局静态 API Token，用于 Docker-to-Docker 集成访问系统所有接口，等同于 admin 权限 |
 
 #### Embedding（向量化）配置
