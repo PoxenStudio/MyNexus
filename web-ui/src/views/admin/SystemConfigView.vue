@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import {
   fetchSettings,
   saveSettings,
@@ -9,11 +8,8 @@ import {
   type SystemSettings,
 } from "../../api/system";
 import { testMyBooksConnection } from "../../api/mybooks";
-import { useAuthStore } from "../../stores/auth";
 
 const { t } = useI18n();
-const router = useRouter();
-const auth = useAuthStore();
 
 const settings = ref<SystemSettings | null>(null);
 const loading = ref(true);

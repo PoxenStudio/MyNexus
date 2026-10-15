@@ -4,7 +4,6 @@ import { useI18n } from "vue-i18n";
 import { fetchStats, type SystemStats } from "../../api/system";
 import { fetchTokenStats, formatTokens, type TokenStats } from "../../api/token";
 import LineChart from "../../components/charts/LineChart.vue";
-import PieChart from "../../components/charts/PieChart.vue";
 import BarChart from "../../components/charts/BarChart.vue";
 import StatCard from "../../components/StatCard.vue";
 
@@ -41,11 +40,20 @@ const rangeOptions = computed(() => [
 ]);
 
 const currentRange = ref(7);
+// Chart daily series sticks to a multi-day window so it's always meaningful
+// — the aggregate cards respond to whatever range the user picks (including
+// 1 = today only), but the LineChart keeps the last 7/30-day fetch it got.
+const chartDaily = ref<{ date: string; llm_provider: string; total_tokens: number }[]>([]);
+const chartSpan = ref(7);
 
 async function load() {
   loading.value = true;
   try {
     [stats.value, tokenStats.value] = await Promise.all([fetchStats(), fetchTokenStats(currentRange.value)]);
+    if (currentRange.value !== 1) {
+      chartDaily.value = tokenStats.value.daily;
+      chartSpan.value = currentRange.value;
+    }
   } finally {
     loading.value = false;
   }
@@ -53,7 +61,12 @@ async function load() {
 
 async function loadTokenRange(range: number) {
   currentRange.value = range;
-  tokenStats.value = await fetchTokenStats(range);
+  const ts = await fetchTokenStats(range);
+  tokenStats.value = ts;
+  if (range !== 1) {
+    chartDaily.value = ts.daily;
+    chartSpan.value = range;
+  }
 }
 
 onMounted(load);
@@ -112,15 +125,9 @@ onMounted(load);
             <StatCard :label="t('dashboard.completionTokens')" :value="formatTokens(totalTokenRange.completion)" />
           </div>
 
-          <div class="token-charts">
-            <div class="token-panel">
-              <h3>{{ t("dashboard.tokenDailyTitle") }}</h3>
-              <LineChart :data="tokenStats.daily" />
-            </div>
-            <div class="token-panel">
-              <h3>{{ t("dashboard.tokenTodayTitle") }}</h3>
-              <PieChart :data="tokenStats.today_by_provider" />
-            </div>
+          <div class="token-panel">
+            <h3>{{ t("dashboard.tokenDailyTitle") }}</h3>
+            <LineChart :data="chartDaily" :expectedDays="chartSpan" />
           </div>
         </div>
         <p v-else class="status-line">{{ t("dashboard.noTokenData") }}</p>
@@ -199,11 +206,6 @@ onMounted(load);
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
   margin-bottom: 1rem;
-}
-.token-charts {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(200px, 1fr);
-  gap: 1.5rem;
 }
 .token-panel {
   border: 1px solid var(--border);

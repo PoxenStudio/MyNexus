@@ -135,7 +135,7 @@ class OllamaLLM(BaseLLM):
                                 total_chars >= _PROGRESS_LOG_CHUNK_INTERVAL
                                 or time.time() - t_last_progress >= _PROGRESS_LOG_TIME_INTERVAL_SECONDS
                             ):
-                                logger.info(
+                                logger.debug(
                                     "LLM streaming: call_site=%s elapsed=%.1fs lines=%d chars=%d",
                                     call_site, time.time() - t_start, total_lines, total_chars,
                                 )

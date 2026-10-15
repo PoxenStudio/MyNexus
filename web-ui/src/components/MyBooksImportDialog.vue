@@ -20,7 +20,6 @@ const loading = ref(false);
 const err = ref("");
 const importingId = ref<number | null>(null);
 const importedOk = ref(false);
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(() => props.modelValue, (v) => {
   if (v) {
