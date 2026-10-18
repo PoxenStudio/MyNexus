@@ -5,6 +5,15 @@ from tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
+MINDMAP_INTENT_RE = re.compile(r"思维导图|脑图|知识图谱|概念图|mind\s*map|mindmap", re.IGNORECASE)
+
+
+def wants_mindmap(text: str) -> bool:
+    """Whether the user's message explicitly asks for a mindmap. The pipeline
+    forces this tool on such turns because the decision call can otherwise
+    skip it (see pipelines/qa.py)."""
+    return bool(MINDMAP_INTENT_RE.search(text or ""))
+
 
 class MindmapTool(BaseTool):
     """Pure formatting tool: the model authors title/markdown itself from

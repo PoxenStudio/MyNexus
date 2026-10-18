@@ -95,7 +95,7 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	}
 
 	lastUserMessage := req.Messages[len(req.Messages)-1]
-	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]")
+	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]", "[]")
 
 	// 历史以 DB 为可信来源装配（滑动窗口 + citations 注入 + 记忆摘要/待压缩旧消息）
 	prompt, err := h.chats.BuildChatPrompt(sessionID, h.slidingWindowSize)
@@ -137,6 +137,7 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 
 	var answer strings.Builder
 	citationsJSON := "[]"
+	toolResults := make([]dto.ToolResultResponse, 0)
 
 	for {
 		event, err := stream.Recv()
@@ -162,6 +163,9 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 				ToolName   string `json:"tool_name"`
 				ResultJSON string `json:"result_json"`
 			}{ToolName: event.ToolResult.ToolName, ResultJSON: event.ToolResult.ResultJSON}
+			toolResults = append(toolResults, dto.ToolResultResponse{
+				ToolName: event.ToolResult.ToolName, ResultJSON: event.ToolResult.ResultJSON,
+			})
 		}
 
 		if event.Delta != "" {
@@ -200,8 +204,10 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	finalAnswer, finalCitations := finalizeCitations(answer.String(), savedCitations)
 	finalCitationsBytes, _ := json.Marshal(finalCitations)
 	citationsJSON = string(finalCitationsBytes)
+	toolResultsBytes, _ := json.Marshal(toolResults)
+	fmt.Printf("[chat] session=%s tool_results=%d\n", sessionID, len(toolResults))
 
-	_ = h.chats.AppendMessage(sessionID, "assistant", finalAnswer, citationsJSON)
+	_ = h.chats.AppendMessage(sessionID, "assistant", finalAnswer, citationsJSON, string(toolResultsBytes))
 	_ = h.chats.TouchSession(sessionID)
 
 	if len(req.BookIDs) == 0 && len(finalCitations) > 0 {

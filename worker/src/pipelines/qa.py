@@ -12,7 +12,7 @@ from skills.catalog import builtin_skill_tools
 from tools.book_info import BookInfoTool
 from tools.library_stats import LibraryStatsTool
 from tools.list_chapters import ListChaptersTool
-from tools.mindmap import MindmapTool
+from tools.mindmap import MindmapTool, wants_mindmap
 from tools.read_chapter import ReadChapterTool
 from tools.registry import ToolRegistry
 from tools.search_by_chapters import SearchByChaptersTool
@@ -26,6 +26,7 @@ _CITED_RE = re.compile(r"\[(\d+)\]")
 def _extract_cited_indices(answer: str) -> set[int]:
     return {int(m.group(1)) for m in _CITED_RE.finditer(answer)}
 
+
 _ANSWER_RULES = (
     "回答规则：\n"
     "1. 书中事实（情节、人物言行、引句、章回内容）必须依据参考材料，并用 [编号] 标注来源；"
@@ -36,6 +37,9 @@ _ANSWER_RULES = (
     "应结合通用知识把问题答完整，不得仅以“片段未说明”作答。\n"
     "4. 只有参考材料与通用知识都无法支撑时（如问某具体情节而书中确无相关内容），"
     "才如实说明未找到。\n"
+    "5. 用户要求生成思维导图/知识图谱/概念图时，本服务通过 generate_mindmap 工具渲染独立导图卡片，"
+    "不要声称无法渲染图像或图表；若本轮没有导图数据，如实说明本轮未能生成并建议重试，"
+    "不要用文本树或字符画代替导图。\n"
 )
 
 _SYSTEM_PROMPT_TEMPLATE = (
@@ -80,9 +84,12 @@ _TOOL_DECISION_PROMPT = (
     "- 追踪人物关系与发展 → skill_character_tracker\n"
     "- 收集原文引句 → skill_quote_collector\n"
     "- 生成预习、复习或讨论指南 → skill_reading_guide\n"
-    "- 生成思维导图/知识图谱/概念图 → generate_mindmap（必须先调用 semantic_search/search_by_chapters/read_chapter 收集证据，再据证据编写 markdown；历史对话中已有充分证据时可直接生成）\n"
+    "- 生成思维导图/知识图谱/概念图 → generate_mindmap（markdown 依据已有对话上下文或检索到的证据编写，"
+    "不得凭空编造；需要更多证据时先调用 semantic_search/search_by_chapters/read_chapter）\n"
     "Skill 是任务流程指引，不是数据来源；选中后再调用必要的数据工具。一个回合只启用一个 Skill。\n"
-    "如果问题不在上述范围、或可通过对话历史直接回答，不要调用任何工具，直接留空。"
+    "如果问题不在上述范围、或可通过对话历史直接回答，不要调用任何工具，直接留空。\n"
+    "例外：用户明确要求生成思维导图/知识图谱/概念图时一律调用 generate_mindmap——"
+    "即使历史对话中已经生成过，也要重新生成；不要以“无法渲染图像/图表”为由改用纯文本回答，也不要留空。\n"
 )
 
 
@@ -153,8 +160,26 @@ class QAPipeline:
         active_skill: dict | None = None
         mindmap_emitted = False
 
+        # Mindmap intent is deterministic: the decision model is unreliable here
+        # (it once spent a turn answering in text because the same question had
+        # been asked earlier in the session), so force generate_mindmap as the
+        # first tool call instead of trusting the "should I call a tool" choice.
+        forced_tool = (
+            "generate_mindmap" if wants_mindmap(messages[-1]["content"] if messages else "") else None
+        )
+        if forced_tool:
+            logger.info("mindmap requested by user message, forcing %s", forced_tool)
+
         for _ in range(self.config.chat_max_tool_rounds):
-            tool_call = self._decide_tool(working, active_skill, book_ids, active_summary)
+            tool_call = self._decide_tool(
+                working, active_skill, book_ids, active_summary, forced_tool=forced_tool
+            )
+            if tool_call is None and forced_tool:
+                logger.warning("forced %s got no tool call, retrying once", forced_tool)
+                tool_call = self._decide_tool(
+                    working, active_skill, book_ids, active_summary, forced_tool=forced_tool
+                )
+            forced_tool = None
             if tool_call is None:
                 break
             name, arguments = tool_call
@@ -386,6 +411,7 @@ class QAPipeline:
         active_skill: dict | None = None,
         book_ids: list[str] | None = None,
         memory_summary: str = "",
+        forced_tool: str | None = None,
     ) -> tuple[str, dict] | None:
         """Single non-streaming call asking the model whether this turn needs
         a tool (see BaseLLM.call) — separate from the streaming call in
@@ -401,6 +427,15 @@ class QAPipeline:
         """
         decision_prompt = _TOOL_DECISION_PROMPT
         excluded_names: set[str] = set()
+        if forced_tool:
+            # Only the forced tool is offered, so the model has to author its
+            # arguments instead of quietly falling back to a text answer.
+            excluded_names = self.tools.names() - {forced_tool}
+            decision_prompt += (
+                f"\n本轮必须调用 {forced_tool}，不要留空、不要直接回答用户问题；"
+                "title 与 markdown 依据对话上下文编写，使用标准 Markdown 标题语法，"
+                "节点用简洁短语，层次不超过 4 级标题。"
+            )
         if book_ids:
             decision_prompt += (
                 "\n本轮允许访问的 book_ids 为："

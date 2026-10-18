@@ -23,5 +23,9 @@ type ChatMessage struct {
 	Role      string
 	Content   string
 	Citations string // JSON array, stored as-is
-	CreatedAt string
+	// ToolResults is a JSON array of forwarded tool_result frames
+	// ({tool_name, result_json}, see chat_handler.go). Persisted so history
+	// reads can re-render visuals like the mindmap card.
+	ToolResults string
+	CreatedAt   string
 }

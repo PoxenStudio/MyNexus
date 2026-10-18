@@ -16,6 +16,9 @@ class ToolRegistry:
         excluded = exclude_names or set()
         return [t.to_schema() for name, t in self._tools.items() if name not in excluded]
 
+    def names(self) -> set[str]:
+        return set(self._tools)
+
     def run(self, name: str, arguments: dict) -> dict:
         tool = self._tools.get(name)
         if tool is None:

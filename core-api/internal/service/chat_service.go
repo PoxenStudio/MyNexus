@@ -163,10 +163,12 @@ func (s *ChatService) TouchSession(id string) error {
 	return err
 }
 
-func (s *ChatService) AppendMessage(sessionID, role, content, citationsJSON string) error {
+func (s *ChatService) AppendMessage(sessionID, role, content, citationsJSON, toolResultsJSON string) error {
 	_, err := s.db.Exec(
-		`INSERT INTO chat_messages (id, session_id, role, content, citations, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		uuid.NewString(), sessionID, role, content, citationsJSON, time.Now().UTC().Format(time.RFC3339),
+		`INSERT INTO chat_messages (id, session_id, role, content, citations, tool_results, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		uuid.NewString(), sessionID, role, content, citationsJSON, toolResultsJSON,
+		time.Now().UTC().Format(time.RFC3339),
 	)
 	return err
 }
@@ -371,7 +373,7 @@ func (s *ChatService) lookupBookTitles(ids map[string]struct{}) (map[string]stri
 
 func (s *ChatService) ListMessages(sessionID string) ([]models.ChatMessage, error) {
 	rows, err := s.db.Query(
-		`SELECT id, session_id, role, content, citations, created_at
+		`SELECT id, session_id, role, content, citations, tool_results, created_at
 		 FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("list chat messages: %w", err)
@@ -381,7 +383,7 @@ func (s *ChatService) ListMessages(sessionID string) ([]models.ChatMessage, erro
 	var messages []models.ChatMessage
 	for rows.Next() {
 		var m models.ChatMessage
-		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &m.Citations, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &m.Citations, &m.ToolResults, &m.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan chat message: %w", err)
 		}
 		messages = append(messages, m)
