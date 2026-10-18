@@ -124,6 +124,9 @@
     "noSummaryYet": "暫無全書總結，點擊「總結全書」生成",
     "noChaptersToSummarize": "書籍還沒有章節數據，無法生成總結",
     "importData": "匯入書籍衍生資料",
+    "startSession": "啟動會話",
+    "startSessionTooltip": "開啟與本書的伴讀會話",
+    "startSessionDisabled": "書籍就緒後才能啟動會話",
     "dataImportUploading": "正在上傳…",
     "dataImportProgress": "正在處理匯入… {progress}% · {stage}",
     "dataImportPreview": "從「{source}」匯入至「{target}」；匹配章節 {chapters}/{totalChapters}，匹配向量 {vectors}/{totalVectors}。確認後將覆蓋全書總結和關鍵詞，以及匹配章節的總結資料。",
@@ -348,7 +351,9 @@
     "emptyThread": "開始提問以創建新的會話",
     "placeholder": "輸入你的問題…",
     "send": "發送",
-    "error": "回答失敗，請重試"
+    "error": "回答失敗，請重試",
+    "readingSessionTitle": "伴讀《{title}》",
+    "startReadingMessage": "現在我們開始伴讀《{title}》這本書"
   },
   "audit": {
     "title": "審計日誌",

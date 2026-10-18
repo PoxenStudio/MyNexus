@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 import * as chatApi from "../api/chat";
 import * as booksApi from "../api/books";
 import AppIcon from "../components/AppIcon.vue";
@@ -8,6 +9,8 @@ import MarkdownContent from "../components/MarkdownContent.vue";
 import MindmapView from "../components/MindmapView.vue";
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 
 interface ChatMessage {
   role: string;
@@ -18,6 +21,9 @@ interface ChatMessage {
 
 const sessions = ref<chatApi.ChatSession[]>([]);
 const activeSessionId = ref<string | null>(null);
+// Book scope of the active session — carried on every completion so a session
+// opened for one book (see openReadingSession) stays scoped to it.
+const activeBookIds = ref<string[]>([]);
 const messages = ref<ChatMessage[]>([]);
 const input = ref("");
 const sending = ref(false);
@@ -86,13 +92,38 @@ async function loadSessions() {
 async function openSession(id: string) {
   activeSessionId.value = id;
   const detail = await chatApi.getSession(id);
+  activeBookIds.value = detail.book_ids ?? [];
   messages.value = detail.messages.map((m) => ({ role: m.role, content: m.content, citations: m.citations }));
   detail.messages.forEach((m) => m.citations?.length && loadCitationBooks(m.citations));
 }
 
 function newSession() {
   activeSessionId.value = null;
+  activeBookIds.value = [];
   messages.value = [];
+}
+
+// Opens this book's reading session, creating it on first use and sending the
+// kickoff message; later opens just switch back to the existing conversation.
+async function openReadingSession(bookId: string) {
+  const book = await booksApi.getBook(bookId);
+  const title = book.title || book.id;
+  const sessionTitle = t("chat.readingSessionTitle", { title });
+  const existing = sessions.value.find((s) => s.title === sessionTitle);
+  if (existing) {
+    console.debug("[chat] reopen reading session", bookId, existing.id);
+    await openSession(existing.id);
+    return;
+  }
+  console.debug("[chat] create reading session", bookId, title);
+  newSession();
+  activeBookIds.value = [bookId];
+  input.value = t("chat.startReadingMessage", { title });
+  await onSend();
+  const created = activeSessionId.value;
+  if (!created) return;
+  await chatApi.renameSession(created, sessionTitle);
+  await loadSessions();
 }
 
 function onComposerKeydown(e: KeyboardEvent) {
@@ -115,7 +146,7 @@ async function onSend() {
     const { sessionId } = await chatApi.streamCompletion(
       activeSessionId.value,
       messages.value.slice(0, -1),
-      [],
+      activeBookIds.value,
       (delta) => {
         messages.value[messages.value.length - 1].content += delta;
       },
@@ -178,7 +209,17 @@ async function saveEdit() {
   await loadSessions();
 }
 
-onMounted(loadSessions);
+onMounted(async () => {
+  await loadSessions();
+  const bookId = route.query.book;
+  if (typeof bookId !== "string" || !bookId) return;
+  await router.replace({ query: {} });
+  try {
+    await openReadingSession(bookId);
+  } catch (e) {
+    console.error("[chat] open reading session failed", e);
+  }
+});
 </script>
 
 <template>
@@ -207,7 +248,12 @@ onMounted(loadSessions);
           @blur="saveEdit"
           @click.stop
         />
-        <span v-else class="session-title" @click="openSession(s.id)">{{ s.title || t("chat.untitled") }}</span>
+        <span
+          v-else
+          class="session-title"
+          :title="s.title || t('chat.untitled')"
+          @click="openSession(s.id)"
+        >{{ s.title || t("chat.untitled") }}</span>
         <span class="session-actions">
           <button
             class="icon-btn-sm"

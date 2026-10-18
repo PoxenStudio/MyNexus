@@ -124,6 +124,9 @@
     "noSummaryYet": "暂无全书总结，点击「总结全书」生成",
     "noChaptersToSummarize": "书籍还没有章节数据，无法生成总结",
     "importData": "导入书籍派生数据",
+    "startSession": "启动会话",
+    "startSessionTooltip": "开启与本书的伴读会话",
+    "startSessionDisabled": "书籍就绪后才能启动会话",
     "dataImportUploading": "正在上传…",
     "dataImportProgress": "正在处理导入… {progress}% · {stage}",
     "dataImportPreview": "从“{source}”导入到“{target}”；匹配章节 {chapters}/{totalChapters}，匹配向量 {vectors}/{totalVectors}。确认后将覆盖全书总结和关键词，以及匹配章节的总结数据。",
@@ -348,7 +351,9 @@
     "emptyThread": "开始提问以创建新的会话",
     "placeholder": "输入你的问题…",
     "send": "发送",
-    "error": "回答失败，请重试"
+    "error": "回答失败，请重试",
+    "readingSessionTitle": "伴读《{title}》",
+    "startReadingMessage": "现在我们开始读《{title}》这本书"
   },
   "audit": {
     "title": "审计日志",

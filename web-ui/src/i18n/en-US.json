@@ -124,6 +124,9 @@
     "noSummaryYet": "No summary yet — click \"Summarize Book\" to generate one",
     "noChaptersToSummarize": "This book has no chapters yet, can't summarize",
     "importData": "Import Derived Book Data",
+    "startSession": "Start Session",
+    "startSessionTooltip": "Open the reading session for this book",
+    "startSessionDisabled": "Available once the book is ready",
     "dataImportUploading": "Uploading…",
     "dataImportProgress": "Processing import… {progress}% · {stage}",
     "dataImportPreview": "Import from “{source}” into “{target}”; matched chapters {chapters}/{totalChapters}, matched vectors {vectors}/{totalVectors}. Confirming replaces the whole-book summary and keywords, plus summaries for matching chapters.",
@@ -348,7 +351,9 @@
     "emptyThread": "Ask a question to start a new conversation",
     "placeholder": "Type your question…",
     "send": "Send",
-    "error": "Failed to get a reply, please try again"
+    "error": "Failed to get a reply, please try again",
+    "readingSessionTitle": "Reading Companion: {title}",
+    "startReadingMessage": "Let's start reading \"{title}\" together."
   },
   "audit": {
     "title": "Audit Log",

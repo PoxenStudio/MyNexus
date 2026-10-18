@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import {
   cancelBookDataImport,
   confirmBookDataImport,
@@ -30,6 +30,7 @@ import { languageName, languageOptions } from "../../utils/languageCodes";
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const book = ref<BookDetail | null>(null);
 const loading = ref(true);
 
@@ -347,6 +348,14 @@ async function cancelDataImport() {
   }
 }
 
+// Hands off to the chat page, which opens (or first-time creates) this book's
+// dedicated reading session keyed off the ?book= query param.
+function startReadingSession() {
+  if (!book.value || book.value.status !== "ready") return;
+  console.debug("[book-detail] start reading session", book.value.id, book.value.title);
+  router.push({ name: "chat", query: { book: book.value.id } });
+}
+
 // Picks up a task already running against this book — e.g. an ingest/rebuild
 // triggered from the books list, or a summarize call from a previous visit —
 // so the "in progress" state survives a page reload/navigation instead of
@@ -530,6 +539,16 @@ onUnmounted(() => {
                   @click="chooseImportFile"
                 >
                   {{ transferBusy ? t("books.dataImportUploading") : t("books.importData") }}
+                </button>
+                <button
+                  type="button"
+                  class="ghost-btn start-session-btn"
+                  :disabled="book.status !== 'ready'"
+                  :title="book.status !== 'ready' ? t('books.startSessionDisabled') : t('books.startSessionTooltip')"
+                  @click="startReadingSession"
+                >
+                  <AppIcon name="forumOutline" :size="16" />
+                  {{ t("books.startSession") }}
                 </button>
                 <p v-if="transferJob && ['pending', 'processing'].includes(transferJob.status)" class="progress-line">
                   {{ t("books.dataImportProgress", { progress: transferJob.progress, stage: transferJob.stage }) }}
@@ -862,6 +881,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.75rem;
+}
+.start-session-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 .transfer-preview {
   flex-basis: 100%;
