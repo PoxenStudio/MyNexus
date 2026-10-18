@@ -1,4 +1,4 @@
-PARENT := /Volumes/data/projects/poxenstudio/MyNexus
+PARENT := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
 
 .PHONY: dev-up dev-down dev-logs build-base build-image setup-multiarch build-base-multiarch build-image-multiarch
 
