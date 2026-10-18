@@ -36,13 +36,12 @@ build-image: build-base
 build-base-multiarch:
 	docker buildx build --pull --platform=$(PLATFORMS) \
 		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		-f Dockerfile.base -t $(BASE_IMAGE) -t $(BASE_IMAGE_LATEST) --push .
+		-f Dockerfile.base -t $(BASE_IMAGE) -t $(BASE_IMAGE_LATEST) --load .
 
 build-image-multiarch: build-base-multiarch
 	docker buildx build --pull --platform=$(PLATFORMS) \
 		--builder $(BUILDER) --build-arg VERSION=$(VER) \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
-		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --push .
+		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --load .
 
 dev-up:
 	mkdir -p $(PARENT)/.tmp
