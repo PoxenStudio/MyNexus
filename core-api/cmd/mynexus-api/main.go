@@ -145,6 +145,10 @@ func main() {
 	cfg := config.Load()
 	setupFileLogging()
 
+	if os.Getenv("MYNEXUS_API_TOKEN") != "" {
+		log.Printf("MYNEXUS_API_TOKEN is set: global static admin API token enabled")
+	}
+
 	store, err := openStore(cfg)
 	if err != nil {
 		log.Fatalf("failed to open %s store: %v", cfg.Storage.Database, err)
