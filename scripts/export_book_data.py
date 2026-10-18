@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Trigger and monitor a server-side export of one book's derived data."""
+"""
+Trigger and monitor a server-side export of one book's derived data.
+Example:
+  MYNEXUS_EXPORT_TOKEN=<token> python export_book_data.py --api-url http://127.0.0.1:3030/api/v1 <book id>
+"""
 
 import argparse
 import json
@@ -28,7 +32,9 @@ def request_json(url: str, token: str, *, body: dict | None = None) -> tuple[int
     except HTTPError as exc:
         if exc.code == 404:
             return 404, None
-        message = exc.read().decode("utf-8", errors="replace")
+        message = exc.read().decode("utf-8", errors="replace").strip()
+        if not message and exc.code in (502, 503, 504):
+            message = "empty response body, usually a local HTTP proxy or an unreachable backend (use 127.0.0.1 instead of localhost)"
         raise RuntimeError(f"API returned HTTP {exc.code}: {message}") from exc
     except URLError as exc:
         raise RuntimeError(f"cannot reach MyNexus API: {exc.reason}") from exc
@@ -39,14 +45,14 @@ def main() -> int:
     parser.add_argument("book_id", help="MyNexus book id")
     parser.add_argument(
         "--api-url",
-        default=os.environ.get("MYNEXUS_API_URL", "http://localhost:3000/api/v1"),
-        help="API base URL (default: MYNEXUS_API_URL or http://localhost:3000/api/v1)",
+        default=os.environ.get("MYNEXUS_API_URL", "http://127.0.0.1:3000/api/v1"),
+        help="API base URL including the /api/v1 prefix (default: MYNEXUS_API_URL or http://127.0.0.1:3000/api/v1)",
     )
     parser.add_argument(
         "--export-dir",
         type=Path,
         default=Path(__file__).resolve().parents[1] / "data" / "export",
-        help="host path mapped to the server's /data/export directory",
+        help="host path mapped to the server's /data directory or its export subdirectory (default: <repo>/data/export)",
     )
     parser.add_argument("--poll-interval", type=float, default=2.0, help="progress polling interval in seconds")
     parser.add_argument("--timeout", type=float, default=1800.0, help="maximum wait in seconds")
@@ -81,6 +87,12 @@ def main() -> int:
     deadline = time.monotonic() + args.timeout
     last_status = ""
 
+    def find_output() -> Path | None:
+        for candidate in (output_path, args.export_dir / "export" / file_name):
+            if candidate.is_file():
+                return candidate
+        return None
+
     while time.monotonic() < deadline:
         try:
             status_code, current = request_json(
@@ -91,8 +103,9 @@ def main() -> int:
             return 1
 
         if status_code == 404:
-            if output_path.is_file():
-                print(f"Export complete: {output_path}")
+            found = find_output()
+            if found is not None:
+                print(f"Export complete: {found}")
                 return 0
             print("Task is not queryable and its output file is not present yet; checking again.", file=sys.stderr)
         elif current:
@@ -103,10 +116,15 @@ def main() -> int:
                 print(f"Export {state}: {progress}% {stage}".rstrip(), flush=True)
                 last_status = state
             if state == "completed":
-                if output_path.is_file():
-                    print(f"Export complete: {output_path}")
+                found = find_output()
+                if found is not None:
+                    print(f"Export complete: {found}")
                     return 0
-                print(f"Task completed but output file is missing: {output_path}", file=sys.stderr)
+                print(
+                    f"Task completed but output file is missing, looked for {output_path} and "
+                    f"{args.export_dir / 'export' / file_name}",
+                    file=sys.stderr,
+                )
                 return 1
             if state == "failed":
                 print(current.get("error_msg") or "Export failed", file=sys.stderr)

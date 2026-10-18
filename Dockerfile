@@ -12,7 +12,8 @@ RUN CGO_ENABLED=0 go build -o /out/mynexus-api ./cmd/mynexus-api
 FROM docker.1ms.run/node:20-alpine AS web-build
 WORKDIR /src/web-ui
 COPY web-ui/package.json web-ui/package-lock.json ./
-RUN npm ci
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm ci
 COPY web-ui/ ./
 RUN npm run build
 
