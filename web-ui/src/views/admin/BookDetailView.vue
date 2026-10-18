@@ -62,11 +62,24 @@ const transferError = ref("");
 const transferBusy = ref(false);
 let transferPollTimer: ReturnType<typeof setInterval> | null = null;
 
+// Sites outside the summary.* namespace don't map 1:1 onto a tokens.callSite
+// key by prefix stripping alone, so they're listed explicitly here.
+const CALL_SITE_KEY_OVERRIDES: Record<string, string> = {
+  "qa.plain_answer": "chat",
+  "qa.tool_answer": "chat_tool",
+  "chat.memory_compress": "chat_memory_compress",
+};
+
 function callSiteLabel(site: string): string {
-  const base = site.replace(/^summary\./, "").replace(/\.segment\.\d+$/, "").replace(/_\d+$/, "");
+  const normalized = site.replace(/\.segment\.\d+$/, "").replace(/\.\d+$/, "").replace(/_\d+$/, "");
+  const base = CALL_SITE_KEY_OVERRIDES[normalized] ?? normalized.replace(/^summary\./, "");
   const key = `tokens.callSite.${base}`;
   const translated = t(key);
-  return translated === key ? base : translated;
+  if (translated === key) {
+    console.debug("[book-detail] call site without i18n label", site);
+    return site;
+  }
+  return translated;
 }
 
 const callsiteChartData = computed(() => {

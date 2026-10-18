@@ -205,6 +205,7 @@
       "chat": "對話問答",
       "chat_decision": "工具決策",
       "chat_tool": "工具調用",
+      "chat_memory_compress": "會話壓縮",
       "reading_guide": "閱讀指南",
       "reference_index": "引用書目匯總"
     }

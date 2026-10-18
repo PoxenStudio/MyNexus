@@ -205,6 +205,7 @@
       "chat": "对话问答",
       "chat_decision": "工具决策",
       "chat_tool": "工具调用",
+      "chat_memory_compress": "会话压缩",
       "reading_guide": "阅读指南",
       "reference_index": "引用书目汇总"
     }
