@@ -10,7 +10,7 @@ IMAGE_LATEST := $(REGISTRY)/mynexus:latest
 BASE_IMAGE := $(REGISTRY)/mynexus_base:$(VER)
 BASE_IMAGE_LATEST := $(REGISTRY)/mynexus_base:latest
 
-BUILDER := mynexusbuilder
+BUILDER := shukubuilder
 ARCH := $(shell uname -m)
 PLATFORM ?= linux/$(shell if [ "$(ARCH)" = "x86_64" ]; then echo "amd64"; elif [ "$(ARCH)" = "aarch64" ] || [ "$(ARCH)" = "arm64" ]; then echo "arm64"; else echo "amd64"; fi)
 PLATFORMS := linux/amd64,linux/arm64
