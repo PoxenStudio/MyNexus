@@ -6,6 +6,7 @@ from grpc_client import CoreApiClient
 from nodes.cleaners.whitespace_cleaner import WhitespaceCleaner
 from nodes.factory import get_embedder, get_vector_store
 from nodes.parsers.epub_parser import EpubParser
+from nodes.parsers.pdf_parser import PdfParser
 from nodes.parsers.registry import ParserRegistry
 from nodes.parsers.txt_parser import TxtParser
 from nodes.splitters.token_splitter import TokenSplitter
@@ -32,6 +33,7 @@ class IngestionPipeline:
         self.config = config or load_config()
         self.parser_registry = ParserRegistry()
         self.parser_registry.register(EpubParser(skip_backmatter_chapters=self.config.skip_backmatter_chapters))
+        self.parser_registry.register(PdfParser())
         self.parser_registry.register(TxtParser(skip_backmatter_chapters=self.config.skip_backmatter_chapters))
         self.cleaner = WhitespaceCleaner()
         self.splitter = TokenSplitter(self.config.splitter.chunk_size, self.config.splitter.chunk_overlap)

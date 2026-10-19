@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.12-slim
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="mynexus-worker" \
@@ -8,7 +8,9 @@ LABEL org.opencontainers.image.title="mynexus-worker" \
       org.opencontainers.image.version="${VERSION}" \
       maintainer="poxenstudio <poxenstudio@gmail.com>"
 
-RUN apk add --no-cache tzdata
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV TZ=Asia/Shanghai \
     LANG=C.UTF-8 \

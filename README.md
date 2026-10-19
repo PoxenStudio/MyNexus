@@ -23,7 +23,7 @@
 
 ## 项目简介
 
-MyNexus 将 EPUB / PDF / TXT 电子书导入后，自动完成解析、清洗、分块、向量化，构建可检索、可问答（RAG）的书籍知识库，并配套一个管理后台用于查看书籍、任务处理状态与 API Token 管理，服务于 MyBooks/MyReader 生态。
+MyNexus 将 EPUB / 文本型 PDF / TXT 电子书导入后，自动完成解析、清洗、分块、向量化，构建可检索、可问答（RAG）的书籍知识库，并配套一个管理后台用于查看书籍、任务处理状态与 API Token 管理，服务于 MyBooks/MyReader 生态。PDF 按页面文字块和坐标提取文本，并尝试按栏排列；目前整份 PDF 作为一个章节，扫描版 PDF（需要 OCR）不支持。
 
 系统由三个服务组成（monorepo）：
 

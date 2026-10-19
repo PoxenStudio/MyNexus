@@ -159,7 +159,7 @@ onMounted(load);
         <input
           ref="fileInput"
           type="file"
-          accept=".epub,.txt"
+          accept=".epub,.pdf,.txt"
           multiple
           class="upload-input"
           :disabled="uploading"

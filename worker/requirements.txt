@@ -3,24 +3,14 @@ protobuf>=7.35.1,<8
 pyyaml>=6.0
 ebooklib>=0.18
 beautifulsoup4>=4.12
+PyMuPDF>=1.24.0,<2.0
 numpy>=1.26
 rank-bm25>=0.2
 jieba>=0.42
-# Traditional/Simplified Chinese detection for title-based language
-# detection (util/lang_detect.py, ported from MyBooks' detect_title_language()).
 opencc-python-reimplemented>=0.1.7
-# POS tagging for English keyword extraction (pipelines/summary.py) — noun
-# filtering, same rationale as jieba's POS whitelist on the Chinese side.
-# English keyword extraction uses NLTK models when available and falls back
-# to frequency ranking if model data cannot be loaded.
 nltk>=3.9
 chromadb>=0.5
-# Local embedding provider (embedding.provider=local): in-process ONNX
-# inference, no Ollama/OpenAI needed (nodes/embedders/local_embedder.py).
 fastembed>=0.2
-# util/cover_generator.py's title-based fallback book cover.
 Pillow>=10.0
-# WOFF->TTF conversion fallback for cover_generator.py when Pillow's
-# FreeType build can't load a .woff font file directly — see its
-# _woff_to_ttf_bytes doc comment.
 fonttools>=4.50
+markdown-it-py==4.2.0

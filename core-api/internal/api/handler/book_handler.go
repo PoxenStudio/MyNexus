@@ -20,7 +20,7 @@ import (
 	"mynexus/core-api/internal/service"
 )
 
-var supportedFormats = map[string]bool{".epub": true, ".txt": true}
+var supportedFormats = map[string]bool{".epub": true, ".pdf": true, ".txt": true}
 
 // defaultUserID stands in for the not-yet-implemented auth system (see M1/M2
 // scope notes in docs/开发技术文档.md §15): every book is owned by this user
