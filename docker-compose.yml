@@ -2,7 +2,7 @@ services:
   mynexus:
     image: poxenstudio/mynexus:latest
     ports:
-      - "${MYNEXUS_PORT:-3000}:8081"
+      - "${MYNEXUS_PORT:-3000}:80"
     volumes:
       - ${MYNEXUS_DATA_DIR:-./data}:/data
       - ${MYNEXUS_CONFIG_DIR:-./config-runtime}:/config

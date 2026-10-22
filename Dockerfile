@@ -48,7 +48,7 @@ RUN groupadd --gid 1000 nexus \
     && chmod +x /usr/local/bin/mynexus-entrypoint \
     && mkdir -p /data /config /run/nginx \
     && sed -i \
-        -e 's|^user .*|# user www-data;|' \
+        -e 's|^#\? *user .*|user nexus;|' \
         -e 's|^pid .*|pid /run/nginx/nginx.pid;|' \
         -e 's|^error_log .*|error_log stderr;|' \
         -e 's|^\([[:space:]]*\)access_log .*|\1access_log off;|' \
@@ -58,5 +58,5 @@ RUN groupadd --gid 1000 nexus \
 
 USER root
 
-EXPOSE 8081 8443
+EXPOSE 80 443
 ENTRYPOINT ["/usr/local/bin/mynexus-entrypoint"]

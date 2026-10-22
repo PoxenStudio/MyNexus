@@ -29,7 +29,7 @@ ssl_config=/etc/nginx/ssl-listen.conf
 : > "$ssl_config"
 if [ -f /data/ssl/ssl.crt ] && [ -f /data/ssl/ssl.key ]; then
     cat > "$ssl_config" <<'EOF'
-    listen 8443 ssl;
+    listen 443 ssl;
     http2 on;
     ssl_certificate     /data/ssl/ssl.crt;
     ssl_certificate_key /data/ssl/ssl.key;

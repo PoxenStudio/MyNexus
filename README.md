@@ -89,7 +89,7 @@ OPENAI_API_KEY=sk-xxx docker compose up -d
 
 ```bash
 make build-image
-docker run -d --name mynexus -p 3000:8081 \
+docker run -d --name mynexus -p 3000:80 \
   -v "$PWD/data:/data" -v "$PWD/config:/config" \
   --restart unless-stopped poxenstudio/mynexus:latest
 ```
