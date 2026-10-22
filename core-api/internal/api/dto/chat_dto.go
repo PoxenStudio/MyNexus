@@ -14,6 +14,7 @@ type ReadingContextInput struct {
 	ProgressFraction float64 `json:"progress_fraction"`
 	Page             int32   `json:"page"`
 	CFI              string  `json:"cfi"`
+	Snippet          string  `json:"snippet"`
 }
 
 type SelectionContextInput struct {
@@ -36,6 +37,7 @@ const (
 	maxTitleChars     = 200
 	maxHrefChars      = 500
 	maxCFIChars       = 500
+	maxSnippetChars   = 50
 )
 
 func truncateRunes(value string, limit int) string {
@@ -58,6 +60,7 @@ func (c *ChatContextInput) Normalize() bool {
 		r.ChapterTitle = truncateRunes(r.ChapterTitle, maxTitleChars)
 		r.ChapterHref = truncateRunes(r.ChapterHref, maxHrefChars)
 		r.CFI = truncateRunes(r.CFI, maxCFIChars)
+		r.Snippet = truncateRunes(r.Snippet, maxSnippetChars)
 		if r.ProgressFraction < 0 || r.ProgressFraction > 1 {
 			r.ProgressFraction = 0
 		}

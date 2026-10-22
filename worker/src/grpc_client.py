@@ -210,6 +210,23 @@ class CoreApiClient:
             "sort_order": resp.sort_order,
         }
 
+    def locate_chapter_by_text(self, book_id: str, text: str) -> dict | None:
+        try:
+            resp = self._stub.LocateChapterByText(
+                mynexus_pb2.LocateChapterByTextRequest(book_id=book_id, text=text), timeout=10
+            )
+        except grpc.RpcError as e:
+            logging.getLogger(__name__).warning("locate_chapter_by_text failed: book=%s err=%v", book_id, e)
+            return None
+        if not resp.chapter_id:
+            return None
+        return {
+            "chapter_id": resp.chapter_id,
+            "title": resp.title,
+            "sort_order": resp.sort_order,
+            "score": resp.score,
+        }
+
     def get_book_info(self, query: str) -> list[dict] | None:
         """Backs the chat "get_book_info" tool (see tools/book_info.py).
         Returns None on any RPC error — the tool then reports it couldn't

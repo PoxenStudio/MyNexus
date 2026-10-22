@@ -54,6 +54,22 @@ def _match_by_title(title: str, chapters: list[dict]) -> tuple[dict | None, str 
     return None, None
 
 
+def _match_by_text(
+    core_api: CoreApiClient, book_id: str, snippet: str, chapters: list[dict]
+) -> tuple[dict | None, str | None]:
+    if not snippet:
+        return None, None
+    logger.info("reading context snippet locate: book=%s len=%d", book_id, len(snippet))
+    located = core_api.locate_chapter_by_text(book_id, snippet)
+    if not located:
+        logger.info("reading context snippet locate no match: book=%s", book_id)
+        return None, None
+    chapter = next(
+        (c for c in chapters if c.get("chapter_id") == located.get("chapter_id")), None
+    )
+    return chapter or located, "snippet"
+
+
 def _match_by_order(
     chapters: list[dict], section_index: int, progress_fraction: float
 ) -> tuple[dict | None, str | None]:
@@ -108,6 +124,10 @@ def resolve_chapter(
         return None
     chapters = book.get("chapters") or []
     chapter, method = _match_by_title(reading.get("chapter_title", ""), chapters)
+    if chapter is None:
+        chapter, method = _match_by_text(
+            core_api, book.get("book_id", ""), reading.get("snippet", ""), chapters
+        )
     if chapter is None:
         chapter, method = _match_by_order(
             chapters,

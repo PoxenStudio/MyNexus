@@ -41,6 +41,7 @@ def _chat_message_dict(message) -> dict:
                 "progress_fraction": r.progress_fraction,
                 "page": r.page,
                 "cfi": r.cfi,
+                "snippet": r.snippet,
             }
         if ctx.HasField("selection"):
             s = ctx.selection

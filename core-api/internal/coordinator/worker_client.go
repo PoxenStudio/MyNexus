@@ -330,6 +330,7 @@ type readingContextJSON struct {
 	ProgressFraction float64 `json:"progress_fraction"`
 	Page             int32   `json:"page"`
 	CFI              string  `json:"cfi"`
+	Snippet          string  `json:"snippet"`
 }
 
 type selectionContextJSON struct {
@@ -359,7 +360,7 @@ func decodeMessageContext(raw string) *mynexuspb.MessageContext {
 		out.Reading = &mynexuspb.ReadingContext{
 			BookTitle: r.BookTitle, ChapterTitle: r.ChapterTitle, ChapterHref: r.ChapterHref,
 			SectionIndex: r.SectionIndex, ProgressFraction: r.ProgressFraction,
-			Page: r.Page, Cfi: r.CFI,
+			Page: r.Page, Cfi: r.CFI, Snippet: r.Snippet,
 		}
 	}
 	if s := ctx.Selection; s != nil {

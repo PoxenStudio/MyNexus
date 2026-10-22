@@ -205,6 +205,9 @@ message ReadingContext {
   double progress_fraction = 5;
   int32 page = 6;
   string cfi = 7;
+  // 当前视口约 50 字的正文片段。章节标题/序号无法匹配库内章节时，
+  // Worker 用它做文字定位兜底（见 LocateChapterByText）。
+  string snippet = 8;
 }
 
 // 用户在阅读器中选中的文本及其所在位置。
@@ -333,6 +336,13 @@ service CoreApiService {
   // questions (chapter overview, character relations) that semantic retrieval
   // handles poorly. Read-only; no task/state side effects.
   rpc GetChapterContent(ChapterContentRequest) returns (ChapterContentResponse);
+
+  // Read-only snippet locator used by Worker's reading-position resolver when
+  // the caller's chapter title does not match any stored chapter (EPUBs that
+  // pack several logical chapters into one XHTML file). Matches the snippet
+  // against chapters.content after whitespace/punctuation normalization and
+  // returns the best chapter above a confidence threshold.
+  rpc LocateChapterByText(LocateChapterByTextRequest) returns (LocateChapterByTextResponse);
 
   // Read-only book-metadata/summary lookup, called by Worker's QA pipeline
   // when the LLM invokes the "get_book_info" chat tool — returns every
@@ -528,6 +538,20 @@ message BookInfoRequest {
   // 精确查询：非空时忽略 query，直接返回该书（含章节目录），
   // 供 Worker 用已知 book_id 解析阅读位置对应的章节。
   string book_id = 2;
+}
+
+message LocateChapterByTextRequest {
+  string book_id = 1;
+  // 阅读位置附近的一小段正文（约 50 字），用于命中率不足时定位章节。
+  string text = 2;
+}
+
+message LocateChapterByTextResponse {
+  string chapter_id = 1;
+  string title = 2;
+  int32 sort_order = 3;
+  // 归一化后的文本匹配分（1.0 表示完整包含），低于阈值时 chapter_id 为空。
+  double score = 4;
 }
 
 message ChapterContentRequest {

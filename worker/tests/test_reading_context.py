@@ -8,13 +8,19 @@ from pipelines import reading_context
 
 
 class FakeCoreApi:
-    def __init__(self, books: dict):
+    def __init__(self, books: dict, located: dict | None = None):
         self.books = books
+        self.located = located or {}
         self.calls: list[str] = []
+        self.locate_calls: list[tuple[str, str]] = []
 
     def get_book_info_by_id(self, book_id: str):
         self.calls.append(book_id)
         return self.books.get(book_id)
+
+    def locate_chapter_by_text(self, book_id: str, text: str):
+        self.locate_calls.append((book_id, text))
+        return self.located.get(text)
 
 
 def book(book_id="b1", title="长安十二时辰", chapters=None):
@@ -47,6 +53,29 @@ class ResolveChapterTests(unittest.TestCase):
         resolved = reading_context.resolve_chapter(api, ["b1"], {"chapter_title": "巳正"})
         self.assertEqual(resolved["chapter_id"], "c3")
         self.assertEqual(resolved["method"], "exact")
+
+    def test_snippet_locates_chapter_when_title_unknown(self):
+        api = FakeCoreApi(
+            {"b1": book()},
+            located={"他在辰时进入长安城": {"chapter_id": "c1", "title": "第一章 巳初", "sort_order": 1}},
+        )
+        resolved = reading_context.resolve_chapter(
+            api,
+            ["b1"],
+            {"chapter_title": "不存在的标题", "section_index": 1, "snippet": "他在辰时进入长安城"},
+        )
+        self.assertEqual(resolved["chapter_id"], "c1")
+        self.assertEqual(resolved["method"], "snippet")
+
+    def test_snippet_miss_still_falls_back_to_section_index(self):
+        api = FakeCoreApi({"b1": book()})
+        resolved = reading_context.resolve_chapter(
+            api,
+            ["b1"],
+            {"chapter_title": "不存在的标题", "section_index": 1, "snippet": "完全无关的文字"},
+        )
+        self.assertEqual(resolved["chapter_id"], "c2")
+        self.assertEqual(resolved["method"], "section_index")
 
     def test_unknown_title_falls_back_to_section_index(self):
         api = FakeCoreApi({"b1": book()})

@@ -698,6 +698,7 @@ const (
 	CoreApiService_KeywordSearch_FullMethodName        = "/mynexus.CoreApiService/KeywordSearch"
 	CoreApiService_GetLibraryStats_FullMethodName      = "/mynexus.CoreApiService/GetLibraryStats"
 	CoreApiService_GetChapterContent_FullMethodName    = "/mynexus.CoreApiService/GetChapterContent"
+	CoreApiService_LocateChapterByText_FullMethodName  = "/mynexus.CoreApiService/LocateChapterByText"
 	CoreApiService_GetBookInfo_FullMethodName          = "/mynexus.CoreApiService/GetBookInfo"
 	CoreApiService_GetChapterSummaries_FullMethodName  = "/mynexus.CoreApiService/GetChapterSummaries"
 )
@@ -751,6 +752,12 @@ type CoreApiServiceClient interface {
 	// questions (chapter overview, character relations) that semantic retrieval
 	// handles poorly. Read-only; no task/state side effects.
 	GetChapterContent(ctx context.Context, in *ChapterContentRequest, opts ...grpc.CallOption) (*ChapterContentResponse, error)
+	// Read-only snippet locator used by Worker's reading-position resolver when
+	// the caller's chapter title does not match any stored chapter (EPUBs that
+	// pack several logical chapters into one XHTML file). Matches the snippet
+	// against chapters.content after whitespace/punctuation normalization and
+	// returns the best chapter above a confidence threshold.
+	LocateChapterByText(ctx context.Context, in *LocateChapterByTextRequest, opts ...grpc.CallOption) (*LocateChapterByTextResponse, error)
 	// Read-only book-metadata/summary lookup, called by Worker's QA pipeline
 	// when the LLM invokes the "get_book_info" chat tool — returns every
 	// field a book record carries (title/author/publisher/category/tags,
@@ -881,6 +888,16 @@ func (c *coreApiServiceClient) GetChapterContent(ctx context.Context, in *Chapte
 	return out, nil
 }
 
+func (c *coreApiServiceClient) LocateChapterByText(ctx context.Context, in *LocateChapterByTextRequest, opts ...grpc.CallOption) (*LocateChapterByTextResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LocateChapterByTextResponse)
+	err := c.cc.Invoke(ctx, CoreApiService_LocateChapterByText_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *coreApiServiceClient) GetBookInfo(ctx context.Context, in *BookInfoRequest, opts ...grpc.CallOption) (*BookInfoResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(BookInfoResponse)
@@ -950,6 +967,12 @@ type CoreApiServiceServer interface {
 	// questions (chapter overview, character relations) that semantic retrieval
 	// handles poorly. Read-only; no task/state side effects.
 	GetChapterContent(context.Context, *ChapterContentRequest) (*ChapterContentResponse, error)
+	// Read-only snippet locator used by Worker's reading-position resolver when
+	// the caller's chapter title does not match any stored chapter (EPUBs that
+	// pack several logical chapters into one XHTML file). Matches the snippet
+	// against chapters.content after whitespace/punctuation normalization and
+	// returns the best chapter above a confidence threshold.
+	LocateChapterByText(context.Context, *LocateChapterByTextRequest) (*LocateChapterByTextResponse, error)
 	// Read-only book-metadata/summary lookup, called by Worker's QA pipeline
 	// when the LLM invokes the "get_book_info" chat tool — returns every
 	// field a book record carries (title/author/publisher/category/tags,
@@ -1009,6 +1032,9 @@ func (UnimplementedCoreApiServiceServer) GetLibraryStats(context.Context, *Libra
 }
 func (UnimplementedCoreApiServiceServer) GetChapterContent(context.Context, *ChapterContentRequest) (*ChapterContentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetChapterContent not implemented")
+}
+func (UnimplementedCoreApiServiceServer) LocateChapterByText(context.Context, *LocateChapterByTextRequest) (*LocateChapterByTextResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method LocateChapterByText not implemented")
 }
 func (UnimplementedCoreApiServiceServer) GetBookInfo(context.Context, *BookInfoRequest) (*BookInfoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetBookInfo not implemented")
@@ -1217,6 +1243,24 @@ func _CoreApiService_GetChapterContent_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CoreApiService_LocateChapterByText_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LocateChapterByTextRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoreApiServiceServer).LocateChapterByText(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoreApiService_LocateChapterByText_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoreApiServiceServer).LocateChapterByText(ctx, req.(*LocateChapterByTextRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _CoreApiService_GetBookInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BookInfoRequest)
 	if err := dec(in); err != nil {
@@ -1299,6 +1343,10 @@ var CoreApiService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetChapterContent",
 			Handler:    _CoreApiService_GetChapterContent_Handler,
+		},
+		{
+			MethodName: "LocateChapterByText",
+			Handler:    _CoreApiService_LocateChapterByText_Handler,
 		},
 		{
 			MethodName: "GetBookInfo",

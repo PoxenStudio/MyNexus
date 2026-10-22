@@ -363,7 +363,7 @@ var trailingCiteLineRE = regexp.MustCompile("(?m)^[\\s\u3000]*\\[\\d+\\](?:\\s*\
 func stripCitationMarkers(answer string) string {
 	answer = trailingCiteLineRE.ReplaceAllString(answer, "")
 	answer = citedIndexRE.ReplaceAllString(answer, "")
-	answer = regexp.MustCompile(`(?m)^[ \t\u3000]+$`).ReplaceAllString(answer, "")
+	answer = regexp.MustCompile("(?m)^[ \\t\u3000]+$").ReplaceAllString(answer, "")
 	answer = regexp.MustCompile(`\n{3,}`).ReplaceAllString(answer, "\n\n")
 	return strings.TrimRight(answer, "\n \u3000")
 }

@@ -165,7 +165,7 @@ class SearchResponse(_message.Message):
     def __init__(self, results: _Optional[_Iterable[_Union[SearchResult, _Mapping]]] = ...) -> None: ...
 
 class ReadingContext(_message.Message):
-    __slots__ = ("book_title", "chapter_title", "chapter_href", "section_index", "progress_fraction", "page", "cfi")
+    __slots__ = ("book_title", "chapter_title", "chapter_href", "section_index", "progress_fraction", "page", "cfi", "snippet")
     BOOK_TITLE_FIELD_NUMBER: _ClassVar[int]
     CHAPTER_TITLE_FIELD_NUMBER: _ClassVar[int]
     CHAPTER_HREF_FIELD_NUMBER: _ClassVar[int]
@@ -173,6 +173,7 @@ class ReadingContext(_message.Message):
     PROGRESS_FRACTION_FIELD_NUMBER: _ClassVar[int]
     PAGE_FIELD_NUMBER: _ClassVar[int]
     CFI_FIELD_NUMBER: _ClassVar[int]
+    SNIPPET_FIELD_NUMBER: _ClassVar[int]
     book_title: str
     chapter_title: str
     chapter_href: str
@@ -180,7 +181,8 @@ class ReadingContext(_message.Message):
     progress_fraction: float
     page: int
     cfi: str
-    def __init__(self, book_title: _Optional[str] = ..., chapter_title: _Optional[str] = ..., chapter_href: _Optional[str] = ..., section_index: _Optional[int] = ..., progress_fraction: _Optional[float] = ..., page: _Optional[int] = ..., cfi: _Optional[str] = ...) -> None: ...
+    snippet: str
+    def __init__(self, book_title: _Optional[str] = ..., chapter_title: _Optional[str] = ..., chapter_href: _Optional[str] = ..., section_index: _Optional[int] = ..., progress_fraction: _Optional[float] = ..., page: _Optional[int] = ..., cfi: _Optional[str] = ..., snippet: _Optional[str] = ...) -> None: ...
 
 class SelectionContext(_message.Message):
     __slots__ = ("text", "chapter_title", "chapter_href", "section_index", "page", "progress_fraction", "cfi")
@@ -533,6 +535,26 @@ class BookInfoRequest(_message.Message):
     query: str
     book_id: str
     def __init__(self, query: _Optional[str] = ..., book_id: _Optional[str] = ...) -> None: ...
+
+class LocateChapterByTextRequest(_message.Message):
+    __slots__ = ("book_id", "text")
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    book_id: str
+    text: str
+    def __init__(self, book_id: _Optional[str] = ..., text: _Optional[str] = ...) -> None: ...
+
+class LocateChapterByTextResponse(_message.Message):
+    __slots__ = ("chapter_id", "title", "sort_order", "score")
+    CHAPTER_ID_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    SORT_ORDER_FIELD_NUMBER: _ClassVar[int]
+    SCORE_FIELD_NUMBER: _ClassVar[int]
+    chapter_id: str
+    title: str
+    sort_order: int
+    score: float
+    def __init__(self, chapter_id: _Optional[str] = ..., title: _Optional[str] = ..., sort_order: _Optional[int] = ..., score: _Optional[float] = ...) -> None: ...
 
 class ChapterContentRequest(_message.Message):
     __slots__ = ("book_id", "chapter_id")

@@ -151,6 +151,7 @@ class QAPipeline:
         messages, message_context = _strip_message_contexts(messages)
         reading = message_context.get("reading") or {}
         selection = message_context.get("selection") or {}
+        snippet = (reading.get("snippet") or "").strip()
         logger.info(
             "reading context: book=%s chapter=%s href=%s section=%s fraction=%s page=%s selection_len=%d",
             reading.get("book_title", ""), reading.get("chapter_title", ""),
@@ -208,6 +209,8 @@ class QAPipeline:
                 "book_id": chapter["book_id"],
                 "chapter_id": chapter["chapter_id"],
             }
+            if snippet:
+                forced_arguments["focus_text"] = snippet
             logger.info(
                 "chapter intent detected, forcing read_chapter chapter=%s title=%s",
                 chapter["chapter_id"], chapter["title"],
@@ -233,6 +236,14 @@ class QAPipeline:
                 break
             name, arguments = tool_call
             arguments, scope_error = self._apply_book_scope(name, arguments, book_ids)
+            if (
+                name == "read_chapter"
+                and snippet
+                and chapter
+                and not arguments.get("focus_text")
+                and arguments.get("chapter_id") == chapter.get("chapter_id")
+            ):
+                arguments["focus_text"] = snippet
             if scope_error:
                 result = {"error": scope_error}
             else:

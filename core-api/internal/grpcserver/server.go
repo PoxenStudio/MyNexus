@@ -13,6 +13,7 @@ import (
 	"net"
 	"strings"
 	"time"
+	"unicode"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -441,6 +442,93 @@ func (s *CoreAPIServer) GetChapterContent(ctx context.Context, req *mynexuspb.Ch
 		Title:     chapter.Title,
 		Content:   chapter.Content,
 		SortOrder: int32(chapter.SortOrder),
+	}, nil
+}
+
+const (
+	chapterTextNgramSize = 4
+	chapterTextMinScore  = 0.5
+)
+
+// normalizeChapterText drops whitespace/punctuation so a reader-side excerpt
+// can still be compared with the cleaned chapter body stored in the database.
+func normalizeChapterText(value string) []rune {
+	out := make([]rune, 0, len(value))
+	for _, r := range strings.ToLower(value) {
+		if unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// chapterTextOverlap scores how much of target appears as n-grams in content
+// when an exact normalized containment check fails.
+func chapterTextOverlap(target, content []rune) float64 {
+	if len(target) < chapterTextNgramSize || len(content) < chapterTextNgramSize {
+		return 0
+	}
+	contentGrams := make(map[string]struct{}, len(content))
+	for i := 0; i+chapterTextNgramSize <= len(content); i++ {
+		contentGrams[string(content[i:i+chapterTextNgramSize])] = struct{}{}
+	}
+	matched, total := 0, 0
+	for i := 0; i+chapterTextNgramSize <= len(target); i++ {
+		total++
+		if _, ok := contentGrams[string(target[i:i+chapterTextNgramSize])]; ok {
+			matched++
+		}
+	}
+	if total == 0 {
+		return 0
+	}
+	return float64(matched) / float64(total)
+}
+
+// LocateChapterByText maps a ~50 character reader excerpt to the chapter whose
+// stored body contains it. Read-only; empty chapter_id means no confident match.
+func (s *CoreAPIServer) LocateChapterByText(ctx context.Context, req *mynexuspb.LocateChapterByTextRequest) (*mynexuspb.LocateChapterByTextResponse, error) {
+	target := normalizeChapterText(req.Text)
+	if req.BookId == "" || len(target) == 0 {
+		return &mynexuspb.LocateChapterByTextResponse{}, nil
+	}
+	chapters, err := s.books.ListChapters(req.BookId)
+	if err != nil {
+		log.Printf("[grpc] LocateChapterByText list chapters failed: book_id=%s err=%v", req.BookId, err)
+		return &mynexuspb.LocateChapterByTextResponse{}, nil
+	}
+	var best models.Chapter
+	bestScore := 0.0
+	for _, c := range chapters {
+		content := normalizeChapterText(c.Content)
+		if len(content) == 0 {
+			continue
+		}
+		score := 0.0
+		if strings.Contains(string(content), string(target)) {
+			score = 1.0
+		} else {
+			score = chapterTextOverlap(target, content)
+		}
+		if score > bestScore {
+			best, bestScore = c, score
+		}
+		if score == 1.0 {
+			break
+		}
+	}
+	if bestScore < chapterTextMinScore {
+		log.Printf("[grpc] LocateChapterByText no match: book_id=%s score=%.2f text=%q", req.BookId, bestScore, req.Text)
+		return &mynexuspb.LocateChapterByTextResponse{Score: bestScore}, nil
+	}
+	log.Printf("[grpc] LocateChapterByText matched: book_id=%s chapter_id=%s title=%s score=%.2f",
+		req.BookId, best.ID, best.Title, bestScore)
+	return &mynexuspb.LocateChapterByTextResponse{
+		ChapterId: best.ID,
+		Title:     best.Title,
+		SortOrder: int32(best.SortOrder),
+		Score:     bestScore,
 	}, nil
 }
 

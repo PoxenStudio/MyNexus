@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 
@@ -250,6 +251,7 @@ func Load() Config {
 	cfg := defaults()
 
 	path := os.Getenv("MYNEXUS_CONFIG_PATH")
+	log.Printf("Loading config from %s", path)
 	if path == "" {
 		path = "./config/config.yaml"
 	}
