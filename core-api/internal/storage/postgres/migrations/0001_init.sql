@@ -1,4 +1,8 @@
--- Initial schema — consolidates 0001 through 0016 into one file.
+-- Initial schema — the single migration file describing the complete current
+-- schema. There has been no production deployment yet, so every later
+-- migration (unique mybooks index, chat memory columns, chat tool results,
+-- chunks full-text search) is folded in here instead of being kept as a
+-- separate numbered file.
 -- Dev-only: rebuild postgres DB from scratch on each startup.
 -- Mirrors storage/sqlite/migrations/0001_init.sql (DATETIME -> TIMESTAMP).
 
@@ -50,6 +54,11 @@ CREATE TABLE IF NOT EXISTS books (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- One MyBooks book maps to at most one local book (nullable: manual uploads
+-- have no mybooks_id).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_books_mybooks_id_unique
+    ON books(mybooks_id)
+    WHERE mybooks_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS chapters (
     id           TEXT PRIMARY KEY,
@@ -75,10 +84,15 @@ CREATE TABLE IF NOT EXISTS chunks (
     vector_id    TEXT DEFAULT '',
     keywords     TEXT DEFAULT '[]',
     start_offset INTEGER NOT NULL DEFAULT 0,
-    end_offset   INTEGER NOT NULL DEFAULT 0
+    end_offset   INTEGER NOT NULL DEFAULT 0,
+    -- Postgres-only full-text column (no SQLite equivalent): maintained
+    -- automatically on every INSERT/UPDATE of content. Used by
+    -- BookService.KeywordSearch's GIN-indexed BM25 replacement.
+    content_tsv  TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_book ON chunks(book_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_chapter ON chunks(chapter_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_content_tsv ON chunks USING GIN (content_tsv);
 
 CREATE TABLE IF NOT EXISTS tasks (
     id            TEXT PRIMARY KEY,
@@ -155,11 +169,12 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
-    id         TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    role       TEXT NOT NULL,
-    content    TEXT NOT NULL,
-    citations  TEXT DEFAULT '[]',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role         TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    citations    TEXT DEFAULT '[]',
+    tool_results TEXT NOT NULL DEFAULT '[]',
+    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);

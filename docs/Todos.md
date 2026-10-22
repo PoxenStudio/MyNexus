@@ -11,6 +11,8 @@
 
 - [x] **数据库连接建立时自动检查表结构并创建/升级**（2026-08-05）。新增 `core-api/internal/storage/migrator.go`：连接建立后自动创建 `schema_migrations` 表记录已应用的迁移文件名，仅执行尚未应用过的迁移文件（按文件名排序，逐条语句在事务内执行），而不是像之前那样每次启动都重跑全部迁移文件的完整内容。sqlite、postgres 两个后端共用同一套逻辑。此前"改字段直接编辑 0001_init.sql"的做法（见 [[mynexus_m4_decisions]]）已被取代：以后新的表结构变更（包括含 `ALTER TABLE` 的变更）应新增编号迁移文件（如 `0002_xxx.sql`），两个后端各建一份并保持字段一致。已用本地 SQLite 文件验证：首次启动会创建并记录 `0001_init.sql`，二次启动确认被跳过（记录时间戳不变）。详见 memory 中的 `mynexus_migration_versioning`。
 
+- [x] **迁移脚本已合并回 `0001_init.sql`**（2026-10-22）。此前没有正式部署过，因此把 `storage/{sqlite,postgres}/migrations/` 下后来新增的 `0002_unique_mybooks_id.sql`（`books.mybooks_id` 唯一索引）、`0003_chat_memory.sql`（会话记忆三列，`0001_init.sql` 里本已有）、`0004_chat_tool_results.sql`（`chat_messages.tool_results`）全部合并进各自的 `0001_init.sql`，两个后端各只剩一个迁移文件；`migrator.go` 中针对 0002 的 `mybooks_id` 重复值预检（及唯一对应测试）随之删除，`schema_migrations` 记录机制保留，以后新的表结构变更再新增编号文件。顺带补回上一次合并时漏掉的 Postgres `chunks.content_tsv` 生成列 + GIN 索引（`BookService.KeywordSearch` 依赖它）。已用全新 SQLite 文件与临时 Postgres 16 容器分别验证：建表、唯一索引、`tool_results` 列、`schema_migrations` 记录、全文检索查询均正常。
+
 ## 功能缺口
 
 - [x] **书籍重建接口已实现**（2026-08-05）——见下一条"批量书籍操作"，`POST /books/{id}/rebuild` 是与批量重建一起实现的。
@@ -28,7 +30,7 @@
 
 ## 已知的可扩展性限制
 
-- [x] **混合检索的 BM25 关键词侧扩展性问题已解决（仅 Postgres 后端）**（2026-08-05）。`chunks` 表新增 `content_tsv tsvector` 生成列 + GIN 索引（`storage/postgres/migrations/0004_chunk_keyword_search.sql`，Postgres 自动维护，Core API 写入路径不用改代码），新增只读接口 `CoreApiService.KeywordSearch`（最初实现为 HTTP `POST /internal/search/keyword`，同日晚些时候随全面 gRPC 迁移改为 gRPC RPC，仅 postgres 后端可用，sqlite 返回 `NOT_FOUND`），`worker/src/pipelines/retrieval.py` 的 `RetrievalPipeline` 在 `storage.database == postgres` 时改为调用该接口（失败自动回退到原 BM25 逻辑），sqlite 后端行为不变（定位为小规模验证/试用场景，不做这个优化）。**明确决定：这次只给 Worker 加了只读查询能力，没有让 Worker 直连数据库写库**——"Worker 只算、Core API 统一持久化"这条架构原则的核心理由是避免同一套写入逻辑在 Go/Python 两边维护两份，这个理由与数据库并发能力无关，Postgres 解决不了"两套代码要保持同步"的问题，所以即使 Postgres 并发写入能力更强，也没有让 Worker 绕过 Core API 直接写 `chapters`/`chunks`/`tasks`。受限于本机没有可用的 Postgres/Docker 环境，未做真实 GIN 索引查询的端到端验证。详见 `mynexus_keyword_search_gin` memory 与系统设计文档 §3.4。
+- [x] **混合检索的 BM25 关键词侧扩展性问题已解决（仅 Postgres 后端）**（2026-08-05）。`chunks` 表新增 `content_tsv tsvector` 生成列 + GIN 索引（现已并入 `storage/postgres/migrations/0001_init.sql`，Postgres 自动维护，Core API 写入路径不用改代码），新增只读接口 `CoreApiService.KeywordSearch`（最初实现为 HTTP `POST /internal/search/keyword`，同日晚些时候随全面 gRPC 迁移改为 gRPC RPC，仅 postgres 后端可用，sqlite 返回 `NOT_FOUND`），`worker/src/pipelines/retrieval.py` 的 `RetrievalPipeline` 在 `storage.database == postgres` 时改为调用该接口（失败自动回退到原 BM25 逻辑），sqlite 后端行为不变（定位为小规模验证/试用场景，不做这个优化）。**明确决定：这次只给 Worker 加了只读查询能力，没有让 Worker 直连数据库写库**——"Worker 只算、Core API 统一持久化"这条架构原则的核心理由是避免同一套写入逻辑在 Go/Python 两边维护两份，这个理由与数据库并发能力无关，Postgres 解决不了"两套代码要保持同步"的问题，所以即使 Postgres 并发写入能力更强，也没有让 Worker 绕过 Core API 直接写 `chapters`/`chunks`/`tasks`。受限于本机没有可用的 Postgres/Docker 环境，未做真实 GIN 索引查询的端到端验证。详见 `mynexus_keyword_search_gin` memory 与系统设计文档 §3.4。
 - [ ] **分块/Token 计数为字符数近似**，非真实分词器（无 tiktoken 依赖），对中文场景影响较小，对英文文本会高估 token 数量。
 - [x] **BM25 的中文分词已从简单正则改为 jieba**（2026-08-05）。`worker/src/pipelines/retrieval.py` 的 `_tokenize` 原先每个汉字视为一个 token（`_TOKEN_RE`），现在用 `jieba.lcut` 按词切分，BM25 的词频统计能反映真实词语而不是单字，提升中文关键词检索相关性；只过滤掉不含任何"词字符"的纯标点/空白 token，其余不变。`jieba.setLogLevel`/`jieba.initialize()` 在模块导入时调用，把首次建词典树（约 1s）的开销放在 Worker 启动阶段而不是第一次搜索请求上。仅影响 SQLite 后端的现场建索引路径（见上一条 Postgres/GIN 已单独解决），已加入 `worker/requirements.txt`（`jieba>=0.42`）。
 

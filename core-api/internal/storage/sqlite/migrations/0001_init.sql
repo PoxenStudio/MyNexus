@@ -1,5 +1,9 @@
--- Initial schema — consolidates 0001 through 0016 into one file.
+-- Initial schema — the single migration file describing the complete current
+-- schema. There has been no production deployment yet, so every later
+-- migration (unique mybooks index, chat memory columns, chat tool results)
+-- is folded in here instead of being kept as a separate numbered file.
 -- Dev-only: rebuild data/mynexus.db from scratch on each startup.
+-- Mirrors storage/postgres/migrations/0001_init.sql (TIMESTAMP -> DATETIME).
 
 CREATE TABLE IF NOT EXISTS users (
     id             TEXT PRIMARY KEY,
@@ -49,6 +53,11 @@ CREATE TABLE IF NOT EXISTS books (
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+-- One MyBooks book maps to at most one local book (nullable: manual uploads
+-- have no mybooks_id).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_books_mybooks_id_unique
+    ON books(mybooks_id)
+    WHERE mybooks_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS chapters (
     id          TEXT PRIMARY KEY,
@@ -154,11 +163,12 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (
-    id         TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    role       TEXT NOT NULL,
-    content    TEXT NOT NULL,
-    citations  TEXT DEFAULT '[]',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role         TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    citations    TEXT DEFAULT '[]',
+    tool_results TEXT NOT NULL DEFAULT '[]',
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);

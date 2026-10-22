@@ -14,12 +14,15 @@ import (
 // upgrade behavior — and the schema-check-on-connect requirement — is
 // identical regardless of which database is configured.
 //
-// Recording applied filenames (rather than re-running every file's full
-// contents on every startup, as the original single-file migration did) is
-// what makes it safe to ship a future migration with a real ALTER TABLE:
-// idempotent "CREATE ... IF NOT EXISTS" statements tolerate re-execution,
-// ALTER TABLE ADD COLUMN does not. New schema changes should be added as a
-// new numbered file (e.g. 0002_*.sql), not edits to an already-shipped one.
+// Today each backend only ships 0001_init.sql, which describes the complete
+// schema — no production deployment exists yet, so later migrations were
+// folded into it rather than kept as separate files. Recording applied
+// filenames (rather than re-running every file's full contents on every
+// startup, as the original single-file migration did) is what makes it safe
+// to ship a future migration with a real ALTER TABLE: idempotent
+// "CREATE ... IF NOT EXISTS" statements tolerate re-execution, ALTER TABLE ADD
+// COLUMN does not. From now on, new schema changes should be added as a new
+// numbered file (e.g. 0002_*.sql), not edits to 0001_init.sql.
 //
 // ALTER TABLE errors that signal the desired state already exists (duplicate
 // column / table) are treated as success so the migration file can still be
@@ -54,12 +57,6 @@ func RunMigrations(db *sql.DB, fsys embed.FS, dir string) error {
 			continue
 		}
 
-		if name == "0002_unique_mybooks_id.sql" {
-			if err := checkMyBooksIDDuplicates(db); err != nil {
-				return fmt.Errorf("apply migration %s: %w", name, err)
-			}
-		}
-
 		script, err := fsys.ReadFile(dir + "/" + name)
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", name, err)
@@ -68,36 +65,6 @@ func RunMigrations(db *sql.DB, fsys embed.FS, dir string) error {
 		if err := applyMigration(db, name, string(script)); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func checkMyBooksIDDuplicates(db *sql.DB) error {
-	rows, err := db.Query(
-		`SELECT mybooks_id, COUNT(*) FROM books
-		 WHERE mybooks_id IS NOT NULL
-		 GROUP BY mybooks_id HAVING COUNT(*) > 1
-		 ORDER BY mybooks_id`,
-	)
-	if err != nil {
-		return fmt.Errorf("check duplicate mybooks_id values: %w", err)
-	}
-	defer rows.Close()
-
-	var duplicates []string
-	for rows.Next() {
-		var id int64
-		var count int
-		if err := rows.Scan(&id, &count); err != nil {
-			return fmt.Errorf("read duplicate mybooks_id values: %w", err)
-		}
-		duplicates = append(duplicates, fmt.Sprintf("%d (%d books)", id, count))
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("read duplicate mybooks_id values: %w", err)
-	}
-	if len(duplicates) > 0 {
-		return fmt.Errorf("duplicate mybooks_id values require manual resolution before migration: %s", strings.Join(duplicates, ", "))
 	}
 	return nil
 }
