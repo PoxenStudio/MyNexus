@@ -303,6 +303,8 @@
     "slidingWindowSizeHint": "每次问答发给模型的最近对话条数，更早的对话不进入模型；0 表示不限制。默认 8。",
     "memoryEnabled": "长期记忆摘要",
     "memoryEnabledHint": "开启后，滑出记忆窗口的旧对话会增量压缩为长期摘要注入后续问答；关闭后仅保留滑动窗口。",
+    "returnCitations": "返回引用信息",
+    "returnCitationsHint": "开启后，会话回答会附带引用卡片（来源书籍/章节与原文片段）；关闭后不再返回引用。默认关闭。",
     "maxKeywords": "内容关键词数量上限",
     "maxKeywordsHint": "书籍详情页词云展示的内容关键词数量上限，修改后已总结过的书籍立即按新上限展示，无需重新总结。",
     "skipBackmatterChapters": "生成章节总结时跳过书后参考书目及索引章节",

@@ -381,6 +381,11 @@ onMounted(load);
           {{ t("settings.memoryEnabled") }}
         </label>
         <p class="hint">{{ t("settings.memoryEnabledHint") }}</p>
+        <label class="checkbox-row">
+          <input v-model="settings.chat.return_citations" type="checkbox" />
+          {{ t("settings.returnCitations") }}
+        </label>
+        <p class="hint">{{ t("settings.returnCitationsHint") }}</p>
         <label>
           {{ t("settings.maxKeywords") }}
           <input v-model.number="settings.keyword.max_keywords" type="number" min="1" max="500" />

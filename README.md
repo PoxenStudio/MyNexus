@@ -207,6 +207,18 @@ python3 -m src.nodes.splitters.token_splitter --input chapter.txt
 
 具体参数见各模块内的 `argparse` 定义。
 
+### Embedding 诊断脚本
+
+需要检查 embedding 模型、向量库、分块覆盖率或召回效果时，可直接运行诊断脚本：
+
+```bash
+python3 scripts/embedding_info.py
+python3 scripts/book_embedding_info.py <book-id> --chapters
+python3 scripts/embedding_recall_test.py --samples 20
+```
+
+说明和完整参数见 [`scripts/README.md`](scripts/README.md)。
+
 ## 关键词提取维护（TF-IDF / POS 过滤 / 停用词）
 
 书籍/章节关键词由 `worker/src/util/keywords.py` 从章节原始正文（非 LLM 摘要）提取，中英文各走一条独立路径：

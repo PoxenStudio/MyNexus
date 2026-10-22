@@ -89,6 +89,7 @@ export interface SystemSettings {
     max_sessions: number;
     sliding_window_size: number;
     memory_enabled: boolean;
+    return_citations: boolean;
   };
   keyword: {
     max_keywords: number;

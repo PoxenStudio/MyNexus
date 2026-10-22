@@ -61,6 +61,14 @@ function citationChapterTitle(c: chatApi.Citation): string {
 
 const CITED_RE = /\[(\d+)\]/g;
 
+function stripCitationMarkers(m: { content: string }) {
+  m.content = m.content
+    .replace(/^[\s\u3000]*\[\d+\](?:\s*\[\d+\])*\s*$/gm, "")
+    .replace(CITED_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+}
+
 function finalizeAssistantMessage(m: { role: string; content: string; citations?: chatApi.Citation[] }) {
   if (m.role !== "assistant" || !m.citations?.length) return;
   const seen = new Map<string, number>();
@@ -167,6 +175,8 @@ async function onSend() {
         }
       },
     );
+    const last = messages.value[messages.value.length - 1];
+    if (last.role === "assistant" && !last.citations?.length) stripCitationMarkers(last);
     if (!activeSessionId.value && sessionId) {
       activeSessionId.value = sessionId;
     }

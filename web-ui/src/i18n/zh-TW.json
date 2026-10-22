@@ -303,6 +303,8 @@
     "slidingWindowSizeHint": "每次問答送給模型的最近對話筆數，更早的對話不進入模型；0 表示不限製。預設 8。",
     "memoryEnabled": "長期記憶摘要",
     "memoryEnabledHint": "開啟後，滑出記憶視窗的舊對話會增量壓縮為長期摘要注入後續問答；關閉後僅保留滑動視窗。",
+    "returnCitations": "回傳引用資訊",
+    "returnCitationsHint": "開啟後，會話回答會附帶引用卡片（來源書籍/章節與原文片段）；關閉後不再回傳引用。預設關閉。",
     "maxKeywords": "內容關鍵詞數量上限",
     "maxKeywordsHint": "書籍詳情頁詞雲展示的內容關鍵詞數量上限，修改後已總結過的書籍立即按新上限展示，無需重新總結。",
     "skipBackmatterChapters": "生成章節總結時跳過書後參考書目及索引章節",

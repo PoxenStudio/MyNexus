@@ -59,6 +59,7 @@ chat:
   max_sessions: 100
   sliding_window_size: 8
   memory_enabled: true
+  return_citations: false
 keyword:
   max_keywords: 50
 retrieval:

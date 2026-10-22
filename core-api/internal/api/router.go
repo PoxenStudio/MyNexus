@@ -52,7 +52,7 @@ func NewRouter(cfg config.Config, store storage.Database, workerClient *coordina
 	books := handler.NewBookHandler(cfg, bookSvc, taskSvc, workerClient, dispatcher, auditSvc)
 	tasks := handler.NewTaskHandler(cfg, taskSvc, bookSvc, workerClient, dispatcher, auditSvc)
 	search := handler.NewSearchHandler(bookSvc, workerClient)
-	chat := handler.NewChatHandler(chatSvc, workerClient, cfg.Chat.MaxSessions, cfg.Chat.SlidingWindowSize)
+	chat := handler.NewChatHandler(chatSvc, workerClient, &cfg)
 	tokens := handler.NewTokenHandler(tokenSvc, auditSvc)
 	authH := handler.NewAuthHandler(userSvc, sessions, auditSvc, cfg.Storage.UploadDir)
 	auditH := handler.NewAuditHandler(auditSvc)

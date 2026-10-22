@@ -303,6 +303,8 @@
     "slidingWindowSizeHint": "Number of most recent messages sent to the model on each turn; older ones are excluded. 0 means no limit. Default 8.",
     "memoryEnabled": "Long-term memory summary",
     "memoryEnabledHint": "When enabled, messages that leave the memory window are incrementally compressed into a long-term summary injected into later turns; when disabled, only the sliding window is kept.",
+    "returnCitations": "Return citations",
+    "returnCitationsHint": "When enabled, chat answers include citation cards (source book/chapter and snippet); when disabled, citations are not returned. Off by default.",
     "maxKeywords": "Max content keywords",
     "maxKeywordsHint": "Upper bound on the content-keyword cloud shown on a book's detail page. Changing this applies immediately to already-summarized books — no re-summarizing needed.",
     "skipBackmatterChapters": "Skip bibliography/index chapters when generating chapter summaries",

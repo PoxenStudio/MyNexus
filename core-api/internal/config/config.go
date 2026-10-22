@@ -145,6 +145,9 @@ type ChatConfig struct {
 	// MemoryEnabled 是 Worker 侧长期记忆摘要开关，Core API 不读取，
 	// 仅为 config.yaml 全量写回而保留。
 	MemoryEnabled bool `yaml:"memory_enabled" json:"memory_enabled"`
+	// ReturnCitations 控制会话回答是否返回引用信息（SSE 引用帧、落库与历史接口），
+	// 默认关闭；关闭后仍会内部计算引用用于会话命名。
+	ReturnCitations bool `yaml:"return_citations" json:"return_citations"`
 }
 
 // DebugConfig is Worker-side only (Core API never reads it, same round-trip-

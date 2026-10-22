@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"mynexus/core-api/internal/api/dto"
+	"mynexus/core-api/internal/config"
 	"mynexus/core-api/internal/coordinator"
 	"mynexus/core-api/internal/service"
 )
@@ -26,10 +27,24 @@ type ChatHandler struct {
 	// ChatService.EnforceSessionLimit.
 	maxSessions       int
 	slidingWindowSize int
+	cfg               *config.Config
 }
 
-func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient, maxSessions, slidingWindowSize int) *ChatHandler {
-	return &ChatHandler{chats: chats, worker: worker, maxSessions: maxSessions, slidingWindowSize: slidingWindowSize}
+func NewChatHandler(chats *service.ChatService, worker *coordinator.WorkerClient, cfg *config.Config) *ChatHandler {
+	return &ChatHandler{
+		chats: chats, worker: worker,
+		maxSessions: cfg.Chat.MaxSessions, slidingWindowSize: cfg.Chat.SlidingWindowSize, cfg: cfg,
+	}
+}
+
+// citationsEnabled re-reads config.yaml each call so the system settings
+// toggle applies to the next message without restarting Core API.
+func (h *ChatHandler) citationsEnabled() bool {
+	cfg, err := config.LoadFromFile()
+	if err != nil {
+		return h.cfg.Chat.ReturnCitations
+	}
+	return cfg.Chat.ReturnCitations
 }
 
 // sseEvent is the same wire shape the browser has always received (see
@@ -136,7 +151,9 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	c.Status(http.StatusOK)
 
 	var answer strings.Builder
+	var streamCitations []dto.CitationResponse
 	citationsJSON := "[]"
+	returnCitations := h.citationsEnabled()
 	toolResults := make([]dto.ToolResultResponse, 0)
 
 	for {
@@ -179,17 +196,18 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 			}{Content: event.Delta}}}
 		}
 		if event.Citations != nil {
-			citations := make([]dto.CitationResponse, 0, len(event.Citations))
+			streamCitations = make([]dto.CitationResponse, 0, len(event.Citations))
 			for _, cit := range event.Citations {
-				citations = append(citations, dto.CitationResponse{
+				streamCitations = append(streamCitations, dto.CitationResponse{
 					ChunkID: cit.ChunkID, ChapterID: cit.ChapterID, BookID: cit.BookID,
 					Score: cit.Score, Content: cit.Content,
 					StartOffset: cit.StartOffset, EndOffset: cit.EndOffset,
 				})
 			}
-			citationsBytes, _ := json.Marshal(citations)
-			citationsJSON = string(citationsBytes)
-			frame.Citations = json.RawMessage(citationsBytes)
+			if returnCitations {
+				citationsBytes, _ := json.Marshal(streamCitations)
+				frame.Citations = json.RawMessage(citationsBytes)
+			}
 		}
 
 		payload, _ := json.Marshal(frame)
@@ -199,13 +217,16 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	fmt.Fprint(c.Writer, "data: [DONE]\n\n")
 	c.Writer.Flush()
 
-	var savedCitations []dto.CitationResponse
-	_ = json.Unmarshal([]byte(citationsJSON), &savedCitations)
-	finalAnswer, finalCitations := finalizeCitations(answer.String(), savedCitations)
-	finalCitationsBytes, _ := json.Marshal(finalCitations)
-	citationsJSON = string(finalCitationsBytes)
+	finalAnswer, finalCitations := finalizeCitations(answer.String(), streamCitations)
+	if returnCitations {
+		finalCitationsBytes, _ := json.Marshal(finalCitations)
+		citationsJSON = string(finalCitationsBytes)
+	} else {
+		finalAnswer = stripCitationMarkers(finalAnswer)
+	}
 	toolResultsBytes, _ := json.Marshal(toolResults)
-	fmt.Printf("[chat] session=%s tool_results=%d\n", sessionID, len(toolResults))
+	fmt.Printf("[chat] session=%s tool_results=%d citations=%d return_citations=%t\n",
+		sessionID, len(toolResults), len(finalCitations), returnCitations)
 
 	_ = h.chats.AppendMessage(sessionID, "assistant", finalAnswer, citationsJSON, string(toolResultsBytes))
 	_ = h.chats.TouchSession(sessionID)
@@ -265,8 +286,14 @@ func (h *ChatHandler) GetSession(c *gin.Context) {
 		return
 	}
 	items := make([]dto.ChatMessageResponse, 0, len(messages))
+	returnCitations := h.citationsEnabled()
 	for _, m := range messages {
-		items = append(items, dto.NewChatMessageResponse(m))
+		item := dto.NewChatMessageResponse(m)
+		if !returnCitations {
+			item.Citations = json.RawMessage("[]")
+			item.Content = stripCitationMarkers(item.Content)
+		}
+		items = append(items, item)
 	}
 	c.JSON(http.StatusOK, dto.ChatSessionDetailResponse{
 		ChatSessionResponse: dto.NewChatSessionResponse(*session), Messages: items,
@@ -306,6 +333,14 @@ func (h *ChatHandler) DeleteSession(c *gin.Context) {
 
 var citedIndexRE = regexp.MustCompile(`\[(\d+)\]`)
 var trailingCiteLineRE = regexp.MustCompile("(?m)^[\\s\u3000]*\\[\\d+\\](?:\\s*\\[\\d+\\])*\\s*$")
+
+func stripCitationMarkers(answer string) string {
+	answer = trailingCiteLineRE.ReplaceAllString(answer, "")
+	answer = citedIndexRE.ReplaceAllString(answer, "")
+	answer = regexp.MustCompile(`(?m)^[ \t\u3000]+$`).ReplaceAllString(answer, "")
+	answer = regexp.MustCompile(`\n{3,}`).ReplaceAllString(answer, "\n\n")
+	return strings.TrimRight(answer, "\n \u3000")
+}
 
 func finalizeCitations(answer string, citations []dto.CitationResponse) (string, []dto.CitationResponse) {
 	matches := citedIndexRE.FindAllStringSubmatchIndex(answer, -1)
