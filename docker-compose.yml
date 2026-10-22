@@ -2,12 +2,14 @@ services:
   mynexus:
     image: poxenstudio/mynexus:latest
     ports:
-      - "${MYNEXUS_PORT:-3000}:80"
+      - "${MYNEXUS_PORT:-3000}:8081"
     volumes:
       - ${MYNEXUS_DATA_DIR:-./data}:/data
       - ${MYNEXUS_CONFIG_DIR:-./config-runtime}:/config
     environment:
       MYNEXUS_CONFIG_PATH: /config/config.yaml
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       MYNEXUS_API_TOKEN: ${MYNEXUS_API_TOKEN:-}
       MYNEXUS_LLM_PROVIDER: openai
       MYNEXUS_LLM_OPENAI_API_KEY: ${MYNEXUS_LLM_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}

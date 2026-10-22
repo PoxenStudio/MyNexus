@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+ARG BASE_IMAGE=docker.1ms.run/poxenstudio/mynexus_base:latest
+
+FROM ${BASE_IMAGE}
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="mynexus-worker" \
@@ -8,19 +10,10 @@ LABEL org.opencontainers.image.title="mynexus-worker" \
       org.opencontainers.image.version="${VERSION}" \
       maintainer="poxenstudio <poxenstudio@gmail.com>"
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends tzdata \
-    && rm -rf /var/lib/apt/lists/*
-
-ENV TZ=Asia/Shanghai \
-    LANG=C.UTF-8 \
-    PUID=1000 \
-    PGID=1000 \
-    NLTK_DATA=/usr/share/nltk_data
+ENV PUID=1000 \
+    PGID=1000
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 # Bundled font for util/cover_generator.py's title-based fallback cover —
 # baked in so cover generation works out of the box with no deploy-time
 # step; a deployer can still override it by dropping a font at

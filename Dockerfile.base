@@ -14,13 +14,13 @@ ENV TZ=Asia/Shanghai \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx supervisor tzdata ca-certificates \
+    && apt-get install -y --no-install-recommends nginx supervisor tzdata ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY worker/requirements.txt /app/worker/requirements.txt
 RUN pip install --no-cache-dir -r /app/worker/requirements.txt \
-    && mkdir -p "$NLTK_DATA" /usr/share/models /data /config /run/nginx
+    && mkdir -p "$NLTK_DATA" /usr/share/models /data /config /run/nginx /var/cache/nginx
 
 COPY docker/data/nltk/ /usr/share/nltk_data/
 COPY docker/data/models/ /usr/share/models/

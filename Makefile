@@ -29,7 +29,6 @@ build-base:
 # ---- single-arch local build (docker build, loaded into local docker) ----
 build-image: build-base
 	docker build --platform=$(PLATFORM) --build-arg VERSION=$(VER) \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) .
 
 # ---- multi-arch base and app images (published to the configured registry) ----

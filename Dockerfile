@@ -28,7 +28,8 @@ LABEL org.opencontainers.image.title="MyNexus" \
       maintainer="poxenstudio <poxenstudio@gmail.com>"
 
 ENV MYNEXUS_CONFIG_PATH=/config/config.yaml \
-    MYNEXUS_IN_DOCKER=1
+    MYNEXUS_IN_DOCKER=1 \
+    HOME=/home/nexus
 
 WORKDIR /app
 
@@ -41,8 +42,21 @@ COPY docker/nginx.conf /etc/nginx/sites-available/default
 COPY docker/supervisord.conf /etc/supervisor/conf.d/mynexus.conf
 COPY docker/entrypoint.sh /usr/local/bin/mynexus-entrypoint
 
-RUN chmod +x /usr/local/bin/mynexus-entrypoint \
-    && mkdir -p /data /config /run/nginx
+RUN groupadd --gid 1000 nexus \
+    && useradd --uid 1000 --gid nexus --create-home --home-dir /home/nexus --shell /usr/sbin/nologin nexus \
+    && mkdir -p /home/nexus \
+    && chmod +x /usr/local/bin/mynexus-entrypoint \
+    && mkdir -p /data /config /run/nginx \
+    && sed -i \
+        -e 's|^user .*|# user www-data;|' \
+        -e 's|^pid .*|pid /run/nginx/nginx.pid;|' \
+        -e 's|^error_log .*|error_log stderr;|' \
+        -e 's|^\([[:space:]]*\)access_log .*|\1access_log off;|' \
+        /etc/nginx/nginx.conf \
+    && chown -R nexus:nexus /app /usr/share/mynexus /usr/local/bin/mynexus-entrypoint \
+    && chown -R nexus:nexus /usr/share/nginx/html /run/nginx /var/cache/nginx /var/lib/nginx
 
-EXPOSE 80
+USER root
+
+EXPOSE 8081 8443
 ENTRYPOINT ["/usr/local/bin/mynexus-entrypoint"]

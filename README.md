@@ -89,7 +89,7 @@ OPENAI_API_KEY=sk-xxx docker compose up -d
 
 ```bash
 make build-image
-docker run -d --name mynexus -p 3000:80 \
+docker run -d --name mynexus -p 3000:8081 \
   -v "$PWD/data:/data" -v "$PWD/config:/config" \
   --restart unless-stopped poxenstudio/mynexus:latest
 ```
@@ -105,6 +105,7 @@ docker run -d --name mynexus -p 3000:80 \
 | `MYNEXUS_PORT` | `3000` | 宿主机映射端口 |
 | `MYNEXUS_DATA_DIR` | `./data` | 宿主机数据目录（数据库/向量库/日志） |
 | `MYNEXUS_CONFIG_DIR` | `./config` | 宿主机配置目录 |
+| `PUID` / `PGID` | `1000` / `1000` | 容器运行账号 `nexus` 的 UID/GID，用于匹配宿主机目录权限 |
 | `MYNEXUS_API_TOKEN` | 空 | 全局静态 API Token，用于 Docker-to-Docker 集成访问系统所有接口，等同于 admin 权限 |
 
 #### Embedding（向量化）配置
