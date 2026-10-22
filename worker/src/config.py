@@ -15,8 +15,9 @@ class ProviderConfig:
 
 @dataclass
 class SplitterConfig:
-    chunk_size: int = 500
-    chunk_overlap: int = 50
+    # chunk_size/chunk_overlap 单位为字符数（中文约等于 token 数）
+    chunk_size: int = 150
+    chunk_overlap: int = 30
     strategy: str = "token"
 
 

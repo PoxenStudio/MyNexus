@@ -7,10 +7,10 @@ from typing import Callable
 from config import WorkerConfig, load_config
 from grpc_client import CoreApiClient
 from nodes.factory import get_embedder, get_llm, get_vector_store
-from nodes.splitters.token_splitter import CHARS_PER_TOKEN
 from schemas.document import Chunk
 from util.keywords import extract_keywords, filter_by_doc_frequency, merge_topk
 from util.text_split import fit_to_budget, split_into_segments
+from util.tokens import CHARS_PER_TOKEN
 
 logger = logging.getLogger(__name__)
 

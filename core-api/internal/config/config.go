@@ -230,7 +230,7 @@ func defaults() Config {
 			OpenAI:   LLMOpenAIConfig{BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini", ChapterTokenBudget: 30000},
 			Ollama:   ProviderConfig{BaseURL: "http://localhost:11434", Model: "llama3"},
 		},
-		Splitter:  SplitterConfig{ChunkSize: 500, ChunkOverlap: 50, Strategy: "token"},
+		Splitter:  SplitterConfig{ChunkSize: 150, ChunkOverlap: 30, Strategy: "token"},
 		I18n:      I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},
 		Chat:      ChatConfig{Enabled: true, MaxSessions: 100, SlidingWindowSize: 8, MemoryEnabled: true},
 		Keyword:   KeywordConfig{MaxKeywords: 50},

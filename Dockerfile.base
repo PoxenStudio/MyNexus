@@ -11,6 +11,7 @@ LABEL org.opencontainers.image.title="MyNexus Base" \
 ENV TZ=Asia/Shanghai \
     LANG=C.UTF-8 \
     NLTK_DATA=/usr/share/nltk_data \
+    TIKTOKEN_CACHE_DIR=/usr/share/tiktoken \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
@@ -21,6 +22,9 @@ WORKDIR /app
 COPY worker/requirements.txt /app/worker/requirements.txt
 RUN pip install --no-cache-dir -r /app/worker/requirements.txt \
     && mkdir -p "$NLTK_DATA" /usr/share/models /data /config /run/nginx /var/cache/nginx
+
+RUN mkdir -p "$TIKTOKEN_CACHE_DIR" \
+    && python -c "import tiktoken; tiktoken.get_encoding('o200k_base'); tiktoken.get_encoding('cl100k_base')"
 
 COPY docker/data/nltk/ /usr/share/nltk_data/
 COPY docker/data/models/ /usr/share/models/

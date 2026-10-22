@@ -1,20 +1,17 @@
+import logging
 import uuid
 
 from nodes.splitters.base_splitter import BaseSplitter
 from schemas.document import Chunk, ParsedChapter
+from util.tokens import count_tokens
 
-# No tokenizer dependency (keeps the worker image small for NAS deployment,
-# see docs/系统设计文档.md §3.4) — chars are used as a token-count approximation.
-# CJK text runs close to 1 char ~= 1 token; English is closer to 4 chars ~= 1
-# token, so this over-counts English token totals. Good enough for chunk
-# sizing; swap in a real tokenizer here if precise counts matter later.
-CHARS_PER_TOKEN = 1.0
+logger = logging.getLogger(__name__)
 
 
 class TokenSplitter(BaseSplitter):
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 50) -> None:
-        self.chunk_size_chars = max(int(chunk_size * CHARS_PER_TOKEN), 1)
-        self.chunk_overlap_chars = max(int(chunk_overlap * CHARS_PER_TOKEN), 0)
+    def __init__(self, chunk_size: int = 150, chunk_overlap: int = 30) -> None:
+        self.chunk_size_chars = max(int(chunk_size), 1)
+        self.chunk_overlap_chars = max(int(chunk_overlap), 0)
 
     @property
     def node_name(self) -> str:
@@ -43,7 +40,7 @@ class TokenSplitter(BaseSplitter):
                             chapter_id=chapter.id,
                             content=piece,
                             position=position,
-                            token_count=len(piece),
+                            token_count=count_tokens(piece),
                             start_offset=start + lead,
                             end_offset=start + len(raw) - trail,
                         )
@@ -51,6 +48,14 @@ class TokenSplitter(BaseSplitter):
                     position += 1
                 start += step
 
+        logger.info(
+            "split done: chapters=%d chunks=%d chunk_size_chars=%d chunk_overlap_chars=%d avg_tokens=%.1f",
+            len(chapters),
+            len(chunks),
+            self.chunk_size_chars,
+            self.chunk_overlap_chars,
+            (sum(c.token_count for c in chunks) / len(chunks)) if chunks else 0.0,
+        )
         return chunks
 
 
@@ -63,8 +68,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Parse+clean a file, then split it and print chunk stats.")
     parser.add_argument("file_path")
-    parser.add_argument("--chunk-size", type=int, default=500)
-    parser.add_argument("--chunk-overlap", type=int, default=50)
+    parser.add_argument("--chunk-size", type=int, default=150)
+    parser.add_argument("--chunk-overlap", type=int, default=30)
     args = parser.parse_args()
 
     document = IngestionPipeline().parse_and_clean(args.file_path)
@@ -72,4 +77,4 @@ if __name__ == "__main__":
     result = splitter.process("cli-book", document.chapters)
     print(f"chapters={len(document.chapters)} chunks={len(result)}")
     for c in result[:5]:
-        print(f"  [{c.position}] chapter={c.chapter_id} tokens~{c.token_count} {c.content[:40]!r}...")
+        print(f"  [{c.position}] chapter={c.chapter_id} chars={len(c.content)} tokens={c.token_count} {c.content[:40]!r}...")

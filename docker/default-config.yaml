@@ -45,8 +45,8 @@ llm:
     base_url: http://localhost:11434
     model: llama3
 splitter:
-  chunk_size: 500
-  chunk_overlap: 50
+  chunk_size: 150
+  chunk_overlap: 30
   strategy: token
 i18n:
   default_locale: zh-CN

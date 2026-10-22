@@ -14,3 +14,4 @@ fastembed>=0.2
 Pillow>=10.0
 fonttools>=4.50
 markdown-it-py==4.2.0
+tiktoken>=0.9.0,<1.0
