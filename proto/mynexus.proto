@@ -525,6 +525,9 @@ message LibraryStatsResponse {
 
 message BookInfoRequest {
   string query = 1;
+  // 精确查询：非空时忽略 query，直接返回该书（含章节目录），
+  // 供 Worker 用已知 book_id 解析阅读位置对应的章节。
+  string book_id = 2;
 }
 
 message ChapterContentRequest {

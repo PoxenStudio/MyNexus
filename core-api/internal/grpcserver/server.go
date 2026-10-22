@@ -451,9 +451,20 @@ func (s *CoreAPIServer) GetChapterContent(ctx context.Context, req *mynexuspb.Ch
 // 什么"/"作者是谁" style questions directly instead of falling back to
 // chunk-level RAG retrieval for what's structurally a lookup.
 func (s *CoreAPIServer) GetBookInfo(ctx context.Context, req *mynexuspb.BookInfoRequest) (*mynexuspb.BookInfoResponse, error) {
-	books, _, err := s.books.ListBooks(1, bookInfoMatchLimit, "", req.Query)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+	var books []models.Book
+	if req.BookId != "" {
+		book, err := s.books.GetBook(req.BookId)
+		if err != nil {
+			log.Printf("[grpc] GetBookInfo by id failed: book_id=%s err=%v", req.BookId, err)
+			return &mynexuspb.BookInfoResponse{}, nil
+		}
+		books = []models.Book{*book}
+	} else {
+		var err error
+		books, _, err = s.books.ListBooks(1, bookInfoMatchLimit, "", req.Query)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "%v", err)
+		}
 	}
 
 	items := make([]*mynexuspb.BookInfo, 0, len(books))

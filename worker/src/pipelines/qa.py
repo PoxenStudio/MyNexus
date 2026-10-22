@@ -5,7 +5,7 @@ from typing import Iterator
 
 from config import WorkerConfig, load_config
 from nodes.factory import get_llm
-from pipelines import chat_memory
+from pipelines import chat_memory, reading_context
 from pipelines.fulltext import confirm_in_chapters
 from pipelines.retrieval import RetrievalPipeline
 from skills.catalog import builtin_skill_tools
@@ -61,6 +61,7 @@ _ANSWER_RULES = (
 _SYSTEM_PROMPT_TEMPLATE = (
     "你是一个书籍知识库问答助手。下面提供了与问题相关的参考材料，请据此回答用户问题。\n"
     + _ANSWER_RULES
+    + "{reading}"
     + "\n参考材料：\n{context}"
 )
 
@@ -147,15 +148,17 @@ class QAPipeline:
         memory_message_count: int = 0,
         older_messages: list[dict] | None = None,
     ) -> Iterator[dict]:
-        messages, reading_context = _strip_message_contexts(messages)
-        reading = reading_context.get("reading") or {}
-        selection = reading_context.get("selection") or {}
+        messages, message_context = _strip_message_contexts(messages)
+        reading = message_context.get("reading") or {}
+        selection = message_context.get("selection") or {}
         logger.info(
             "reading context: book=%s chapter=%s href=%s section=%s fraction=%s page=%s selection_len=%d",
             reading.get("book_title", ""), reading.get("chapter_title", ""),
             reading.get("chapter_href", ""), reading.get("section_index"),
             reading.get("progress_fraction"), reading.get("page"), len(selection.get("text", "")),
         )
+        chapter = reading_context.resolve_chapter(self.retrieval.core_api, book_ids, reading)
+        reading_section = reading_context.build_reading_section(reading, selection, chapter)
         window = self.config.chat_history_window
         if window and len(messages) > window:
             logger.info("chat history defensive truncation: %d -> %d", len(messages), window)
@@ -192,18 +195,39 @@ class QAPipeline:
         forced_tool = (
             "generate_mindmap" if wants_mindmap(messages[-1]["content"] if messages else "") else None
         )
+        forced_arguments: dict | None = None
+        question = messages[-1]["content"] if messages else ""
+        if (
+            not forced_tool
+            and chapter
+            and reading_context.wants_chapter_summary(question)
+        ):
+            # 章节总结类问题不交给决策模型挑工具：位置已明确，直接读这一章。
+            forced_tool = "read_chapter"
+            forced_arguments = {
+                "book_id": chapter["book_id"],
+                "chapter_id": chapter["chapter_id"],
+            }
+            logger.info(
+                "chapter intent detected, forcing read_chapter chapter=%s title=%s",
+                chapter["chapter_id"], chapter["title"],
+            )
         if forced_tool:
-            logger.info("mindmap requested by user message, forcing %s", forced_tool)
+            logger.info("forced tool for this turn: %s", forced_tool)
 
         for _ in range(self.config.chat_max_tool_rounds):
-            tool_call = self._decide_tool(
-                working, active_skill, book_ids, active_summary, forced_tool=forced_tool
-            )
-            if tool_call is None and forced_tool:
-                logger.warning("forced %s got no tool call, retrying once", forced_tool)
+            if forced_arguments is not None:
+                tool_call = (forced_tool, forced_arguments)
+                forced_arguments = None
+            else:
                 tool_call = self._decide_tool(
                     working, active_skill, book_ids, active_summary, forced_tool=forced_tool
                 )
+                if tool_call is None and forced_tool:
+                    logger.warning("forced %s got no tool call, retrying once", forced_tool)
+                    tool_call = self._decide_tool(
+                        working, active_skill, book_ids, active_summary, forced_tool=forced_tool
+                    )
             forced_tool = None
             if tool_call is None:
                 break
@@ -270,7 +294,7 @@ class QAPipeline:
             logger.info("mindmap emitted, streaming companion answer with %d citations", len(citations))
             yield from self._answer_from_tools(
                 messages, tool_results, citations, active_skill, mindmap=True,
-                memory_summary=active_summary,
+                memory_summary=active_summary, reading_section=reading_section,
             )
             return
 
@@ -350,7 +374,8 @@ class QAPipeline:
 
         if tool_results or active_skill:
             yield from self._answer_from_tools(
-                messages, tool_results, citations, active_skill, memory_summary=active_summary
+                messages, tool_results, citations, active_skill,
+                memory_summary=active_summary, reading_section=reading_section,
             )
             return
 
@@ -406,7 +431,9 @@ class QAPipeline:
         context = _build_plain_context(chunks, fulltext_snippets)
         system_message = {
             "role": "system",
-            "content": _SYSTEM_PROMPT_TEMPLATE.format(context=context or "（无相关片段）")
+            "content": _SYSTEM_PROMPT_TEMPLATE.format(
+                context=context or "（无相关片段）", reading=reading_section
+            )
             + _memory_section(active_summary),
         }
         llm_messages = [system_message] + messages
@@ -536,6 +563,7 @@ class QAPipeline:
         active_skill: dict | None = None,
         mindmap: bool = False,
         memory_summary: str = "",
+        reading_section: str = "",
     ) -> Iterator[dict]:
         """Streams the final answer from accumulated tool results (single- or multi-round)."""
         context = "\n\n".join(
@@ -566,6 +594,7 @@ class QAPipeline:
                 "请据此直接回答用户问题，不需要标注引用编号；"
                 "如果用户问的是总结类问题，可以直接引用其中的总结/摘要内容作答。\n"
                 + _ANSWER_RULES
+                + reading_section
                 + "\n工具数据：\n"
                 + context
                 + skill_instructions

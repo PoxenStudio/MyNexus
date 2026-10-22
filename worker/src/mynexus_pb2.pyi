@@ -527,10 +527,12 @@ class LibraryStatsResponse(_message.Message):
     def __init__(self, total_books: _Optional[int] = ..., by_status: _Optional[_Iterable[_Union[BookStatusCount, _Mapping]]] = ...) -> None: ...
 
 class BookInfoRequest(_message.Message):
-    __slots__ = ("query",)
+    __slots__ = ("query", "book_id")
     QUERY_FIELD_NUMBER: _ClassVar[int]
+    BOOK_ID_FIELD_NUMBER: _ClassVar[int]
     query: str
-    def __init__(self, query: _Optional[str] = ...) -> None: ...
+    book_id: str
+    def __init__(self, query: _Optional[str] = ..., book_id: _Optional[str] = ...) -> None: ...
 
 class ChapterContentRequest(_message.Message):
     __slots__ = ("book_id", "chapter_id")

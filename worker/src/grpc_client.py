@@ -215,8 +215,18 @@ class CoreApiClient:
         Returns None on any RPC error — the tool then reports it couldn't
         fetch the info rather than raising and aborting the whole chat
         turn."""
+        return self._get_book_info(mynexus_pb2.BookInfoRequest(query=query))
+
+    def get_book_info_by_id(self, book_id: str) -> list[dict] | None:
+        """按 book_id 精确取目录，供阅读位置解析使用（非 LLM 工具）。
+        失败返回 None，避免影响问答主流程。"""
+        if not book_id:
+            return None
+        return self._get_book_info(mynexus_pb2.BookInfoRequest(book_id=book_id))
+
+    def _get_book_info(self, request) -> list[dict] | None:
         try:
-            resp = self._stub.GetBookInfo(mynexus_pb2.BookInfoRequest(query=query), timeout=10)
+            resp = self._stub.GetBookInfo(request, timeout=10)
         except grpc.RpcError:
             return None
         return [

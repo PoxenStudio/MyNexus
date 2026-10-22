@@ -3168,8 +3168,11 @@ func (x *LibraryStatsResponse) GetByStatus() []*BookStatusCount {
 }
 
 type BookInfoRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Query string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// 精确查询：非空时忽略 query，直接返回该书（含章节目录），
+	// 供 Worker 用已知 book_id 解析阅读位置对应的章节。
+	BookId        string `protobuf:"bytes,2,opt,name=book_id,json=bookId,proto3" json:"book_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3207,6 +3210,13 @@ func (*BookInfoRequest) Descriptor() ([]byte, []int) {
 func (x *BookInfoRequest) GetQuery() string {
 	if x != nil {
 		return x.Query
+	}
+	return ""
+}
+
+func (x *BookInfoRequest) GetBookId() string {
+	if x != nil {
+		return x.BookId
 	}
 	return ""
 }
@@ -3788,9 +3798,10 @@ const file_mynexus_proto_rawDesc = "" +
 	"\x14LibraryStatsResponse\x12\x1f\n" +
 	"\vtotal_books\x18\x01 \x01(\x05R\n" +
 	"totalBooks\x125\n" +
-	"\tby_status\x18\x02 \x03(\v2\x18.mynexus.BookStatusCountR\bbyStatus\"'\n" +
+	"\tby_status\x18\x02 \x03(\v2\x18.mynexus.BookStatusCountR\bbyStatus\"@\n" +
 	"\x0fBookInfoRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\"O\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x17\n" +
+	"\abook_id\x18\x02 \x01(\tR\x06bookId\"O\n" +
 	"\x15ChapterContentRequest\x12\x17\n" +
 	"\abook_id\x18\x01 \x01(\tR\x06bookId\x12\x1d\n" +
 	"\n" +
