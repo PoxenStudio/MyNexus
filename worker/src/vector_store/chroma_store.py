@@ -1,6 +1,8 @@
 import logging
+import time
 
 import chromadb
+from chromadb.api.shared_system_client import SharedSystemClient
 from chromadb.errors import InvalidArgumentError
 
 from vector_store.base_store import BaseVectorStore
@@ -8,6 +10,9 @@ from vector_store.base_store import BaseVectorStore
 logger = logging.getLogger(__name__)
 
 _COLLECTION_NAME = "chunks"
+_OPEN_ATTEMPTS = 5
+_OPEN_BACKOFF_SECONDS = (1.0, 2.0, 4.0, 8.0)
+_TRANSIENT_HINTS = ("disk i/o error", "database is locked", "database is busy", "temporarily unavailable")
 
 
 class ChromaStore(BaseVectorStore):
@@ -21,10 +26,36 @@ class ChromaStore(BaseVectorStore):
     """
 
     def __init__(self, path: str) -> None:
-        self.client = chromadb.PersistentClient(path=path)
-        self.collection = self.client.get_or_create_collection(
-            _COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
-        )
+        self.path = path
+        self.client = None
+        self.collection = None
+        last_error: Exception | None = None
+        for attempt in range(1, _OPEN_ATTEMPTS + 1):
+            started = time.monotonic()
+            try:
+                self.client = chromadb.PersistentClient(path=path)
+                self.collection = self.client.get_or_create_collection(
+                    _COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+                )
+                logger.info(
+                    "chroma store opened: path=%s attempt=%d elapsed=%.2fs",
+                    path, attempt, time.monotonic() - started,
+                )
+                return
+            except Exception as e:
+                last_error = e
+                transient = any(hint in str(e).lower() for hint in _TRANSIENT_HINTS)
+                logger.warning(
+                    "chroma store open failed: path=%s attempt=%d/%d transient=%s error=%s: %s",
+                    path, attempt, _OPEN_ATTEMPTS, transient, type(e).__name__, e,
+                )
+                SharedSystemClient.clear_system_cache()
+                if not transient or attempt == _OPEN_ATTEMPTS:
+                    break
+                delay = _OPEN_BACKOFF_SECONDS[attempt - 1]
+                logger.info("chroma store open retry in %.1fs", delay)
+                time.sleep(delay)
+        raise RuntimeError(f"chroma store unavailable: path={path} error={last_error}") from last_error
 
     @property
     def node_name(self) -> str:
