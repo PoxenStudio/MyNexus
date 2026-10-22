@@ -35,10 +35,10 @@ embedding:
 llm:
     provider: openai
     openai:
-        api_key: sk-651ba337c70343e98ebc721d46f0d17d
+        api_key: mynexus-ThisIsAInvalidApiKeyDoNotUseIt
         base_url: https://api.deepseek.com
         model: deepseek-v4-flash
-        chapter_token_budget: 3000
+        chapter_token_budget: 30000
     ollama:
         api_key: ""
         base_url: http://localhost:11434
