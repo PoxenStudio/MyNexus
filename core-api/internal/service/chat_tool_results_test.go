@@ -26,10 +26,10 @@ func TestChatMessagesPersistToolResults(t *testing.T) {
 
 	chats := NewChatService(store.DB())
 	toolResults := `[{"tool_name":"generate_mindmap","result_json":"{\"title\":\"导图\"}"}]`
-	if err := chats.AppendMessage("session-1", "assistant", "答案", "[]", toolResults); err != nil {
+	if err := chats.AppendMessage("session-1", "assistant", "答案", "[]", toolResults, "{}"); err != nil {
 		t.Fatalf("append assistant message: %v", err)
 	}
-	if err := chats.AppendMessage("session-1", "user", "问题", "[]", "[]"); err != nil {
+	if err := chats.AppendMessage("session-1", "user", "问题", "[]", "[]", "{}"); err != nil {
 		t.Fatalf("append user message: %v", err)
 	}
 

@@ -164,13 +164,59 @@ class SearchResponse(_message.Message):
     results: _containers.RepeatedCompositeFieldContainer[SearchResult]
     def __init__(self, results: _Optional[_Iterable[_Union[SearchResult, _Mapping]]] = ...) -> None: ...
 
+class ReadingContext(_message.Message):
+    __slots__ = ("book_title", "chapter_title", "chapter_href", "section_index", "progress_fraction", "page", "cfi")
+    BOOK_TITLE_FIELD_NUMBER: _ClassVar[int]
+    CHAPTER_TITLE_FIELD_NUMBER: _ClassVar[int]
+    CHAPTER_HREF_FIELD_NUMBER: _ClassVar[int]
+    SECTION_INDEX_FIELD_NUMBER: _ClassVar[int]
+    PROGRESS_FRACTION_FIELD_NUMBER: _ClassVar[int]
+    PAGE_FIELD_NUMBER: _ClassVar[int]
+    CFI_FIELD_NUMBER: _ClassVar[int]
+    book_title: str
+    chapter_title: str
+    chapter_href: str
+    section_index: int
+    progress_fraction: float
+    page: int
+    cfi: str
+    def __init__(self, book_title: _Optional[str] = ..., chapter_title: _Optional[str] = ..., chapter_href: _Optional[str] = ..., section_index: _Optional[int] = ..., progress_fraction: _Optional[float] = ..., page: _Optional[int] = ..., cfi: _Optional[str] = ...) -> None: ...
+
+class SelectionContext(_message.Message):
+    __slots__ = ("text", "chapter_title", "chapter_href", "section_index", "page", "progress_fraction", "cfi")
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    CHAPTER_TITLE_FIELD_NUMBER: _ClassVar[int]
+    CHAPTER_HREF_FIELD_NUMBER: _ClassVar[int]
+    SECTION_INDEX_FIELD_NUMBER: _ClassVar[int]
+    PAGE_FIELD_NUMBER: _ClassVar[int]
+    PROGRESS_FRACTION_FIELD_NUMBER: _ClassVar[int]
+    CFI_FIELD_NUMBER: _ClassVar[int]
+    text: str
+    chapter_title: str
+    chapter_href: str
+    section_index: int
+    page: int
+    progress_fraction: float
+    cfi: str
+    def __init__(self, text: _Optional[str] = ..., chapter_title: _Optional[str] = ..., chapter_href: _Optional[str] = ..., section_index: _Optional[int] = ..., page: _Optional[int] = ..., progress_fraction: _Optional[float] = ..., cfi: _Optional[str] = ...) -> None: ...
+
+class MessageContext(_message.Message):
+    __slots__ = ("reading", "selection")
+    READING_FIELD_NUMBER: _ClassVar[int]
+    SELECTION_FIELD_NUMBER: _ClassVar[int]
+    reading: ReadingContext
+    selection: SelectionContext
+    def __init__(self, reading: _Optional[_Union[ReadingContext, _Mapping]] = ..., selection: _Optional[_Union[SelectionContext, _Mapping]] = ...) -> None: ...
+
 class ChatMessage(_message.Message):
-    __slots__ = ("role", "content")
+    __slots__ = ("role", "content", "context")
     ROLE_FIELD_NUMBER: _ClassVar[int]
     CONTENT_FIELD_NUMBER: _ClassVar[int]
+    CONTEXT_FIELD_NUMBER: _ClassVar[int]
     role: str
     content: str
-    def __init__(self, role: _Optional[str] = ..., content: _Optional[str] = ...) -> None: ...
+    context: MessageContext
+    def __init__(self, role: _Optional[str] = ..., content: _Optional[str] = ..., context: _Optional[_Union[MessageContext, _Mapping]] = ...) -> None: ...
 
 class ChatRequest(_message.Message):
     __slots__ = ("messages", "book_ids", "top_k", "memory_summary", "memory_message_count", "older_messages")

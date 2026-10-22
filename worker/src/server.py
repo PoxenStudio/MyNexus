@@ -26,6 +26,38 @@ from pipelines.retrieval import RetrievalPipeline
 from pipelines.summary import SummaryPipeline
 
 
+def _chat_message_dict(message) -> dict:
+    data = {"role": message.role, "content": message.content}
+    if message.HasField("context"):
+        ctx = message.context
+        payload = {}
+        if ctx.HasField("reading"):
+            r = ctx.reading
+            payload["reading"] = {
+                "book_title": r.book_title,
+                "chapter_title": r.chapter_title,
+                "chapter_href": r.chapter_href,
+                "section_index": r.section_index,
+                "progress_fraction": r.progress_fraction,
+                "page": r.page,
+                "cfi": r.cfi,
+            }
+        if ctx.HasField("selection"):
+            s = ctx.selection
+            payload["selection"] = {
+                "text": s.text,
+                "chapter_title": s.chapter_title,
+                "chapter_href": s.chapter_href,
+                "section_index": s.section_index,
+                "page": s.page,
+                "progress_fraction": s.progress_fraction,
+                "cfi": s.cfi,
+            }
+        if payload:
+            data["context"] = payload
+    return data
+
+
 class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
     def __init__(self, cfg):
         self.ingestion = IngestionPipeline(cfg)
@@ -110,7 +142,7 @@ class WorkerServicer(mynexus_pb2_grpc.WorkerServiceServicer):
     def Chat(self, request, context):
         import json as _json
 
-        messages = [{"role": m.role, "content": m.content} for m in request.messages]
+        messages = [_chat_message_dict(m) for m in request.messages]
         older_messages = [{"role": m.role, "content": m.content} for m in request.older_messages]
         book_ids = list(request.book_ids) or None
         top_k = request.top_k or 10

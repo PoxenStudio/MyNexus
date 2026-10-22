@@ -110,7 +110,8 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	}
 
 	lastUserMessage := req.Messages[len(req.Messages)-1]
-	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]", "[]")
+	contextJSON := buildContextJSON(lastUserMessage)
+	_ = h.chats.AppendMessage(sessionID, lastUserMessage.Role, lastUserMessage.Content, "[]", "[]", contextJSON)
 
 	// 历史以 DB 为可信来源装配（滑动窗口 + citations 注入 + 记忆摘要/待压缩旧消息）
 	prompt, err := h.chats.BuildChatPrompt(sessionID, h.slidingWindowSize)
@@ -124,7 +125,9 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 		if strings.Contains(m.Content, "上一轮回答参考来源：") {
 			injected++
 		}
-		messages = append(messages, coordinator.ChatMessage{Role: m.Role, Content: m.Content})
+		messages = append(messages, coordinator.ChatMessage{
+			Role: m.Role, Content: m.Content, Context: m.ContextJSON,
+		})
 	}
 	older := make([]coordinator.ChatMessage, 0, len(prompt.Older))
 	for _, m := range prompt.Older {
@@ -228,7 +231,7 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 	fmt.Printf("[chat] session=%s tool_results=%d citations=%d return_citations=%t\n",
 		sessionID, len(toolResults), len(finalCitations), returnCitations)
 
-	_ = h.chats.AppendMessage(sessionID, "assistant", finalAnswer, citationsJSON, string(toolResultsBytes))
+	_ = h.chats.AppendMessage(sessionID, "assistant", finalAnswer, citationsJSON, string(toolResultsBytes), "{}")
 	_ = h.chats.TouchSession(sessionID)
 
 	if len(req.BookIDs) == 0 && len(finalCitations) > 0 {
@@ -237,6 +240,29 @@ func (h *ChatHandler) Completions(c *gin.Context) {
 			fmt.Printf("[chat] set title from citation book failed: %v\n", err)
 		}
 	}
+}
+
+// buildContextJSON 裁剪并序列化阅读位置/选区快照。超出总量上限时先丢弃选区，
+// 仍超限则整段上下文丢弃，保证不影响普通问答。
+func buildContextJSON(msg dto.ChatMessageInput) string {
+	if msg.Context == nil || !msg.Context.Normalize() {
+		return "{}"
+	}
+	raw, err := json.Marshal(msg.Context)
+	if err != nil {
+		fmt.Printf("[chat] marshal context failed: %v\n", err)
+		return "{}"
+	}
+	if len(raw) <= 8*1024 {
+		return string(raw)
+	}
+	msg.Context.Selection = nil
+	raw, err = json.Marshal(msg.Context)
+	if err != nil || len(raw) > 8*1024 {
+		fmt.Printf("[chat] context dropped, size=%d\n", len(raw))
+		return "{}"
+	}
+	return string(raw)
 }
 
 // sessionOwnedBy reports whether sessionID exists and belongs to userID.

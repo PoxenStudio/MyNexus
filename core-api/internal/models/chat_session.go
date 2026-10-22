@@ -27,5 +27,7 @@ type ChatMessage struct {
 	// ({tool_name, result_json}, see chat_handler.go). Persisted so history
 	// reads can re-render visuals like the mindmap card.
 	ToolResults string
+	// ContextJSON 是发送该消息时的阅读位置与选区快照，assistant 消息为空。
+	ContextJSON string
 	CreatedAt   string
 }

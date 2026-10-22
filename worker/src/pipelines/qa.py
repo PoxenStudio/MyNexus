@@ -23,6 +23,22 @@ logger = logging.getLogger(__name__)
 _CITED_RE = re.compile(r"\[(\d+)\]")
 
 
+def _strip_message_contexts(messages: list[dict]) -> tuple[list[dict], dict]:
+    """提取最后一条 user 消息的阅读上下文，并返回不含 context 的消息副本。
+
+    上下文只用于本轮问答，不能透传给 LLM（OpenAI 兼容接口会拒绝未知字段）。
+    """
+    last_context: dict = {}
+    for message in reversed(messages):
+        if message.get("role") == "user" and message.get("context"):
+            last_context = message["context"]
+            break
+    cleaned = [
+        {"role": m.get("role", ""), "content": m.get("content", "")} for m in messages
+    ]
+    return cleaned, last_context
+
+
 def _extract_cited_indices(answer: str) -> set[int]:
     return {int(m.group(1)) for m in _CITED_RE.finditer(answer)}
 
@@ -131,6 +147,15 @@ class QAPipeline:
         memory_message_count: int = 0,
         older_messages: list[dict] | None = None,
     ) -> Iterator[dict]:
+        messages, reading_context = _strip_message_contexts(messages)
+        reading = reading_context.get("reading") or {}
+        selection = reading_context.get("selection") or {}
+        logger.info(
+            "reading context: book=%s chapter=%s href=%s section=%s fraction=%s page=%s selection_len=%d",
+            reading.get("book_title", ""), reading.get("chapter_title", ""),
+            reading.get("chapter_href", ""), reading.get("section_index"),
+            reading.get("progress_fraction"), reading.get("page"), len(selection.get("text", "")),
+        )
         window = self.config.chat_history_window
         if window and len(messages) > window:
             logger.info("chat history defensive truncation: %d -> %d", len(messages), window)

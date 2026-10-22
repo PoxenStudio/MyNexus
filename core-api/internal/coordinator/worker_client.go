@@ -233,6 +233,8 @@ func (c *WorkerClient) Search(req SearchRequest) ([]SearchResultRaw, error) {
 type ChatMessage struct {
 	Role    string
 	Content string
+	// Context 是 MyReader 发送时附带的阅读位置/选区 JSON 快照，可为空。
+	Context string
 }
 
 type ChatRequest struct {
@@ -315,12 +317,69 @@ func (s *ChatStream) Recv() (ChatEvent, error) {
 	}
 }
 
+type chatContextJSON struct {
+	Reading   *readingContextJSON   `json:"reading"`
+	Selection *selectionContextJSON `json:"selection"`
+}
+
+type readingContextJSON struct {
+	BookTitle        string  `json:"book_title"`
+	ChapterTitle     string  `json:"chapter_title"`
+	ChapterHref      string  `json:"chapter_href"`
+	SectionIndex     int32   `json:"section_index"`
+	ProgressFraction float64 `json:"progress_fraction"`
+	Page             int32   `json:"page"`
+	CFI              string  `json:"cfi"`
+}
+
+type selectionContextJSON struct {
+	Text             string  `json:"text"`
+	ChapterTitle     string  `json:"chapter_title"`
+	ChapterHref      string  `json:"chapter_href"`
+	SectionIndex     int32   `json:"section_index"`
+	Page             int32   `json:"page"`
+	ProgressFraction float64 `json:"progress_fraction"`
+	CFI              string  `json:"cfi"`
+}
+
+func decodeMessageContext(raw string) *mynexuspb.MessageContext {
+	if raw == "" || raw == "{}" {
+		return nil
+	}
+	var ctx chatContextJSON
+	if err := json.Unmarshal([]byte(raw), &ctx); err != nil {
+		fmt.Printf("[chat] decode message context failed: %v\n", err)
+		return nil
+	}
+	if ctx.Reading == nil && ctx.Selection == nil {
+		return nil
+	}
+	out := &mynexuspb.MessageContext{}
+	if r := ctx.Reading; r != nil {
+		out.Reading = &mynexuspb.ReadingContext{
+			BookTitle: r.BookTitle, ChapterTitle: r.ChapterTitle, ChapterHref: r.ChapterHref,
+			SectionIndex: r.SectionIndex, ProgressFraction: r.ProgressFraction,
+			Page: r.Page, Cfi: r.CFI,
+		}
+	}
+	if s := ctx.Selection; s != nil {
+		out.Selection = &mynexuspb.SelectionContext{
+			Text: s.Text, ChapterTitle: s.ChapterTitle, ChapterHref: s.ChapterHref,
+			SectionIndex: s.SectionIndex, Page: s.Page,
+			ProgressFraction: s.ProgressFraction, Cfi: s.CFI,
+		}
+	}
+	return out
+}
+
 // Chat starts a streaming RAG answer. The caller must drain the stream (Recv
 // until io.EOF) to release the underlying gRPC stream.
 func (c *WorkerClient) Chat(req ChatRequest) (*ChatStream, error) {
 	messages := make([]*mynexuspb.ChatMessage, 0, len(req.Messages))
 	for _, m := range req.Messages {
-		messages = append(messages, &mynexuspb.ChatMessage{Role: m.Role, Content: m.Content})
+		messages = append(messages, &mynexuspb.ChatMessage{
+			Role: m.Role, Content: m.Content, Context: decodeMessageContext(m.Context),
+		})
 	}
 	older := make([]*mynexuspb.ChatMessage, 0, len(req.OlderMessages))
 	for _, m := range req.OlderMessages {

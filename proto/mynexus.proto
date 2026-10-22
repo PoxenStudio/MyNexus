@@ -196,9 +196,37 @@ message SearchResponse {
   repeated SearchResult results = 1;
 }
 
+// MyReader 发送消息瞬间的阅读位置快照，仅作为本轮问答的上下文。
+message ReadingContext {
+  string book_title = 1;
+  string chapter_title = 2;
+  string chapter_href = 3;
+  int32 section_index = 4;
+  double progress_fraction = 5;
+  int32 page = 6;
+  string cfi = 7;
+}
+
+// 用户在阅读器中选中的文本及其所在位置。
+message SelectionContext {
+  string text = 1;
+  string chapter_title = 2;
+  string chapter_href = 3;
+  int32 section_index = 4;
+  int32 page = 5;
+  double progress_fraction = 6;
+  string cfi = 7;
+}
+
+message MessageContext {
+  ReadingContext reading = 1;
+  SelectionContext selection = 2;
+}
+
 message ChatMessage {
   string role = 1;
   string content = 2;
+  MessageContext context = 3;
 }
 
 message ChatRequest {
