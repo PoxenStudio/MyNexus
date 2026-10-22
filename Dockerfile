@@ -27,7 +27,8 @@ LABEL org.opencontainers.image.title="MyNexus" \
       org.opencontainers.image.version="${VERSION}" \
       maintainer="poxenstudio <poxenstudio@gmail.com>"
 
-ENV MYNEXUS_CONFIG_PATH=/config/config.yaml
+ENV MYNEXUS_CONFIG_PATH=/config/config.yaml \
+    MYNEXUS_IN_DOCKER=1
 
 WORKDIR /app
 

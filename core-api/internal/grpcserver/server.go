@@ -91,6 +91,9 @@ func (s *CoreAPIServer) Serve(lis net.Listener) error {
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveEnforcementPolicy(coreAPIKeepaliveEnforcement),
 		grpc.KeepaliveParams(coreAPIKeepaliveServer),
+		// ReportComplete sends chapter and chunk text together; the default
+		// 4 MiB receive limit is too small for ordinary books.
+		grpc.MaxRecvMsgSize(256<<20),
 	)
 	mynexuspb.RegisterCoreApiServiceServer(grpcServer, s)
 	return grpcServer.Serve(lis)
