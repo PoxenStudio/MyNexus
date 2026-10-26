@@ -39,10 +39,12 @@ llm:
         base_url: https://api.deepseek.com
         model: deepseek-v4-flash
         chapter_token_budget: 30000
+        timeout: 90
     ollama:
         api_key: ""
         base_url: http://localhost:11434
         model: qwen2.5:7b-instruct
+        timeout: 90
 splitter:
     chunk_size: 150
     chunk_overlap: 30

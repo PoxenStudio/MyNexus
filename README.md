@@ -147,7 +147,7 @@ docker run -d --name mynexus -p 3000:80 \
 | `MYNEXUS_LLM_OPENAI_API_KEY` | 空 | API Key |
 | `MYNEXUS_LLM_OPENAI_BASE_URL` | `https://api.openai.com/v1` | API 端点，兼容 OpenAI 的第三方服务可替换 |
 | `MYNEXUS_LLM_OPENAI_MODEL` | `gpt-4o-mini` | 模型名称 |
-| `MYNEXUS_LLM_OPENAI_TIMEOUT` | `90` | 请求超时时间（秒），整数，范围 20~1800 |
+| `MYNEXUS_LLM_OPENAI_TIMEOUT` | `90` | 请求超时时间（秒），整数，范围 20~1800；优先级高于系统设置页中的值 |
 
 **Ollama 本地服务**
 
@@ -156,7 +156,7 @@ docker run -d --name mynexus -p 3000:80 \
 | `MYNEXUS_LLM_PROVIDER` | — | 设为 `ollama` |
 | `MYNEXUS_LLM_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
 | `MYNEXUS_LLM_OLLAMA_MODEL` | `llama3` | 模型名称 |
-| `MYNEXUS_LLM_OLLAMA_TIMEOUT` | `90` | 请求超时时间（秒），整数，范围 20~1800 |
+| `MYNEXUS_LLM_OLLAMA_TIMEOUT` | `90` | 请求超时时间（秒），整数，范围 20~1800；优先级高于系统设置页中的值 |
 
 #### 示例
 

@@ -284,6 +284,17 @@ onMounted(load);
             <input v-model="settings.llm.openai.model" />
           </label>
           <label>
+            {{ t("settings.llmTimeout") }}
+            <input
+              v-model.number="settings.llm.openai.timeout"
+              type="number"
+              min="20"
+              max="1800"
+              step="1"
+            />
+          </label>
+          <p class="hint">{{ t("settings.llmTimeoutHint") }}</p>
+          <label>
             {{ t("settings.chapterTokenBudget") }}
             <input
               v-model.number="settings.llm.openai.chapter_token_budget"
@@ -304,6 +315,17 @@ onMounted(load);
             {{ t("settings.model") }}
             <input v-model="settings.llm.ollama.model" />
           </label>
+          <label>
+            {{ t("settings.llmTimeout") }}
+            <input
+              v-model.number="settings.llm.ollama.timeout"
+              type="number"
+              min="20"
+              max="1800"
+              step="1"
+            />
+          </label>
+          <p class="hint">{{ t("settings.llmTimeoutHint") }}</p>
         </template>
         <div class="test-row">
           <button type="button" :disabled="testing === 'llm'" @click="runTest('llm')">

@@ -328,6 +328,8 @@
     "localModelPathHint": "When set, the model loads from this directory first (it still downloads there if missing). Docker deployments default to /data/models; change the mount in docker-compose.yml.",
     "chapterTokenBudget": "Chapter token limit",
     "chapterTokenBudgetHint": "Only applies to OpenAI-compatible providers: when a chapter's estimated tokens exceed this limit, the text is head/tail-sampled down to it before being sent to the LLM, to control whole-book summarization token usage (5000–50000, 0 for no limit).",
+    "llmTimeout": "LLM request timeout (seconds)",
+    "llmTimeoutHint": "Connect and streaming idle timeout, 20–1800. If MYNEXUS_LLM_OPENAI_TIMEOUT or MYNEXUS_LLM_OLLAMA_TIMEOUT is set, the environment variable takes precedence.",
     "localNoTest": "Local mode needs no connectivity test — just index books after saving.",
     "tabs": {
       "storage": "Storage",

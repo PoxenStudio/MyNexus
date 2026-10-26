@@ -328,6 +328,8 @@
     "localModelPathHint": "配置後優先從該目錄載入模型檔案（不存在時仍會下載到該目錄）；Docker 部署預設 /data/models，可在 docker-compose.yml 中修改掛載目錄。",
     "chapterTokenBudget": "單章 Token 上限",
     "chapterTokenBudgetHint": "僅對 OpenAI 相容服務生效：章節正文估算超過該 token 數時，按首尾採樣壓縮到上限內再送 LLM，控制全書總結的 token 消耗（5000–50000，0 為不限）。",
+    "llmTimeout": "LLM 請求超時（秒）",
+    "llmTimeoutHint": "建立連線及串流回應閒置超時，取值範圍 20–1800。若已設定環境變數 MYNEXUS_LLM_OPENAI_TIMEOUT 或 MYNEXUS_LLM_OLLAMA_TIMEOUT，則以環境變數為準。",
     "localNoTest": "本地模式無需連通性測試，保存後直接對書籍建索引即可。",
     "tabs": {
       "storage": "儲存",

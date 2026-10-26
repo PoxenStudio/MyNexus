@@ -98,17 +98,31 @@ type EmbeddingConfig struct {
 // before calling the LLM, so one huge chapter can't blow up token spend.
 // 5000–50000; <= 0 disables the cap. Worker-side only (llm.provider must be
 // "openai" for it to apply) — kept here for config.yaml round-trip fidelity.
+//
+// Timeout is the LLM request timeout in seconds (20–1800, default 90),
+// worker-side only — see worker/src/nodes/llm/openai_llm.py.
 type LLMOpenAIConfig struct {
 	APIKey             string `yaml:"api_key" json:"api_key"`
 	BaseURL            string `yaml:"base_url" json:"base_url"`
 	Model              string `yaml:"model" json:"model"`
 	ChapterTokenBudget int    `yaml:"chapter_token_budget" json:"chapter_token_budget"`
+	Timeout            int    `yaml:"timeout" json:"timeout"`
+}
+
+// LLMOllamaConfig mirrors ProviderConfig but adds Timeout (LLM request
+// timeout in seconds, 20–1800, default 90) — worker-side only, kept here for
+// config.yaml round-trip fidelity.
+type LLMOllamaConfig struct {
+	APIKey  string `yaml:"api_key" json:"api_key"`
+	BaseURL string `yaml:"base_url" json:"base_url"`
+	Model   string `yaml:"model" json:"model"`
+	Timeout int    `yaml:"timeout" json:"timeout"`
 }
 
 type LLMConfig struct {
 	Provider string          `yaml:"provider" json:"provider"`
 	OpenAI   LLMOpenAIConfig `yaml:"openai" json:"openai"`
-	Ollama   ProviderConfig  `yaml:"ollama" json:"ollama"`
+	Ollama   LLMOllamaConfig `yaml:"ollama" json:"ollama"`
 }
 
 type SplitterConfig struct {
@@ -231,8 +245,8 @@ func defaults() Config {
 		},
 		LLM: LLMConfig{
 			Provider: "openai",
-			OpenAI:   LLMOpenAIConfig{BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini", ChapterTokenBudget: 30000},
-			Ollama:   ProviderConfig{BaseURL: "http://localhost:11434", Model: "llama3"},
+			OpenAI:   LLMOpenAIConfig{BaseURL: "https://api.openai.com/v1", Model: "gpt-4o-mini", ChapterTokenBudget: 30000, Timeout: 90},
+			Ollama:   LLMOllamaConfig{BaseURL: "http://localhost:11434", Model: "llama3", Timeout: 90},
 		},
 		Splitter:  SplitterConfig{ChunkSize: 150, ChunkOverlap: 30, Strategy: "token"},
 		I18n:      I18nConfig{DefaultLocale: "zh-CN", Supported: []string{"zh-CN", "zh-TW", "en-US"}},

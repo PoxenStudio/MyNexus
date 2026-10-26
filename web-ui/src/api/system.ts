@@ -43,8 +43,14 @@ export interface ProviderSettings {
 
 // LLM openai adds a single-chapter input cap for the summary pipeline (see
 // worker's _fit_budget; 5000–50000, 0 disables). OpenAI-provider only.
+// timeout 为 LLM 请求超时（秒，20–1800，默认 90）；同名环境变量优先生效。
 export interface LLMProviderSettings extends ProviderSettings {
   chapter_token_budget: number;
+  timeout: number;
+}
+
+export interface LLMOllamaSettings extends ProviderSettings {
+  timeout: number;
 }
 
 export interface SystemSettings {
@@ -70,7 +76,7 @@ export interface SystemSettings {
   llm: {
     provider: string;
     openai: LLMProviderSettings;
-    ollama: ProviderSettings;
+    ollama: LLMOllamaSettings;
   };
   splitter: {
     chunk_size: number;

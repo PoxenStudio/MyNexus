@@ -140,23 +140,29 @@ def _provider(raw: dict, section: str, name: str, default: ProviderConfig) -> Pr
     )
 
 
+def _clamp_llm_timeout(value, source: str, default: int) -> int:
+    if value is None or value == "":
+        return default
+    try:
+        timeout = int(value)
+    except (TypeError, ValueError):
+        logging.getLogger(__name__).warning("%s=%r 不是合法整数，使用默认值 %ds", source, value, default)
+        return default
+    if timeout < LLM_TIMEOUT_MIN or timeout > LLM_TIMEOUT_MAX:
+        clamped = min(max(timeout, LLM_TIMEOUT_MIN), LLM_TIMEOUT_MAX)
+        logging.getLogger(__name__).warning(
+            "%s=%d 超出允许范围 %d~%d，已调整为 %ds",
+            source, timeout, LLM_TIMEOUT_MIN, LLM_TIMEOUT_MAX, clamped,
+        )
+        return clamped
+    return timeout
+
+
 def _llm_timeout_from_env(name: str, default: int) -> int:
     raw = os.getenv(name, "").strip()
     if not raw:
         return default
-    try:
-        value = int(raw)
-    except ValueError:
-        logging.getLogger(__name__).warning("%s=%r 不是合法整数，使用默认值 %ds", name, raw, default)
-        return default
-    if value < LLM_TIMEOUT_MIN or value > LLM_TIMEOUT_MAX:
-        clamped = min(max(value, LLM_TIMEOUT_MIN), LLM_TIMEOUT_MAX)
-        logging.getLogger(__name__).warning(
-            "%s=%d 超出允许范围 %d~%d，已调整为 %ds",
-            name, value, LLM_TIMEOUT_MIN, LLM_TIMEOUT_MAX, clamped,
-        )
-        return clamped
-    return value
+    return _clamp_llm_timeout(raw, name, default)
 
 
 def load_config() -> WorkerConfig:
@@ -181,6 +187,14 @@ def load_config() -> WorkerConfig:
     cfg.llm_ollama = _provider(raw, "llm", "ollama", cfg.llm_ollama)
     budget = int(raw.get("llm", {}).get("openai", {}).get("chapter_token_budget", cfg.llm_openai_chapter_token_budget))
     cfg.llm_openai_chapter_token_budget = min(max(budget, 5000), 50000) if budget > 0 else 0
+    cfg.llm_openai_timeout = _clamp_llm_timeout(
+        raw.get("llm", {}).get("openai", {}).get("timeout"),
+        "llm.openai.timeout", cfg.llm_openai_timeout,
+    )
+    cfg.llm_ollama_timeout = _clamp_llm_timeout(
+        raw.get("llm", {}).get("ollama", {}).get("timeout"),
+        "llm.ollama.timeout", cfg.llm_ollama_timeout,
+    )
 
     splitter = raw.get("splitter", {})
     cfg.splitter = SplitterConfig(
