@@ -13,14 +13,13 @@ from util.http import ServiceCallError, call_provider, host_lock, set_stream_idl
 
 logger = logging.getLogger(__name__)
 
-_CONNECT_TIMEOUT_SECONDS = 30
-_STREAM_IDLE_TIMEOUT_SECONDS = 90
+_DEFAULT_TIMEOUT_SECONDS = 90
 _PROGRESS_LOG_CHUNK_INTERVAL = 20
 _PROGRESS_LOG_TIME_INTERVAL_SECONDS = 30
 
 
 class _AppLevelIdleTimeout(Exception):
-    """Stream opened for _STREAM_IDLE_TIMEOUT_SECONDS without meaningful content —
+    """Stream opened for the configured timeout without meaningful content —
     only SSE keepalive/heartbeat chunks were arriving, so socket timeout never fired."""
 
 
@@ -32,9 +31,9 @@ def _is_socket_timeout(exc: Exception) -> bool:
     return False
 
 
-def _raise_service_timeout(exc: Exception) -> None:
+def _raise_service_timeout(exc: Exception, timeout: int) -> None:
     raise ServiceCallError(
-        f"LLM 服务长时间无响应（{_STREAM_IDLE_TIMEOUT_SECONDS}s 内未收到任何数据），"
+        f"LLM 服务长时间无响应（{timeout}s 内未收到任何数据），"
         f"可能是服务端故障或网络中断，请稍后重试"
     ) from exc
 
@@ -44,10 +43,12 @@ class OllamaLLM(BaseLLM):
 
     _MAX_OUTPUT_TOKENS = 8192
 
-    def __init__(self, base_url: str, model: str, debug: bool = False) -> None:
+    def __init__(self, base_url: str, model: str, debug: bool = False,
+                 timeout: int = _DEFAULT_TIMEOUT_SECONDS) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.debug = debug
+        self.timeout = int(timeout)
 
     @property
     def node_name(self) -> str:
@@ -85,7 +86,7 @@ class OllamaLLM(BaseLLM):
             def _idle_watcher():
                 while not stop_event.is_set():
                     elapsed = time.time() - last_data_time[0]
-                    if elapsed > _STREAM_IDLE_TIMEOUT_SECONDS:
+                    if elapsed > self.timeout:
                         timer_error[0] = _AppLevelIdleTimeout(
                             f"no meaningful chunk for {elapsed:.0f}s"
                         )
@@ -96,17 +97,17 @@ class OllamaLLM(BaseLLM):
             watcher.start()
 
             logger.info(
-                "LLM stream start: call_site=%s model=%s base_url=%s body=%dchars connect_timeout=%ds app_idle_timeout=%ds",
-                call_site, self.model, self.base_url, body_len, _CONNECT_TIMEOUT_SECONDS, _STREAM_IDLE_TIMEOUT_SECONDS,
+                "LLM stream start: call_site=%s model=%s base_url=%s body=%dchars timeout=%ds",
+                call_site, self.model, self.base_url, body_len, self.timeout,
             )
             try:
                 t_connect_start = time.time()
                 with host_lock(self.base_url), call_provider(
-                    req, timeout=_CONNECT_TIMEOUT_SECONDS,
+                    req, timeout=self.timeout,
                     service="llm", provider="ollama", model=self.model,
                 ) as resp:
                     t_connected = time.time()
-                    set_stream_idle_timeout(resp, _STREAM_IDLE_TIMEOUT_SECONDS)
+                    set_stream_idle_timeout(resp, self.timeout)
                     logger.info(
                         "LLM stream connected: call_site=%s connect_took=%.1fs",
                         call_site, t_connected - t_connect_start,
@@ -149,7 +150,7 @@ class OllamaLLM(BaseLLM):
                             break
             except _AppLevelIdleTimeout:
                 raise ServiceCallError(
-                    f"LLM 服务长时间无响应（{_STREAM_IDLE_TIMEOUT_SECONDS}s 内未收到任何有效内容），"
+                    f"LLM 服务长时间无响应（{self.timeout}s 内未收到任何有效内容），"
                     f"可能是服务端故障或网络中断，请稍后重试"
                 )
             except Exception as exc:
@@ -157,9 +158,9 @@ class OllamaLLM(BaseLLM):
                 if _is_socket_timeout(exc):
                     logger.warning(
                         "LLM stream socket TIMEOUT: call_site=%s elapsed=%.1fs total_chars=%d lines=%d timeout=%ds",
-                        call_site, t_elapsed, sum(len(c) for c in chunks), total_lines, _STREAM_IDLE_TIMEOUT_SECONDS,
+                        call_site, t_elapsed, sum(len(c) for c in chunks), total_lines, self.timeout,
                     )
-                    _raise_service_timeout(exc)
+                    _raise_service_timeout(exc, self.timeout)
                 logger.error(
                     "LLM stream ERROR: call_site=%s elapsed=%.1fs total_chars=%d lines=%d error_type=%s error=%s",
                     call_site, t_elapsed, sum(len(c) for c in chunks), total_lines, type(exc).__name__, str(exc)[:200],
@@ -216,7 +217,7 @@ class OllamaLLM(BaseLLM):
         )
         try:
             with host_lock(self.base_url), call_provider(
-                req, timeout=_CONNECT_TIMEOUT_SECONDS,
+                req, timeout=self.timeout,
                 service="llm", provider="ollama", model=self.model,
             ) as resp:
                 data = json.loads(resp.read())
@@ -224,7 +225,7 @@ class OllamaLLM(BaseLLM):
             t_elapsed = time.time() - t_start
             if _is_socket_timeout(exc):
                 logger.warning("LLM call TIMEOUT: call_site=%s elapsed=%.1fs", call_site, t_elapsed)
-                _raise_service_timeout(exc)
+                _raise_service_timeout(exc, self.timeout)
             logger.error(
                 "LLM call ERROR: call_site=%s elapsed=%.1fs error_type=%s error=%s",
                 call_site, t_elapsed, type(exc).__name__, str(exc)[:200],

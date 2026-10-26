@@ -1,9 +1,15 @@
+import logging
 import os
 from dataclasses import dataclass, field
 
 import yaml
 
 DEFAULT_CONFIG_PATH = "./config/config.yaml"
+
+# LLM 请求超时（秒）：既用于建立连接/读取响应，也用作流式响应中途无有效内容的空闲超时。
+LLM_TIMEOUT_MIN = 20
+LLM_TIMEOUT_MAX = 1800
+LLM_TIMEOUT_DEFAULT = 90
 
 
 @dataclass
@@ -43,6 +49,8 @@ class WorkerConfig:
     llm_ollama: ProviderConfig = field(
         default_factory=lambda: ProviderConfig(base_url="http://localhost:11434", model="llama3")
     )
+    llm_openai_timeout: int = LLM_TIMEOUT_DEFAULT
+    llm_ollama_timeout: int = LLM_TIMEOUT_DEFAULT
     llm_openai_chapter_token_budget: int = 30000
 
     splitter: SplitterConfig = field(default_factory=SplitterConfig)
@@ -130,6 +138,25 @@ def _provider(raw: dict, section: str, name: str, default: ProviderConfig) -> Pr
         base_url=node.get("base_url", default.base_url),
         model=node.get("model", default.model),
     )
+
+
+def _llm_timeout_from_env(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logging.getLogger(__name__).warning("%s=%r 不是合法整数，使用默认值 %ds", name, raw, default)
+        return default
+    if value < LLM_TIMEOUT_MIN or value > LLM_TIMEOUT_MAX:
+        clamped = min(max(value, LLM_TIMEOUT_MIN), LLM_TIMEOUT_MAX)
+        logging.getLogger(__name__).warning(
+            "%s=%d 超出允许范围 %d~%d，已调整为 %ds",
+            name, value, LLM_TIMEOUT_MIN, LLM_TIMEOUT_MAX, clamped,
+        )
+        return clamped
+    return value
 
 
 def load_config() -> WorkerConfig:
@@ -222,6 +249,8 @@ def load_config() -> WorkerConfig:
         cfg.llm_ollama.base_url = v
     if v := os.getenv("MYNEXUS_LLM_OLLAMA_MODEL"):
         cfg.llm_ollama.model = v
+    cfg.llm_openai_timeout = _llm_timeout_from_env("MYNEXUS_LLM_OPENAI_TIMEOUT", cfg.llm_openai_timeout)
+    cfg.llm_ollama_timeout = _llm_timeout_from_env("MYNEXUS_LLM_OLLAMA_TIMEOUT", cfg.llm_ollama_timeout)
     # In Docker, config.yaml's static value is "localhost:9090" for local dev,
     # but the worker container needs "core-api:9090"; docker-compose.yml sets
     # this env var explicitly for the worker service.
