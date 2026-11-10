@@ -4,22 +4,27 @@
 
 ![Main UI](docs/mainui.png)
 
-书籍上传处理
+* 书籍上传处理
+
 ![list](docs/books_list.jpg)
 
-书籍的总结
+* 书籍的总结
 
 ![Book](docs/book_header.jpg)
 
-章节的总结
+* 章节的总结
 
 ![Chapters](docs/book_detail.jpg)
 
-会话中的问答记录
+* 会话中的问答记录
 
 ![Chat](docs/chat_view_1.jpg)
 
 ![Chat](docs/chat_view_2.jpg)
+
+* 支持思维导图输出
+
+![Chat](docs/mindmap.webp)
 
 ## 项目简介
 
