@@ -1,4 +1,5 @@
 PARENT := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
+DEV_SH ?= scripts/dev.sh
 
 .PHONY: dev-up dev-down dev-logs build-base build-image setup-multiarch build-base-multiarch build-image-multiarch
 
@@ -43,24 +44,10 @@ build-image-multiarch: build-base-multiarch
 		-f Dockerfile -t $(IMAGE) -t $(IMAGE_LATEST) --load .
 
 dev-up:
-	mkdir -p $(PARENT)/.tmp
-	GOCACHE=/Volumes/data/cache/go/.cache/go-build \
-	GOMODCACHE=/Volumes/data/cache/go/pkg/mod \
-	GOPATH=/Volumes/data/cache/go \
-	GOTMPDIR=/Volumes/data/cache/go/tmp \
-	MYNEXUS_CONFIG_PATH=$(PARENT)/data/config/config.yaml \
-	MYNEXUS_STORAGE_SQLITE_PATH=$(PARENT)/data/mynexus.db \
-	PORT=8080 go run ./core-api/cmd/mynexus-api > $(PARENT)/.tmp/core.log 2>&1 & \
-	MYNEXUS_CONFIG_PATH=$(PARENT)/data/config/config.yaml \
-	PYTHONUNBUFFERED=1 \
-	PORT=8001 python worker/src/server.py > $(PARENT)/.tmp/worker.log 2>&1 & \
-	( cd web-ui && npm run dev > $(PARENT)/.tmp/web.log 2>&1 & ) ; \
-	 sleep 3 && echo 'Dev services started'
+	@$(DEV_SH) up
 
 dev-down:
-	pkill -f 'mynexus-api' || true
-	pkill -f 'worker/src/server.py' || true
-	pkill -f 'vite' || true
+	@$(DEV_SH) down
 
 # Tails all three dev-up log files at once in a single `tail` process
 dev-logs:
