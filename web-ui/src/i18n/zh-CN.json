@@ -168,6 +168,7 @@
     "table": {
       "id": "任务 ID",
       "bookId": "书籍 ID",
+      "bookTitle": "书籍名称",
       "type": "类型",
       "status": "状态",
       "progress": "进度",
@@ -368,6 +369,27 @@
       "action": "操作",
       "target": "对象",
       "detail": "详情"
+    },
+    "actions": {
+      "login": "登录",
+      "loginFailed": "登录失败",
+      "logout": "退出登录",
+      "changePassword": "修改密码",
+      "uploadAvatar": "上传头像",
+      "saveSettings": "保存系统设置",
+      "userCreate": "创建用户",
+      "userSetRole": "设置用户角色",
+      "userSetStatus": "设置用户状态",
+      "userResetPassword": "重置用户密码",
+      "bookDelete": "删除书籍",
+      "bookRebuild": "重建书籍",
+      "bookSummarize": "生成书籍摘要",
+      "bookBulkDelete": "批量删除书籍",
+      "bookBulkRebuild": "批量重建书籍",
+      "taskRetry": "重试任务",
+      "taskCancel": "取消任务",
+      "tokenCreate": "创建 API Token",
+      "tokenRevoke": "吊销 API Token"
     }
   }
 }

@@ -168,6 +168,7 @@
     "table": {
       "id": "Task ID",
       "bookId": "Book ID",
+      "bookTitle": "Book Title",
       "type": "Type",
       "status": "Status",
       "progress": "Progress",
@@ -368,6 +369,27 @@
       "action": "Action",
       "target": "Target",
       "detail": "Detail"
+    },
+    "actions": {
+      "login": "Log in",
+      "loginFailed": "Login failed",
+      "logout": "Log out",
+      "changePassword": "Change password",
+      "uploadAvatar": "Upload avatar",
+      "saveSettings": "Save settings",
+      "userCreate": "Create user",
+      "userSetRole": "Set user role",
+      "userSetStatus": "Set user status",
+      "userResetPassword": "Reset user password",
+      "bookDelete": "Delete book",
+      "bookRebuild": "Rebuild book",
+      "bookSummarize": "Summarize book",
+      "bookBulkDelete": "Bulk delete books",
+      "bookBulkRebuild": "Bulk rebuild books",
+      "taskRetry": "Retry task",
+      "taskCancel": "Cancel task",
+      "tokenCreate": "Create API token",
+      "tokenRevoke": "Revoke API token"
     }
   }
 }

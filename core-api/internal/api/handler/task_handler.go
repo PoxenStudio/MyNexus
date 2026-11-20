@@ -40,8 +40,22 @@ func (h *TaskHandler) List(c *gin.Context) {
 	}
 
 	items := make([]dto.TaskResponse, 0, len(tasks))
+	bookIDs := make(map[string]struct{}, len(tasks))
 	for _, t := range tasks {
-		items = append(items, dto.NewTaskResponse(t))
+		bookIDs[t.BookID] = struct{}{}
+	}
+	ids := make([]string, 0, len(bookIDs))
+	for id := range bookIDs {
+		ids = append(ids, id)
+	}
+	titles, err := h.books.BookTitles(ids)
+	if err != nil {
+		// Titles are a display nicety — a lookup failure shouldn't take down
+		// the whole task list, so fall back to showing ids only.
+		titles = map[string]string{}
+	}
+	for _, t := range tasks {
+		items = append(items, dto.NewTaskResponse(t, titles[t.BookID]))
 	}
 	c.JSON(http.StatusOK, dto.TaskListResponse{Items: items, Total: total, Page: page, Size: size})
 }
@@ -53,7 +67,17 @@ func (h *TaskHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 		return
 	}
-	c.JSON(http.StatusOK, dto.NewTaskResponse(*task))
+	c.JSON(http.StatusOK, dto.NewTaskResponse(*task, h.bookTitle(task.BookID)))
+}
+
+// bookTitle resolves a single book's title for task responses — empty if the
+// book no longer exists (e.g. deleted after the task ran).
+func (h *TaskHandler) bookTitle(bookID string) string {
+	book, err := h.books.GetBook(bookID)
+	if err != nil {
+		return ""
+	}
+	return book.Title
 }
 
 // Retry resets a failed task to pending and re-submits it to Worker — against
@@ -112,7 +136,7 @@ func (h *TaskHandler) Retry(c *gin.Context) {
 	if actor, ok := c.Get("actor"); ok {
 		_ = h.audit.Log(actor.(string), "task.retry", "task", id, "book_id="+book.ID)
 	}
-	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task))
+	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task, book.Title))
 }
 
 // Cancel asks Worker to interrupt a running task (currently only summarize
@@ -147,7 +171,7 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusAccepted, dto.NewTaskResponse(*updated))
+		c.JSON(http.StatusAccepted, dto.NewTaskResponse(*updated, h.bookTitle(task.BookID)))
 	}
 
 	if task.DispatchedAt == "" {
@@ -163,5 +187,5 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 	if actor, ok := c.Get("actor"); ok {
 		_ = h.audit.Log(actor.(string), "task.cancel", "task", id, "book_id="+task.BookID)
 	}
-	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task))
+	c.JSON(http.StatusAccepted, dto.NewTaskResponse(*task, h.bookTitle(task.BookID)))
 }

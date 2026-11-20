@@ -10,6 +10,9 @@ export interface StageLogEntry {
 export interface Task {
   id: string;
   book_id: string;
+  // Human-readable title resolved server-side (empty if the book was
+  // deleted or has no title yet) — shown alongside book_id in the admin list.
+  book_title: string;
   type: string;
   status: string;
   progress: number;

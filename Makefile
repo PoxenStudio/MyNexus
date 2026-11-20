@@ -1,7 +1,7 @@
 PARENT := $(patsubst %/,%,$(dir $(realpath $(lastword $(MAKEFILE_LIST)))))
 DEV_SH ?= scripts/dev.sh
 
-.PHONY: dev-up dev-down dev-logs build-base build-image setup-multiarch build-base-multiarch build-image-multiarch
+.PHONY: dev-up dev-down dev-logs webui build-base build-image setup-multiarch build-base-multiarch build-image-multiarch
 
 # ---- image build config ----
 REGISTRY := poxenstudio
@@ -53,3 +53,7 @@ dev-down:
 dev-logs:
 	@touch $(PARENT)/.tmp/core.log $(PARENT)/.tmp/worker.log $(PARENT)/.tmp/web.log
 	cd $(PARENT)/.tmp && tail -n 20 -f core.log worker.log web.log
+
+# Builds the admin web UI (type-check + vite build into web-ui/dist)
+webui:
+	cd $(PARENT)/web-ui && npm run build

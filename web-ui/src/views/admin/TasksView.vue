@@ -55,6 +55,7 @@ onMounted(load);
         <tr>
           <th>{{ t("tasks.table.id") }}</th>
           <th>{{ t("tasks.table.bookId") }}</th>
+          <th>{{ t("tasks.table.bookTitle") }}</th>
           <th>{{ t("tasks.table.status") }}</th>
           <th>{{ t("tasks.table.progress") }}</th>
           <th>{{ t("tasks.table.error") }}</th>
@@ -67,6 +68,7 @@ onMounted(load);
           <tr class="row" @click="toggleExpand(task.id)">
             <td class="mono">{{ task.id.slice(0, 8) }}</td>
             <td class="mono">{{ task.book_id.slice(0, 8) }}</td>
+            <td class="book-title" :title="task.book_title">{{ task.book_title || "—" }}</td>
             <td><span :class="['badge', task.status]">{{ t(taskStatusKey(task), task.status) }}</span></td>
             <td>{{ task.progress }}%</td>
             <td class="error">{{ task.error_msg }}</td>
@@ -83,7 +85,7 @@ onMounted(load);
             </td>
           </tr>
           <tr v-if="expanded === task.id" class="log-row">
-            <td colspan="7">
+            <td colspan="8">
               <ol v-if="task.stages_log?.length" class="stage-log">
                 <li v-for="(entry, i) in task.stages_log" :key="i">
                   <span class="stage-name">{{ t(`taskStage.${entry.stage}`, entry.stage) }}</span>
@@ -123,6 +125,12 @@ th, td {
 .mono {
   font-family: var(--mono);
   font-size: 0.8rem;
+}
+.book-title {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .error {
   color: #dc2626;

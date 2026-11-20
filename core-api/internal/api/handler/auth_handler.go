@@ -50,7 +50,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 	setSessionCookie(c, sessionID)
-	_ = h.audit.Log(req.Username, "auth.login", "user", userID, "")
+	_ = h.audit.Log(req.Username, "auth.login", "user", userID, "ip="+c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"username": req.Username, "role": role})
 }
 

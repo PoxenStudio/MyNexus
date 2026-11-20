@@ -168,6 +168,7 @@
     "table": {
       "id": "任務 ID",
       "bookId": "書籍 ID",
+      "bookTitle": "書籍名稱",
       "type": "類型",
       "status": "狀態",
       "progress": "進度",
@@ -368,6 +369,27 @@
       "action": "操作",
       "target": "對象",
       "detail": "詳情"
+    },
+    "actions": {
+      "login": "登入",
+      "loginFailed": "登入失敗",
+      "logout": "登出",
+      "changePassword": "修改密碼",
+      "uploadAvatar": "上傳頭像",
+      "saveSettings": "儲存系統設定",
+      "userCreate": "建立使用者",
+      "userSetRole": "設定使用者角色",
+      "userSetStatus": "設定使用者狀態",
+      "userResetPassword": "重設使用者密碼",
+      "bookDelete": "刪除書籍",
+      "bookRebuild": "重建書籍",
+      "bookSummarize": "產生書籍摘要",
+      "bookBulkDelete": "批次刪除書籍",
+      "bookBulkRebuild": "批次重建書籍",
+      "taskRetry": "重試任務",
+      "taskCancel": "取消任務",
+      "tokenCreate": "建立 API Token",
+      "tokenRevoke": "撤銷 API Token"
     }
   }
 }

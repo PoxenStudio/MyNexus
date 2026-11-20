@@ -269,6 +269,37 @@ func (s *BookService) GetBook(id string) (*models.Book, error) {
 	return scanBook(row)
 }
 
+// BookTitles returns id→title for the given book ids, so list endpoints that
+// only persist a book_id (e.g. the admin task list) can render a readable
+// title in one query instead of an N+1 lookup. Ids with no matching book
+// (deleted, or not yet imported) are simply absent from the result.
+func (s *BookService) BookTitles(ids []string) (map[string]string, error) {
+	titles := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return titles, nil
+	}
+	idList := make([]any, 0, len(ids))
+	placeholders := make([]string, 0, len(ids))
+	for _, id := range ids {
+		idList = append(idList, id)
+		placeholders = append(placeholders, "?")
+	}
+	rows, err := s.db.Query(
+		`SELECT id, title FROM books WHERE id IN (`+strings.Join(placeholders, ",")+`)`, idList...)
+	if err != nil {
+		return nil, fmt.Errorf("lookup book titles: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, title string
+		if err := rows.Scan(&id, &title); err != nil {
+			return nil, fmt.Errorf("scan book title: %w", err)
+		}
+		titles[id] = title
+	}
+	return titles, rows.Err()
+}
+
 func (s *BookService) GetBookByMyBooksID(mybooksID int64) (*models.Book, error) {
 	row := s.db.QueryRow(
 		`SELECT id, user_id, title, author, publisher, language, publish_date, isbn,

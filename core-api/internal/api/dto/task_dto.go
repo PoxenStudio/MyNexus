@@ -9,6 +9,11 @@ import (
 type TaskResponse struct {
 	ID       string `json:"id"`
 	BookID   string `json:"book_id"`
+	// BookTitle is the book's title at read time, so the admin task list can
+	// show a human-readable name next to the opaque book_id without the
+	// frontend having to resolve every id itself. Empty if the book was
+	// deleted or has no title yet.
+	BookTitle string `json:"book_title"`
 	Type     string `json:"type"`
 	Status   string `json:"status"`
 	Progress int    `json:"progress"`
@@ -26,11 +31,11 @@ type TaskResponse struct {
 	UpdatedAt  string                 `json:"updated_at"`
 }
 
-func NewTaskResponse(t models.Task) TaskResponse {
+func NewTaskResponse(t models.Task, bookTitle string) TaskResponse {
 	stagesLog := []models.StageLogEntry{}
 	_ = json.Unmarshal([]byte(t.StagesLog), &stagesLog)
 	return TaskResponse{
-		ID: t.ID, BookID: t.BookID, Type: t.Type, Status: t.Status, Progress: t.Progress,
+		ID: t.ID, BookID: t.BookID, BookTitle: bookTitle, Type: t.Type, Status: t.Status, Progress: t.Progress,
 		ErrorMsg: t.ErrorMsg, Dispatched: t.Type != models.TaskTypeIngest || t.DispatchedAt != "",
 		StagesLog: stagesLog, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
@@ -62,11 +67,11 @@ func NewMyBooksAnalysisResponse(book models.Book, ingest, summarize *models.Task
 		ReadingGuide: book.ReadingGuide,
 	}
 	if ingest != nil {
-		task := NewTaskResponse(*ingest)
+		task := NewTaskResponse(*ingest, book.Title)
 		response.IngestTask = &task
 	}
 	if summarize != nil {
-		task := NewTaskResponse(*summarize)
+		task := NewTaskResponse(*summarize, book.Title)
 		response.SummarizeTask = &task
 	}
 

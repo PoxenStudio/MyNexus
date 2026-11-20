@@ -18,6 +18,37 @@ async function load() {
 }
 
 onMounted(load);
+
+// Audit actions are stored as stable dot-separated codes (e.g. "auth.login")
+// so the backend log stays queryable; the admin UI renders the localized
+// label instead. Unknown codes (e.g. a new backend action before the i18n
+// entry lands) fall back to the raw code rather than showing an empty cell.
+const ACTION_KEYS: Record<string, string> = {
+  "auth.login": "login",
+  "auth.login_failed": "loginFailed",
+  "auth.logout": "logout",
+  "auth.change_password": "changePassword",
+  "auth.upload_avatar": "uploadAvatar",
+  "system.save_settings": "saveSettings",
+  "user.create": "userCreate",
+  "user.set_role": "userSetRole",
+  "user.set_status": "userSetStatus",
+  "user.reset_password": "userResetPassword",
+  "book.delete": "bookDelete",
+  "book.rebuild": "bookRebuild",
+  "book.summarize": "bookSummarize",
+  "book.bulk_delete": "bookBulkDelete",
+  "book.bulk_rebuild": "bookBulkRebuild",
+  "task.retry": "taskRetry",
+  "task.cancel": "taskCancel",
+  "token.create": "tokenCreate",
+  "token.revoke": "tokenRevoke",
+};
+
+function actionLabel(action: string): string {
+  const key = ACTION_KEYS[action];
+  return key ? t(`audit.actions.${key}`) : action;
+}
 </script>
 
 <template>
@@ -40,7 +71,7 @@ onMounted(load);
         <tr v-for="e in entries" :key="e.id">
           <td>{{ new Date(e.created_at).toLocaleString() }}</td>
           <td class="mono">{{ e.actor }}</td>
-          <td class="mono">{{ e.action }}</td>
+          <td class="mono">{{ actionLabel(e.action) }}</td>
           <td class="mono">{{ e.target_type }}{{ e.target_id ? ":" + e.target_id.slice(0, 8) : "" }}</td>
           <td>{{ e.detail }}</td>
         </tr>
